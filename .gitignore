@@ -1,0 +1,17 @@
+_dev/
+.agents/
+.codex/
+.codex-relay/
+.gemini/
+**/gen/
+flutter/lib/src/gen/
+flutter/pubspec.lock
+**/.dart_tool/
+**/build/
+node_modules/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.env
+*.pem
+*.key
