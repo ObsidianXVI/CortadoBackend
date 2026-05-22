@@ -2,28 +2,35 @@
 
 
 ## Release · Feature · Task
-v0.1 → Feature 1.1 (Repo & Dev Environment Bootstrap) → Task 1.1.1 + 1.1.2
+v0.1 → Feature 1.1 (Repo & Dev Environment Bootstrap) → Task 1.1.3 + 1.1.4
 
 ## Status
-COMPLETE
+IN PROGRESS
 
 ## What was done last session
-Scaffolded the monorepo bootstrap files for the Go agent and control-plane, Flutter package, proto toolchain, Terraform placeholders, README, and devcontainer; generated initial Go/Dart stubs; verified buf, Go, and Flutter commands; initialized Git for the first commit.
+Added Terraform env roots for `dev` and `prod`, IAM and GKE modules, bootstrap documentation, and the one-time dev state bucket bootstrap script. Verified `terraform init -backend=false` and `terraform validate` for both envs, created the dev state bucket, reinitialized the dev backend against GCS, and produced a successful dev `terraform plan`.
 
 ## Remaining work this session
-None.
+Run live `terraform apply` for the dev environment and verify the GKE cluster and Artifact Registry in GCP. Bootstrap the prod backend bucket when the prod environment is ready.
 
 ## Definition of done
-- [x] buf lint passes
-- [x] buf generate produces stubs in agent/gen/ and flutter/lib/src/gen/
-- [x] go build ./... passes in agent/
-- [x] flutter pub get succeeds
-- [x] .gitignore includes _dev/, gen/, .env
-- [x] Single commit: "chore: monorepo scaffold and devcontainer"
+- [x] Terraform env roots exist for `dev` and `prod`
+- [x] IAM and GKE modules are wired into the env roots
+- [x] `terraform/README.md` documents the one-time backend bootstrap step
+- [x] `scripts/bootstrap.sh` creates the dev Terraform state bucket
+- [x] Dev state bucket `gs://cortado-tf-state-dev` exists
+- [x] `terraform init -backend=false` succeeds in `terraform/envs/dev`
+- [x] `terraform init -backend=false` succeeds in `terraform/envs/prod`
+- [x] `terraform validate` succeeds in `terraform/envs/dev`
+- [x] `terraform validate` succeeds in `terraform/envs/prod`
+- [x] Backend-backed `terraform init -reconfigure` succeeds in `terraform/envs/dev`
+- [x] `terraform plan` succeeds in `terraform/envs/dev`
+- [ ] `terraform apply` provisions the dev APIs, IAM resources, GKE cluster, and Artifact Registry
+- [ ] Dev GKE cluster appears in GCP and Artifact Registry is accessible
 
 ## Next task after this one
-Task 1.1.3 — Terraform: GCP project and IAM
-See _dev/docs/release_timeline.md §Feature 1.1 Task 1.1.3 for full spec
+Task 1.2.1 — Proto definition: agent gRPC service
+See _dev/docs/release_timeline.md §Feature 1.2 Task 1.2.1 for full spec
 
 ## Blocked on / decisions needed
-Nothing blocked.
+Explicit approval to run live `terraform apply` for the dev environment, since it will create billable GKE and Artifact Registry resources in GCP.
