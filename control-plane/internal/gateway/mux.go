@@ -14,6 +14,7 @@ import (
 
 const (
 	frameHeaderLen      = 7
+	terminalResizeLen   = 8
 	TerminalChannelID   = 0x0001
 	defaultPingInterval = 20 * time.Second
 	defaultPongWait     = 60 * time.Second
@@ -26,17 +27,23 @@ var errInvalidFrame = errors.New("invalid mux frame")
 type MessageType uint8
 
 const (
-	MessageTypeData  MessageType = 0x01
-	MessageTypeOpen  MessageType = 0x02
-	MessageTypeClose MessageType = 0x03
-	MessageTypeError MessageType = 0x04
-	MessageTypePing  MessageType = 0xFF
+	MessageTypeData   MessageType = 0x01
+	MessageTypeOpen   MessageType = 0x02
+	MessageTypeClose  MessageType = 0x03
+	MessageTypeError  MessageType = 0x04
+	MessageTypeResize MessageType = 0x05
+	MessageTypePing   MessageType = 0xFF
 )
 
 type Frame struct {
 	ChannelID   uint16
 	MessageType MessageType
 	Payload     []byte
+}
+
+type TerminalResize struct {
+	Cols uint32
+	Rows uint32
 }
 
 type MuxConnConfig struct {
@@ -140,6 +147,28 @@ func ErrorFrame(channelID uint16, message string) Frame {
 		MessageType: MessageTypeError,
 		Payload:     []byte(message),
 	}
+}
+
+func EncodeTerminalResizePayload(size TerminalResize) []byte {
+	payload := make([]byte, terminalResizeLen)
+	binary.BigEndian.PutUint32(payload[0:4], size.Cols)
+	binary.BigEndian.PutUint32(payload[4:8], size.Rows)
+	return payload
+}
+
+func DecodeTerminalResizePayload(payload []byte) (TerminalResize, error) {
+	if len(payload) != terminalResizeLen {
+		return TerminalResize{}, fmt.Errorf(
+			"%w: resize payload must be %d bytes",
+			errInvalidFrame,
+			terminalResizeLen,
+		)
+	}
+
+	return TerminalResize{
+		Cols: binary.BigEndian.Uint32(payload[0:4]),
+		Rows: binary.BigEndian.Uint32(payload[4:8]),
+	}, nil
 }
 
 func (c *MuxConn) StartWritePump() {

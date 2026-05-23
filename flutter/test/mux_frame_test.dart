@@ -67,5 +67,24 @@ void main() {
 
       expect(frame.payload, orderedEquals(<int>[0x5A, 0x42, 0x43]));
     });
+
+    test('encodes and decodes terminal resize payloads', () {
+      const resize = MuxTerminalResize(cols: 132, rows: 43);
+
+      final payload = resize.encode();
+      final decoded = MuxTerminalResize.decode(payload);
+
+      expect(payload,
+          orderedEquals(<int>[0x00, 0x00, 0x00, 0x84, 0x00, 0x00, 0x00, 0x2B]));
+      expect(decoded.cols, 132);
+      expect(decoded.rows, 43);
+    });
+
+    test('rejects invalid terminal resize payload length', () {
+      expect(
+        () => MuxTerminalResize.decode(Uint8List.fromList(<int>[0x00, 0x01])),
+        throwsFormatException,
+      );
+    });
   });
 }

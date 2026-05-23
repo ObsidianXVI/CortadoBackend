@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"strconv"
 	"sync"
 	"time"
@@ -113,7 +114,7 @@ func (b *TerminalBridge) HandleFrame(ctx context.Context, session Session, frame
 	switch frame.MessageType {
 	case MessageTypeOpen:
 		return b.handleOpen(ctx, session, frame)
-	case MessageTypeData, MessageTypeClose:
+	case MessageTypeData, MessageTypeClose, MessageTypeResize:
 		binding, ok := b.bindingFor(session.Conn)
 		if !ok {
 			return errors.New("terminal channel is not open")
@@ -292,6 +293,31 @@ func (b *terminalBinding) forwardInbound(logger *log.Logger) {
 					b.channelID,
 					time.Since(item.receivedAt),
 				)
+			case MessageTypeResize:
+				size, err := DecodeTerminalResizePayload(item.frame.Payload)
+				if err != nil {
+					b.conn.SendError(b.channelID, fmt.Sprintf("decode terminal resize: %v", err))
+					return
+				}
+				if size.Cols == 0 || size.Rows == 0 {
+					b.conn.SendError(b.channelID, "terminal resize cols and rows must be greater than zero")
+					return
+				}
+				if size.Cols > math.MaxUint16 || size.Rows > math.MaxUint16 {
+					b.conn.SendError(b.channelID, "terminal resize cols and rows exceed PTY limits")
+					return
+				}
+				if err := b.stream.Send(&agentpb.StreamPtyRequest{
+					Payload: &agentpb.StreamPtyRequest_Resize{
+						Resize: &agentpb.WindowSize{
+							Cols: size.Cols,
+							Rows: size.Rows,
+						},
+					},
+				}); err != nil {
+					b.conn.SendFrame(ErrorFrame(b.channelID, fmt.Sprintf("send terminal resize: %v", err)))
+					return
+				}
 			case MessageTypeClose:
 				return
 			default:

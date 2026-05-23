@@ -212,6 +212,91 @@ func TestConnectRouteReusesCachedGRPCConnectionPerWorkspace(t *testing.T) {
 	}
 }
 
+func TestConnectRouteBridgesTerminalResizeFramesToAgentStream(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	resizeCh := make(chan *agentpb.WindowSize, 1)
+
+	dialer, cleanup := newAgentDialer(t, &stubAgentServer{
+		createPty: func(_ context.Context, _ *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error) {
+			return &agentpb.CreatePtyResponse{PtyId: "pty-123"}, nil
+		},
+		streamPty: func(stream agentpb.WorkspaceAgentService_StreamPtyServer) error {
+			first, err := stream.Recv()
+			if err != nil {
+				return err
+			}
+			if first.GetPtyId() != "pty-123" {
+				t.Fatalf("unexpected PTY id: %q", first.GetPtyId())
+			}
+
+			second, err := stream.Recv()
+			if err != nil {
+				return err
+			}
+			resizeCh <- second.GetResize()
+
+			return stream.Send(&agentpb.StreamPtyResponse{
+				Payload: &agentpb.StreamPtyResponse_ExitCode{ExitCode: 0},
+			})
+		},
+	}, nil)
+	defer cleanup()
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+			GRPCDialer: dialer,
+			WorkspaceResolver: testWorkspaceResolver{
+				dns: "workspace.test.svc.cluster.local",
+			},
+		}),
+	}))
+	defer server.Close()
+
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	defer ws.Close()
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.TerminalChannelID,
+		MessageType: gateway.MessageTypeOpen,
+		Payload:     []byte("/bin/bash"),
+	})
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.TerminalChannelID,
+		MessageType: gateway.MessageTypeResize,
+		Payload: gateway.EncodeTerminalResizePayload(gateway.TerminalResize{
+			Cols: 132,
+			Rows: 43,
+		}),
+	})
+
+	select {
+	case size := <-resizeCh:
+		if size == nil {
+			t.Fatal("expected resize payload")
+		}
+		if size.GetCols() != 132 || size.GetRows() != 43 {
+			t.Fatalf("unexpected resize payload: cols=%d rows=%d", size.GetCols(), size.GetRows())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for resize to reach agent stream")
+	}
+
+	closeFrame := readFrame(t, ws)
+	if closeFrame.MessageType != gateway.MessageTypeClose {
+		t.Fatalf("unexpected close frame type: got %d want %d", closeFrame.MessageType, gateway.MessageTypeClose)
+	}
+	if string(closeFrame.Payload) != "0" {
+		t.Fatalf("unexpected close payload: %q", closeFrame.Payload)
+	}
+}
+
 func TestConnectRouteReturnsCloseFrameWhenAgentCreateFails(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "development")
 

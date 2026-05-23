@@ -49,6 +49,25 @@ func TestDecodeFrameRejectsPayloadLengthMismatch(t *testing.T) {
 	}
 }
 
+func TestEncodeDecodeTerminalResizePayloadRoundTrip(t *testing.T) {
+	payload := EncodeTerminalResizePayload(TerminalResize{
+		Cols: 120,
+		Rows: 40,
+	})
+
+	size, err := DecodeTerminalResizePayload(payload)
+	if err != nil {
+		t.Fatalf("decode resize payload: %v", err)
+	}
+
+	if size.Cols != 120 {
+		t.Fatalf("unexpected cols: got %d want %d", size.Cols, 120)
+	}
+	if size.Rows != 40 {
+		t.Fatalf("unexpected rows: got %d want %d", size.Rows, 40)
+	}
+}
+
 func TestMuxConnEnqueueDropsWhenQueueIsFull(t *testing.T) {
 	conn := &MuxConn{
 		logger:  log.New(io.Discard, "", 0),
