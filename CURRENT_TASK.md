@@ -12,6 +12,7 @@ Added Terraform env roots for `dev` and `prod`, IAM and GKE modules, bootstrap d
 
 ## What was done this session
 Reverted the temporary Docker Hub decision back to Artifact Registry across the tracked context files and restored the Terraform configuration to provision a same-region Artifact Registry repository alongside GKE.
+Removed the unsupported CRIU post-create `gcloud` step from Terraform after live apply showed that the current `gcloud container clusters update` command does not accept `--enable-checkpoint-restore`.
 
 ## Remaining work this session
 Run live `terraform apply` for the dev environment and verify the GKE cluster and same-region Artifact Registry in GCP. Bootstrap the prod backend bucket when the prod environment is ready.
@@ -36,4 +37,4 @@ Task 1.2.1 — Proto definition: agent gRPC service
 See _dev/docs/release_timeline.md §Feature 1.2 Task 1.2.1 for full spec
 
 ## Blocked on / decisions needed
-Explicit approval to run live `terraform apply` for the dev environment, since it will create billable GKE and Artifact Registry resources in GCP.
+Run `terraform apply` with a principal that can update project, service-account, and Artifact Registry IAM policies. The current VM identity does not have `resourcemanager.projects.setIamPolicy`, `iam.serviceAccounts.setIamPolicy`, or `artifactregistry.repositories.setIamPolicy`.
