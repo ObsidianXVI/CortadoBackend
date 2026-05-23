@@ -21,20 +21,6 @@ resource "google_service_account_iam_member" "workspace_agent_wi" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[cortado-workspaces/workspace-sa]"
 }
 
-resource "google_artifact_registry_repository" "main" {
-  location      = var.region
-  repository_id = "cortado-${var.env}"
-  format        = "DOCKER"
-  labels        = var.labels
-}
-
-resource "google_artifact_registry_repository_iam_member" "control_plane_writer" {
-  location   = google_artifact_registry_repository.main.location
-  repository = google_artifact_registry_repository.main.repository_id
-  role       = "roles/artifactregistry.writer"
-  member     = "serviceAccount:${var.control_plane_sa_email}"
-}
-
 # This requires gcloud to be available where terraform apply runs.
 resource "null_resource" "enable_criu" {
   triggers = {

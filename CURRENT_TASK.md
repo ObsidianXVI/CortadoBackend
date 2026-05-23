@@ -12,6 +12,7 @@ Added Terraform env roots for `dev` and `prod`, IAM and GKE modules, bootstrap d
 
 ## What was done this session
 Updated the feature specs and technical report to switch image distribution from Artifact Registry to Docker Hub, and recorded that decision in `DECISIONS.md` so upcoming infra and deployment work stays aligned.
+Removed Artifact Registry API enablement, resources, and outputs from the Terraform configuration so the GKE stack matches the Docker Hub-based image flow.
 
 ## Remaining work this session
 Run live `terraform apply` for the dev environment and verify the GKE cluster in GCP. Wire upcoming deployment work to Docker Hub image references instead of Artifact Registry. Bootstrap the prod backend bucket when the prod environment is ready.

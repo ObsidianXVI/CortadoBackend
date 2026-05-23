@@ -1,6 +1,5 @@
 locals {
   apis = [
-    "artifactregistry.googleapis.com",
     "bigquery.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "container.googleapis.com",
@@ -34,7 +33,6 @@ module "iam" {
 module "gke" {
   source = "../../modules/gke"
 
-  control_plane_sa_email  = module.iam.control_plane_service_account_email
   env                     = var.env
   labels                  = local.common_labels
   project_id              = var.project_id
@@ -43,4 +41,3 @@ module "gke" {
 
   depends_on = [google_project_service.api]
 }
-
