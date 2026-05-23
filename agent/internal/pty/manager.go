@@ -21,6 +21,7 @@ type Session struct {
 
 	ptm       *os.File
 	cmd       *exec.Cmd
+	exitCh    chan int32
 	mu        sync.Mutex
 	closeOnce sync.Once
 }
@@ -57,14 +58,28 @@ func (m *Manager) Create(shell string, cols, rows uint16, env []string) (*Sessio
 	}
 
 	session := &Session{
-		ID:  uuid.NewString(),
-		ptm: ptm,
-		cmd: cmd,
+		ID:     uuid.NewString(),
+		ptm:    ptm,
+		cmd:    cmd,
+		exitCh: make(chan int32, 1),
 	}
 	m.sessions.Store(session.ID, session)
 
 	go func(id string, s *Session) {
-		_ = s.cmd.Wait()
+		exitCode := int32(0)
+		if waitErr := s.cmd.Wait(); waitErr != nil {
+			var exitErr *exec.ExitError
+			if errors.As(waitErr, &exitErr) {
+				exitCode = int32(exitErr.ExitCode())
+			} else {
+				exitCode = -1
+			}
+		} else if s.cmd.ProcessState != nil {
+			exitCode = int32(s.cmd.ProcessState.ExitCode())
+		}
+
+		s.exitCh <- exitCode
+		close(s.exitCh)
 		s.closePTY()
 		m.sessions.Delete(id)
 	}(session.ID, session)
@@ -120,6 +135,15 @@ func (m *Manager) Signal(id string, signal syscall.Signal) error {
 	}
 
 	return syscall.Kill(-session.cmd.Process.Pid, signal)
+}
+
+func (m *Manager) OnExit(id string) (<-chan int32, error) {
+	session, err := m.session(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return session.exitCh, nil
 }
 
 func (m *Manager) Kill(id string) {

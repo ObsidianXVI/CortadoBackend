@@ -2,31 +2,33 @@
 
 
 ## Release · Feature · Task
-v0.1 → Feature 1.2 (Workspace Agent — PTY Core) → Task 1.2.2
+v0.1 → Feature 1.2 (Workspace Agent — PTY Core) → Task 1.2.3
 
 ## Status
 DONE
 
 ## What was done last session
-Completed Task 1.2.1 by defining the first real workspace-agent gRPC contract in `proto/agent/v1/agent.proto` and regenerating the Go/Dart stubs.
+Completed Task 1.2.2 by adding the first PTY session manager with create/read/write/resize/kill behavior, process-group signaling support, and live shell-backed unit tests.
 
 ## What was done this session
-Implemented `agent/internal/pty/manager.go` with session creation, PTY read/write/resize, process-group signaling, missing-shell validation, and session cleanup semantics suitable for the upcoming gRPC server. Added `agent/internal/pty/manager_test.go` with a live PTY smoke test that spawns `bash`, writes `echo hello_cortado`, reads until the expected output appears, and verifies the descriptive missing-shell error path.
+Implemented `agent/internal/server/agent_server.go` with `CreatePty`, `StreamPty`, and `Health`, wired it into a runnable `agent/cmd/agent/main.go` entrypoint, and added bufconn-based tests for health, PTY creation/streaming, and invalid stream handshakes. The gRPC server now listens on `CORTADO_AGENT_GRPC_PORT` with a default of `9090`, bridges PTY output to the bidi stream, handles resize/signal input, and maps manager/session failures to gRPC status codes.
 
 ## Remaining work this session
 None.
 
 ## Definition of done
-- [x] `agent/internal/pty/manager.go` implements create/read/write/resize/kill PTY session management
-- [x] Missing shell path returns a descriptive `"shell ... not found in image"` error
-- [x] Unit test spawns `bash`, writes `echo hello_cortado`, and observes the PTY output
+- [x] `agent/internal/server/agent_server.go` satisfies `WorkspaceAgentServiceServer`
+- [x] `StreamPty` bridges PTY output to gRPC and handles data/resize/signal input
+- [x] `agent/cmd/agent/main.go` starts the gRPC server on `:9090` by default
+- [x] `CORTADO_AGENT_GRPC_PORT` overrides the listen port
+- [x] Bufconn tests cover health, create/stream PTY, and invalid handshake behavior
 - [x] `GOTOOLCHAIN=local /usr/local/go/bin/go test ./...` passes in `agent/`
 - [x] `CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...` passes in `agent/`
 - [x] CURRENT_RELEASE.md points at the next task after this one
 
 ## Next task after this one
-Task 1.2.3 — gRPC server and StreamPty implementation
-See _dev/docs/release_timeline.md §Feature 1.2 Task 1.2.3 for full spec
+Task 1.2.4 — Dockerfile for workspace agent
+See _dev/docs/release_timeline.md §Feature 1.2 Task 1.2.4 for full spec
 
 ## Blocked on / decisions needed
 None.
