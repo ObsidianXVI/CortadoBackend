@@ -13,7 +13,7 @@ func TestHealthHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	recorder := httptest.NewRecorder()
 
-	NewRouter().ServeHTTP(recorder, req)
+	NewRouter(RouterConfig{}).ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("unexpected status: got %d want %d", recorder.Code, http.StatusOK)
