@@ -4,7 +4,9 @@ go 1.23.4
 
 require (
 	cloud.google.com/go/pubsub v1.49.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/creack/pty v1.1.24
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.74.3
 	google.golang.org/protobuf v1.36.11

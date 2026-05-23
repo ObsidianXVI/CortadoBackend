@@ -393,3 +393,13 @@
 23/05/26 14:02 [FEAT] `dev-pro-large` Advanced the repo state past the completed v0.2 auth release after the `v0.2.0` tag was published externally, resetting the active task trackers to v0.3 Feature 3.1 Task 3.1.1 so the next work starts at the filesystem proto contract instead of lingering on release bookkeeping.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
+23/05/26 14:12 [FEAT] (pending) `dev-pro-large` Completed Tasks 3.1.1 and 3.1.2 by extending the workspace-agent proto with the filesystem RPC surface, then implementing agent-side directory listing, chunked file read/write flows with xxHash64 verification and same-directory atomic renames, recursive debounced workspace file watching, and bufconn coverage before advancing the active release pointer to Task 3.1.3.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS_NEEDED.md
+- M _dev/test_status.md
+- M agent/go.mod
+- M agent/go.sum
+- M agent/internal/server/agent_server.go
+- A agent/internal/server/filesystem.go
+- M proto/agent/v1/agent.proto

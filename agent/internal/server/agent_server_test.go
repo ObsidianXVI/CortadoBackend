@@ -159,12 +159,17 @@ func TestAgentServerFlushUsageWAL(t *testing.T) {
 
 func newTestClient(t *testing.T, tracker usageTracker) (pb.WorkspaceAgentServiceClient, func()) {
 	t.Helper()
+	return newTestClientWithWorkspaceRoot(t, tracker, t.TempDir())
+}
+
+func newTestClientWithWorkspaceRoot(t *testing.T, tracker usageTracker, workspaceRoot string) (pb.WorkspaceAgentServiceClient, func()) {
+	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
 	pb.RegisterWorkspaceAgentServiceServer(
 		grpcServer,
-		NewAgentServer(&ptymanager.Manager{}, tracker),
+		NewAgentServerWithWorkspaceRoot(&ptymanager.Manager{}, tracker, workspaceRoot),
 	)
 
 	go func() {

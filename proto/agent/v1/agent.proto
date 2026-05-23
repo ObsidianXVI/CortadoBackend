@@ -12,6 +12,11 @@ service WorkspaceAgentService {
   // Used by the control plane to distinguish busy builds from idle sessions.
   rpc GetIdleStatus(GetIdleStatusRequest) returns (GetIdleStatusResponse);
   rpc FlushUsageWAL(FlushUsageWALRequest) returns (FlushUsageWALResponse);
+  rpc ListDir(ListDirRequest) returns (ListDirResponse);
+  rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+  rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
+  rpc DeletePath(DeletePathRequest) returns (DeletePathResponse);
+  rpc WatchFiles(WatchFilesRequest) returns (stream WatchFilesResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
 }
 
@@ -73,3 +78,79 @@ message GetIdleStatusResponse {
 message FlushUsageWALRequest {}
 
 message FlushUsageWALResponse {}
+
+message ListDirRequest {
+  string path = 1;
+}
+
+message ListDirResponse {
+  repeated DirectoryEntry entries = 1;
+}
+
+message DirectoryEntry {
+  string name = 1;
+  int64 size = 2;
+  bool is_dir = 3;
+  google.protobuf.Timestamp mod_time = 4;
+  uint32 permissions = 5;
+}
+
+message ReadFileRequest {
+  string path = 1;
+}
+
+// Each streamed response carries one file chunk in sequence order.
+message ReadFileResponse {
+  ReadFileChunk chunk = 1;
+}
+
+message ReadFileChunk {
+  bytes data = 1;
+  int32 seq = 2;
+  bool is_last = 3;
+  bytes checksum = 4;
+}
+
+// Each streamed request carries one file chunk for the target path.
+message WriteFileRequest {
+  WriteFileChunk chunk = 1;
+}
+
+message WriteFileChunk {
+  string path = 1;
+  bytes data = 2;
+  int32 seq = 3;
+  bool is_last = 4;
+  bytes checksum = 5;
+}
+
+message WriteFileResponse {
+  int64 bytes_written = 1;
+  bytes checksum = 2;
+}
+
+message DeletePathRequest {
+  string path = 1;
+}
+
+message DeletePathResponse {}
+
+message WatchFilesRequest {}
+
+message WatchFilesResponse {
+  FileEvent event = 1;
+}
+
+enum FileEventType {
+  FILE_EVENT_TYPE_UNSPECIFIED = 0;
+  FILE_EVENT_TYPE_CREATED = 1;
+  FILE_EVENT_TYPE_MODIFIED = 2;
+  FILE_EVENT_TYPE_DELETED = 3;
+  FILE_EVENT_TYPE_RENAMED = 4;
+}
+
+message FileEvent {
+  string path = 1;
+  FileEventType type = 2;
+  bytes checksum = 3;
+}

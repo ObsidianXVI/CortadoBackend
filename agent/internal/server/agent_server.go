@@ -16,11 +16,14 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const defaultWorkspaceRoot = "/workspace"
+
 type AgentServer struct {
 	pb.UnimplementedWorkspaceAgentServiceServer
 
-	ptyMgr       *ptymanager.Manager
-	usageTracker usageTracker
+	ptyMgr        *ptymanager.Manager
+	usageTracker  usageTracker
+	workspaceRoot string
 }
 
 type usageTracker interface {
@@ -30,13 +33,21 @@ type usageTracker interface {
 }
 
 func NewAgentServer(ptyMgr *ptymanager.Manager, tracker usageTracker) *AgentServer {
+	return NewAgentServerWithWorkspaceRoot(ptyMgr, tracker, defaultWorkspaceRoot)
+}
+
+func NewAgentServerWithWorkspaceRoot(ptyMgr *ptymanager.Manager, tracker usageTracker, workspaceRoot string) *AgentServer {
 	if ptyMgr == nil {
 		ptyMgr = &ptymanager.Manager{}
 	}
+	if strings.TrimSpace(workspaceRoot) == "" {
+		workspaceRoot = defaultWorkspaceRoot
+	}
 
 	return &AgentServer{
-		ptyMgr:       ptyMgr,
-		usageTracker: tracker,
+		ptyMgr:        ptyMgr,
+		usageTracker:  tracker,
+		workspaceRoot: workspaceRoot,
 	}
 }
 

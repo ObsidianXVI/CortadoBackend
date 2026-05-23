@@ -198,3 +198,9 @@
 - PASS `cd flutter && flutter test test/auth_refresh_smoke_test.dart`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+23/05/26 14:12
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `cd agent && GOTOOLCHAIN=local go mod tidy`
+- PASS `cd agent && GOTOOLCHAIN=local go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

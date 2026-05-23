@@ -1,7 +1,7 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.3 → Feature 3.1 (File API) → Task 3.1.1
+v0.3 → Feature 3.1 (File API) → Task 3.1.3
 
 ## Status
 IN PROGRESS
@@ -10,21 +10,23 @@ IN PROGRESS
 Completed Task 2.4.3 by adding the control-plane refresh-token exchange, introducing shared Flutter auth-session state for JWT expiry and refresh handling, switching Flutter HTTP and browser WebSocket auth to bearer-token usage, validating the shortened expiry-based refresh soak, and publishing the `v0.2.0` release tag.
 
 ## What was done this session
-Advanced the active task pointers from the finished v0.2 auth release work to Feature 3.1 Task 3.1.1 so the next implementation step is the filesystem proto contract.
+Completed Task 3.1.1 by extending `proto/agent/v1/agent.proto` with the filesystem RPC surface and chunk/file-event messages, then completed Task 3.1.2 by implementing agent-side directory listing, chunked file reads, atomic same-directory writes with xxHash64 verification, recursive debounced file watching under the workspace root, and bufconn regression coverage for the new RPCs.
 
 ## Remaining work this session
-Extend `proto/agent/v1/agent.proto` with the filesystem RPC surface (`ListDir`, `ReadFile`, `WriteFile`, `DeletePath`, `WatchFiles`) plus the supporting directory-entry, chunk, checksum, and file-event messages/enums, regenerate stubs, and run the required proto lint/generation checks.
+Implement the control-plane HTTP file endpoints for directory listing, file read/write streaming, delete proxying, and mux channel `0x0200` file-watch forwarding for Task 3.1.3, including the required control-plane test/build verification loop.
 
 ## Definition of done
-- [ ] `proto/agent/v1/agent.proto` includes `ListDir`, `ReadFile`, `WriteFile`, `DeletePath`, and `WatchFiles`
-- [ ] The file read/write chunk messages capture sequence and checksum semantics needed by later tasks
-- [ ] The file watch event messages and enums capture `CREATED`, `MODIFIED`, `DELETED`, and `RENAMED`
-- [ ] `cd proto && buf lint` passes
-- [ ] `cd proto && buf generate` passes
+- [ ] `GET /v1/workspaces/{id}/files?path=` proxies to `ListDir`
+- [ ] `GET /v1/workspaces/{id}/files/content?path=` streams `ReadFile` into the HTTP response body
+- [ ] `PUT /v1/workspaces/{id}/files/content?path=` streams the HTTP request body into `WriteFile` without full buffering
+- [ ] `DELETE /v1/workspaces/{id}/files?path=` proxies to `DeletePath`
+- [ ] File watch events flow over mux channel `0x0200`
+- [ ] `cd control-plane && GOTOOLCHAIN=local go test ./...` passes
+- [ ] `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...` passes
 
 ## Next task after this one
-Task 3.1.2 — Implement filesystem operations in agent
-See _dev/features/feat-3-1.md for full spec
+Task 3.2.1 — Virtual filesystem model in Dart
+See _dev/features/feat-3-1.md and _dev/features/feat-3-2.md for full spec
 
 ## Blocked on / decisions needed
-None.
+See `DECISIONS_NEEDED.md` for the open file-API behavior confirmations recorded during Task 3.1.2.
