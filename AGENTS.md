@@ -107,7 +107,7 @@ Ensure the sub-agents are given enough context about the plans and approach to i
 - Project ID: cortado-ide
 - Default zone: us-central1-a
 - Default region: us-central1
-- Docker Hub image: obsidianxvi/cortado:v1 (version tags run upwards with each new image)
+- Artifact Registry repo: `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/*` for dev images, colocated with the GKE cluster to keep image pulls in-region
 - GKE cluster: cortado-dev (Autopilot, us-central1)
 - Workspace pod namespace: cortado-workspaces
 - Control plane namespace: cortado-system

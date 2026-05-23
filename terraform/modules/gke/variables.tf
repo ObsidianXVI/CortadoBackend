@@ -1,3 +1,8 @@
+variable "control_plane_sa_email" {
+  description = "Email address of the control plane service account."
+  type        = string
+}
+
 variable "env" {
   description = "Deployment environment name."
   type        = string

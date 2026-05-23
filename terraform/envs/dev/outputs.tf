@@ -1,3 +1,8 @@
+output "artifact_registry_repository_id" {
+  description = "Artifact Registry repository ID for the dev environment."
+  value       = module.gke.artifact_registry_repository_id
+}
+
 output "cluster_name" {
   description = "Name of the GKE cluster for the dev environment."
   value       = module.gke.cluster_name
