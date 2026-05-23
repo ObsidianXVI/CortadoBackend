@@ -152,26 +152,46 @@ warn "Docker images should be tagged as us-central1-docker.pkg.dev/cortado-ide/c
 # =============================================================================
 # 4. GOOGLE CLOUD SDK
 # =============================================================================
+ensure_google_cloud_apt_repo() {
+  sudo install -m 0755 -d /etc/apt/keyrings
+  if [[ ! -f /etc/apt/keyrings/cloud.google.gpg ]]; then
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+      | sudo gpg --dearmor -o /etc/apt/keyrings/cloud.google.gpg
+  fi
+  if ! grep -rhE '^deb ' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null \
+      | grep -q 'https://packages.cloud.google.com/apt cloud-sdk main'; then
+    echo "deb [signed-by=/etc/apt/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+      | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list >/dev/null
+  fi
+}
+
+install_gke_auth_plugin() {
+  sudo apt-get update -qq
+  if sudo apt-get install -y -qq google-cloud-sdk-gke-gcloud-auth-plugin; then
+    return 0
+  fi
+  sudo apt-get install -y -qq google-cloud-cli-gke-gcloud-auth-plugin
+}
+
 if ! command -v gcloud &>/dev/null; then
   info "Installing Google Cloud SDK..."
-  curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
-    | sudo gpg --dearmor -o /etc/apt/keyrings/cloud.google.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/cloud.google.gpg] \
-    https://packages.cloud.google.com/apt cloud-sdk main" \
-    | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
+  ensure_google_cloud_apt_repo
   sudo apt-get update -qq
-  sudo apt-get install -y -qq google-cloud-cli google-cloud-sdk-gke-gcloud-auth-plugin
+  sudo apt-get install -y -qq google-cloud-cli
   success "gcloud installed."
 else
-  info "gcloud already present — updating components..."
+  info "gcloud already present."
+  ensure_google_cloud_apt_repo
+fi
+
+if command -v gcloud &>/dev/null; then
   gcloud components update --quiet 2>/dev/null || true
-  success "gcloud up to date."
+  success "gcloud available."
 fi
 
 if ! command -v gke-gcloud-auth-plugin &>/dev/null; then
   info "Installing gke-gcloud-auth-plugin..."
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq google-cloud-sdk-gke-gcloud-auth-plugin
+  install_gke_auth_plugin
   success "gke-gcloud-auth-plugin installed."
 else
   success "gke-gcloud-auth-plugin already present."
@@ -384,7 +404,7 @@ if [[ "$KUBECTL_INSTALLED_VERSION" != "$KUBECTL_VERSION" ]]; then
     -o /usr/local/bin/kubectl
   sudo chmod +x /usr/local/bin/kubectl
   # GKE auth plugin (required for GKE clusters since k8s 1.26)
-  sudo apt-get install -y -qq google-cloud-sdk-gke-gcloud-auth-plugin
+  install_gke_auth_plugin
   success "kubectl ${KUBECTL_VERSION} installed."
 else
   success "kubectl ${KUBECTL_INSTALLED_VERSION} already installed."
