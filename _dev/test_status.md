@@ -194,3 +194,7 @@
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+23/05/26 13:54
+- PASS `cd flutter && flutter test test/auth_refresh_smoke_test.dart`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`

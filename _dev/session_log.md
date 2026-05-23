@@ -384,3 +384,6 @@
 - M control-plane/internal/api/sessions.go
 - M control-plane/internal/auth/service.go
 - M control-plane/internal/store/firestore_auth_store.go
+23/05/26 13:54 [FEAT] `dev-pro-large` Closed out the v0.2 auth release work by adding a shortened expiry-based Flutter refresh smoke that proves the timer-driven token rotation feeds both HTTP and browser WebSocket auth paths, then advanced the active task pointer to Feature 3.1 Task 3.1.1 after the refreshed Flutter verification loop passed.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
