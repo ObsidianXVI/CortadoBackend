@@ -115,6 +115,49 @@ void main() {
       expect(request.headers['Authorization'], 'Bearer $accessToken');
       expect(request.headers.containsKey('X-Cortado-Dev-Token'), isFalse);
     });
+
+    test('listDirectory requests the file endpoint and parses entries', () async {
+      final requests = <RecordedRequest>[];
+      final client = RecordingClient((request, body) async {
+        requests.add(RecordedRequest(DateTime.now(), request, body));
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123/files')) {
+          final payload = jsonEncode({
+            'entries': [
+              {
+                'name': 'lib',
+                'size': 0,
+                'isDir': true,
+                'modTime': DateTime.utc(2026, 5, 23, 21).toIso8601String(),
+                'permissions': 493,
+              },
+            ],
+          });
+          return _stringResponse(200, payload);
+        }
+        return _stringResponse(404, 'not found');
+      });
+
+      final manager = WorkspaceManager(
+        baseUrl: 'http://localhost:8080/api?foo=bar',
+        httpClient: client,
+        useBrowserAuth: false,
+      );
+
+      final entries = await manager.listDirectory('ws-123', path: '/lib');
+      expect(entries, hasLength(1));
+      expect(entries.single.name, 'lib');
+      expect(entries.single.isDir, isTrue);
+
+      final request = requests.single.request as http.Request;
+      expect(
+        request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files?foo=bar&path=lib',
+        ),
+      );
+      expect(request.headers['X-Cortado-Dev-Token'], 'dev-bypass');
+    });
   });
 
   group('WorkspaceManager — watchStatus cadence and completion', () {

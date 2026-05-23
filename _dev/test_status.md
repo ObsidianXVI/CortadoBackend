@@ -207,3 +207,8 @@
 23/05/26 14:19
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+23/05/26 14:33
+- PASS `cd flutter && flutter pub get`
+- PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`

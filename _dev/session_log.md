@@ -403,7 +403,7 @@
 - M agent/internal/server/agent_server.go
 - A agent/internal/server/filesystem.go
 - M proto/agent/v1/agent.proto
-23/05/26 14:19 [FEAT] (pending) `dev-pro-large` Completed Task 3.1.3 by adding control-plane file list/read/write/delete HTTP handlers backed by workspace-agent gRPC streaming, bridging file-watch events over mux channel `0x0200`, extending API and gateway coverage for the new file routes and file-watch WebSocket flow, and advancing the release pointer to Feature 3.2 Task 3.2.1.
+23/05/26 14:19 [FEAT] (0fe83f4) `dev-pro-large` Completed Task 3.1.3 by adding control-plane file list/read/write/delete HTTP handlers backed by workspace-agent gRPC streaming, bridging file-watch events over mux channel `0x0200`, extending API and gateway coverage for the new file routes and file-watch WebSocket flow, and advancing the release pointer to Feature 3.2 Task 3.2.1.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
 - M _dev/session_log.md
@@ -413,3 +413,13 @@
 - M control-plane/internal/api/router.go
 - A control-plane/internal/gateway/file_bridge.go
 - A control-plane/internal/workspace/agent_file_client.go
+23/05/26 14:33 [FEAT] (pending) `dev-pro-large` Completed Task 3.2.1 by adding the Flutter-side directory listing client, introducing a normalized `VfsNode`/`VfsNotifier` virtual filesystem model with lazy directory loading and file-event reconciliation, updating the proto runtime dependencies for the generated Dart agent bindings, and advancing the release pointer to Task 3.2.2 after the Flutter verification loop passed.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/filesystem/vfs_node.dart
+- A flutter/lib/src/filesystem/vfs_notifier.dart
+- M flutter/lib/src/workspace_manager.dart
+- M flutter/pubspec.yaml

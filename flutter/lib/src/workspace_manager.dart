@@ -57,6 +57,39 @@ class WorkspaceManager {
     await _transition(id, 'stop');
   }
 
+  Future<List<WorkspaceDirectoryEntry>> listDirectory(
+    String workspaceId, {
+    String path = '/',
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.get(
+      _workspaceUri(workspaceId,
+          action: 'files',
+          queryParameters: <String, String>{
+            'path': _fileApiPath(path),
+          }),
+      headers: await _headers(),
+    );
+
+    final body = _decodeJsonObject(response.bodyBytes);
+    final entries = body['entries'];
+    if (entries is! List<Object?>) {
+      throw const FormatException(
+        'File list response payload must contain an entries list.',
+      );
+    }
+
+    return entries.map((entry) {
+      if (entry is! Map<String, dynamic>) {
+        throw const FormatException(
+          'Each file list entry must be a JSON object.',
+        );
+      }
+      return WorkspaceDirectoryEntry.fromJson(entry);
+    }).toList(growable: false);
+  }
+
   Stream<WorkspaceStatus> watchStatus(String id) {
     _validateWorkspaceId(id);
 
@@ -144,7 +177,7 @@ class WorkspaceManager {
     _validateWorkspaceId(id);
 
     final response = await _client.post(
-      _workspaceUri(id, action),
+      _workspaceUri(id, action: action),
       headers: await _headers(),
     );
     _throwIfError(response);
@@ -199,23 +232,35 @@ class WorkspaceManager {
 
   Uri _collectionUri() => _buildUri(const <String>['v1', 'workspaces']);
 
-  Uri _workspaceUri(String id, [String? action]) => _buildUri(
+  Uri _workspaceUri(
+    String id, {
+    String? action,
+    Map<String, String>? queryParameters,
+  }) =>
+      _buildUri(
         <String>[
           'v1',
           'workspaces',
           id,
           if (action != null) action,
         ],
+        queryParameters: queryParameters,
       );
 
-  Uri _buildUri(List<String> segments) {
+  Uri _buildUri(List<String> segments, {Map<String, String>? queryParameters}) {
     final baseUri = Uri.parse(baseUrl);
+    final mergedQueryParameters = <String, String>{
+      ...baseUri.queryParameters,
+      if (queryParameters != null) ...queryParameters,
+    };
 
     return baseUri.replace(
       pathSegments: <String>[
         ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
         ...segments,
       ],
+      queryParameters:
+          mergedQueryParameters.isEmpty ? null : mergedQueryParameters,
     );
   }
 
@@ -224,6 +269,40 @@ class WorkspaceManager {
       throw ArgumentError.value(id, 'id', 'Must not be empty.');
     }
   }
+
+  String _fileApiPath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || trimmed == '/' || trimmed == '.') {
+      return '';
+    }
+    return trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+  }
+}
+
+class WorkspaceDirectoryEntry {
+  const WorkspaceDirectoryEntry({
+    required this.isDir,
+    required this.modTime,
+    required this.name,
+    required this.permissions,
+    required this.size,
+  });
+
+  factory WorkspaceDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    return WorkspaceDirectoryEntry(
+      name: json['name'] as String,
+      size: (json['size'] as num).toInt(),
+      isDir: json['isDir'] as bool,
+      modTime: DateTime.parse(json['modTime'] as String),
+      permissions: (json['permissions'] as num).toInt(),
+    );
+  }
+
+  final bool isDir;
+  final DateTime modTime;
+  final String name;
+  final int permissions;
+  final int size;
 }
 
 class WorkspaceRequestException implements Exception {
