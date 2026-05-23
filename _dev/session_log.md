@@ -387,3 +387,6 @@
 23/05/26 13:54 [FEAT] `dev-pro-large` Closed out the v0.2 auth release work by adding a shortened expiry-based Flutter refresh smoke that proves the timer-driven token rotation feeds both HTTP and browser WebSocket auth paths, then advanced the active task pointer to Feature 3.1 Task 3.1.1 after the refreshed Flutter verification loop passed.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
+23/05/26 13:56 [FIX] `dev-pro-large` Corrected the release trackers after the local `v0.2.0` tag was created but `git push --tags` failed against the HTTPS GitHub remote without credentials, leaving Task 2.4.3 accurately marked as blocked on tag publication instead of prematurely advancing the active task pointer.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
