@@ -229,3 +229,9 @@
 - PASS `cd flutter && flutter test test/cortado_client_test.dart`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+23/05/26 23:44
+- PASS `cd demo_app/web && npm run build`
+- PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter build web`

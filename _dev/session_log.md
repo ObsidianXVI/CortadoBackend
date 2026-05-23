@@ -462,3 +462,21 @@
 - M flutter/test/cortado_client_test.dart
 - M flutter/test/cortado_file_tree_test.dart
 - M flutter/test/workspace_manager_test.dart
+23/05/26 23:44 [FEAT] (pending) `dev-pro-large` Completed Task 3.2.3 by adding the Flutter CodeMirror editor surface with multi-tab hash-based dirty tracking, load/save wiring, and optional shared file-event reload support, plus the web/stub editor platform bridge and a bundled demo-app CodeMirror host asset flow; then advanced the release pointer to Feature 3.3 and recorded the unresolved Dart language-package choice separately.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS_NEEDED.md
+- M demo_app/README.md
+- M demo_app/pubspec.lock
+- M demo_app/web/index.html
+- A demo_app/web/cortado_editor.js
+- A demo_app/web/editor-src/cortado_editor.ts
+- A demo_app/web/package-lock.json
+- A demo_app/web/package.json
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/editor/cortado_code_editor.dart
+- A flutter/lib/src/editor/editor_models.dart
+- A flutter/lib/src/editor/editor_platform.dart
+- A flutter/lib/src/editor/editor_platform_stub.dart
+- A flutter/lib/src/editor/web/editor_platform_web.dart
+- A flutter/lib/src/editor/tabs_notifier.dart

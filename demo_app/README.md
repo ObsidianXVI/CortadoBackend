@@ -36,3 +36,23 @@ Feature 1.4.
   the package on Flutter Web.
 - The package still requires a live workspace ID from the broader Cortado
   environment; this app only provides the browser-side smoke harness.
+
+### Editor bridge bundle (CodeMirror 6)
+
+- The host page now also loads `cortado_editor.js`, a locally bundled
+  CodeMirror 6 bridge used by the Flutter editor widget integration.
+- Build/update the bundle when developing:
+
+  ```bash
+  cd demo_app/web
+  npm install   # or: npm ci
+  npm run build # outputs cortado_editor.js
+  ```
+
+- Included language modes: JavaScript/TypeScript, JSON, Python, Go, YAML.
+  Dart currently falls back to plain text until we add a stable CM6 Dart mode.
+- The bundle exposes a global `window.CortadoEditor` object with methods used
+  by the Flutter `HtmlElementView` side:
+  - `init(container, id, languageOrOptions, onChangeHash?, onSave?)`
+  - `setContent(id, text, preserveSelection?)`
+  - `getContent(id)` / `setLanguage(id, lang)` / `dispose(id)`
