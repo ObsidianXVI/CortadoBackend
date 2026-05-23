@@ -146,8 +146,8 @@ else
   success "Docker ${DOCKER_INSTALLED_VERSION} already installed."
 fi
 
-# Docker Hub is the registry for this setup.
-warn "Docker images should be tagged as obsidianxvi/cortado:v1."
+# Artifact Registry is the registry for this setup.
+warn "Docker images should be tagged as us-central1-docker.pkg.dev/cortado-ide/cortado-dev/<image>:<tag>."
 
 # =============================================================================
 # 4. GOOGLE CLOUD SDK
@@ -160,12 +160,21 @@ if ! command -v gcloud &>/dev/null; then
     https://packages.cloud.google.com/apt cloud-sdk main" \
     | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
   sudo apt-get update -qq
-  sudo apt-get install -y -qq google-cloud-cli google-cloud-cli-gke-gcloud-auth-plugin
+  sudo apt-get install -y -qq google-cloud-cli google-cloud-sdk-gke-gcloud-auth-plugin
   success "gcloud installed."
 else
   info "gcloud already present — updating components..."
   gcloud components update --quiet 2>/dev/null || true
   success "gcloud up to date."
+fi
+
+if ! command -v gke-gcloud-auth-plugin &>/dev/null; then
+  info "Installing gke-gcloud-auth-plugin..."
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq google-cloud-sdk-gke-gcloud-auth-plugin
+  success "gke-gcloud-auth-plugin installed."
+else
+  success "gke-gcloud-auth-plugin already present."
 fi
 
 # Configure gcloud defaults (uses the VM's service account ADC automatically)
@@ -375,10 +384,16 @@ if [[ "$KUBECTL_INSTALLED_VERSION" != "$KUBECTL_VERSION" ]]; then
     -o /usr/local/bin/kubectl
   sudo chmod +x /usr/local/bin/kubectl
   # GKE auth plugin (required for GKE clusters since k8s 1.26)
-  sudo apt-get install -y -qq google-cloud-cli-gke-gcloud-auth-plugin 2>/dev/null || true
+  sudo apt-get install -y -qq google-cloud-sdk-gke-gcloud-auth-plugin
   success "kubectl ${KUBECTL_VERSION} installed."
 else
   success "kubectl ${KUBECTL_INSTALLED_VERSION} already installed."
+fi
+
+if command -v gke-gcloud-auth-plugin &>/dev/null; then
+  success "gke-gcloud-auth-plugin $(gke-gcloud-auth-plugin --version 2>/dev/null) available for kubectl."
+else
+  warn "gke-gcloud-auth-plugin is still missing; kubectl access to GKE will fail until it is installed."
 fi
 
 # =============================================================================
