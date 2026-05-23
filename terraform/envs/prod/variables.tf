@@ -8,13 +8,28 @@ variable "control_plane_image_tag" {
   type        = string
 }
 
+variable "cluster_dns_domain" {
+  description = "Additive VPC scope DNS domain used for headless Service discovery from Cloud Run."
+  type        = string
+}
+
 variable "project_id" {
   description = "Google Cloud project ID."
   type        = string
 }
 
+variable "network_name" {
+  description = "VPC network name used by the cluster and Cloud Run service."
+  type        = string
+}
+
 variable "region" {
   description = "Google Cloud region for deployed resources."
+  type        = string
+}
+
+variable "subnetwork_name" {
+  description = "Subnetwork name used by the cluster and Cloud Run service."
   type        = string
 }
 
@@ -33,4 +48,10 @@ variable "workspace_test_pod_enabled" {
   description = "Whether to apply the one-off workspace agent test pod manifest."
   type        = bool
   default     = false
+}
+
+variable "workspace_namespace" {
+  description = "Kubernetes namespace that contains workspace Services."
+  type        = string
+  default     = "cortado-workspaces"
 }

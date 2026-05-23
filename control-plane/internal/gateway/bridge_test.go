@@ -151,6 +151,17 @@ func TestConnectRouteBridgesTerminalFramesToAgentStream(t *testing.T) {
 	}
 }
 
+func TestStaticWorkspaceResolverUsesConfiguredDomain(t *testing.T) {
+	resolver := gateway.StaticWorkspaceResolver{
+		Namespace: "cortado-workspaces",
+		DNSDomain: "cortado-dev.internal",
+	}
+
+	if got := resolver.GetServiceDNS("ws-123"); got != "ws-123.cortado-workspaces.svc.cortado-dev.internal" {
+		t.Fatalf("unexpected service dns: %q", got)
+	}
+}
+
 func TestConnectRouteReusesCachedGRPCConnectionPerWorkspace(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "development")
 
@@ -339,6 +350,78 @@ func TestConnectRouteReturnsCloseFrameWhenAgentCreateFails(t *testing.T) {
 	}
 }
 
+func TestConnectRouteRedialsWorkspaceConnAfterCreateDeadlineExceeded(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	var dialCount int32
+
+	dialer, cleanup := newSequentialAgentDialer(
+		t,
+		[]agentpb.WorkspaceAgentServiceServer{
+			&stubAgentServer{
+				createPty: func(_ context.Context, _ *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error) {
+					return nil, status.Error(codes.DeadlineExceeded, "context deadline exceeded while waiting for connections to become ready")
+				},
+			},
+			&stubAgentServer{
+				createPty: func(_ context.Context, _ *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error) {
+					return &agentpb.CreatePtyResponse{PtyId: "pty-retried"}, nil
+				},
+				streamPty: func(stream agentpb.WorkspaceAgentService_StreamPtyServer) error {
+					first, err := stream.Recv()
+					if err != nil {
+						return err
+					}
+					if first.GetPtyId() != "pty-retried" {
+						t.Fatalf("unexpected PTY id after redial: %q", first.GetPtyId())
+					}
+					return stream.Send(&agentpb.StreamPtyResponse{
+						Payload: &agentpb.StreamPtyResponse_ExitCode{ExitCode: 0},
+					})
+				},
+			},
+		},
+		func(string) {
+			atomic.AddInt32(&dialCount, 1)
+		},
+	)
+	defer cleanup()
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+			GRPCDialer: dialer,
+			WorkspaceResolver: testWorkspaceResolver{
+				dns: "workspace.test.svc.cluster.local",
+			},
+		}),
+	}))
+	defer server.Close()
+
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	defer ws.Close()
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.TerminalChannelID,
+		MessageType: gateway.MessageTypeOpen,
+	})
+
+	closeFrame := readFrame(t, ws)
+	if closeFrame.MessageType != gateway.MessageTypeClose {
+		t.Fatalf("unexpected close frame type: got %d want %d", closeFrame.MessageType, gateway.MessageTypeClose)
+	}
+	if string(closeFrame.Payload) != "0" {
+		t.Fatalf("unexpected close payload: %q", closeFrame.Payload)
+	}
+	if got := atomic.LoadInt32(&dialCount); got != 2 {
+		t.Fatalf("unexpected dial count: got %d want %d", got, 2)
+	}
+}
+
 type stubAgentServer struct {
 	agentpb.UnimplementedWorkspaceAgentServiceServer
 
@@ -394,6 +477,57 @@ func newAgentDialer(t *testing.T, server agentpb.WorkspaceAgentServiceServer, on
 	cleanup := func() {
 		grpcServer.Stop()
 		_ = listener.Close()
+	}
+
+	return dialer, cleanup
+}
+
+func newSequentialAgentDialer(t *testing.T, servers []agentpb.WorkspaceAgentServiceServer, onDial func(target string)) (gateway.GRPCDialFunc, func()) {
+	t.Helper()
+
+	listeners := make([]*bufconn.Listener, 0, len(servers))
+	grpcServers := make([]*grpc.Server, 0, len(servers))
+
+	for _, server := range servers {
+		listener := bufconn.Listen(1024 * 1024)
+		grpcServer := grpc.NewServer()
+		agentpb.RegisterWorkspaceAgentServiceServer(grpcServer, server)
+
+		go func(s *grpc.Server, l *bufconn.Listener) {
+			if err := s.Serve(l); err != nil {
+				t.Errorf("serve bufconn grpc server: %v", err)
+			}
+		}(grpcServer, listener)
+
+		listeners = append(listeners, listener)
+		grpcServers = append(grpcServers, grpcServer)
+	}
+
+	var dialIndex int32
+	dialer := func(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		if onDial != nil {
+			onDial(target)
+		}
+
+		index := int(atomic.AddInt32(&dialIndex, 1)) - 1
+		if index >= len(listeners) {
+			index = len(listeners) - 1
+		}
+		listener := listeners[index]
+
+		opts = append(opts, grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}))
+		return grpc.NewClient("passthrough:///bufconn", opts...)
+	}
+
+	cleanup := func() {
+		for _, grpcServer := range grpcServers {
+			grpcServer.Stop()
+		}
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
 	}
 
 	return dialer, cleanup

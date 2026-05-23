@@ -3,6 +3,11 @@ variable "env" {
   type        = string
 }
 
+variable "cluster_dns_domain" {
+  description = "Additive VPC scope DNS domain used to resolve workspace Services from Cloud Run."
+  type        = string
+}
+
 variable "image_tag" {
   description = "Artifact Registry image tag for the control-plane service."
   type        = string
@@ -18,6 +23,11 @@ variable "project_id" {
   type        = string
 }
 
+variable "network_name" {
+  description = "VPC network name used for Direct VPC egress."
+  type        = string
+}
+
 variable "region" {
   description = "Google Cloud region."
   type        = string
@@ -30,5 +40,15 @@ variable "repository_id" {
 
 variable "service_account_email" {
   description = "Service account email the Cloud Run service runs as."
+  type        = string
+}
+
+variable "subnetwork_name" {
+  description = "Subnetwork name used for Direct VPC egress."
+  type        = string
+}
+
+variable "workspace_namespace" {
+  description = "Kubernetes namespace that contains workspace Services."
   type        = string
 }

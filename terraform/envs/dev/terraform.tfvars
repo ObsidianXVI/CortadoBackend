@@ -1,6 +1,10 @@
-control_plane_image_tag    = "pending"
+cluster_dns_domain         = "cortado-dev.internal"
+control_plane_image_tag    = "20260523-103219-stalefix"
 env                        = "dev"
+network_name               = "default"
 project_id                 = "cortado-ide"
 region                     = "us-central1"
-workspace_image_tag        = "781d613"
+subnetwork_name            = "default"
+workspace_image_tag        = "20260523-102947-workspace-tools"
+workspace_namespace        = "cortado-workspaces"
 workspace_test_pod_enabled = true

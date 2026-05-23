@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/your-org/cortado/control-plane/internal/api"
+	"github.com/your-org/cortado/control-plane/internal/gateway"
 )
 
 const defaultHTTPPort = "8080"
@@ -23,9 +24,19 @@ func main() {
 		port = defaultHTTPPort
 	}
 
+	workspaceNamespace := os.Getenv("CORTADO_WORKSPACE_NAMESPACE")
+	clusterDNSDomain := os.Getenv("CORTADO_CLUSTER_DNS_DOMAIN")
+
 	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           api.NewRouter(api.RouterConfig{}),
+		Addr: ":" + port,
+		Handler: api.NewRouter(api.RouterConfig{
+			ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+				WorkspaceResolver: gateway.StaticWorkspaceResolver{
+					Namespace: workspaceNamespace,
+					DNSDomain: clusterDNSDomain,
+				},
+			}),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

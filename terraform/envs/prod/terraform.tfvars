@@ -1,6 +1,10 @@
+cluster_dns_domain         = "cortado-prod.internal"
 control_plane_image_tag    = "pending"
 env                        = "prod"
+network_name               = "default"
 project_id                 = "cortado-ide"
 region                     = "us-central1"
+subnetwork_name            = "default"
 workspace_image_tag        = "pending"
+workspace_namespace        = "cortado-workspaces"
 workspace_test_pod_enabled = false

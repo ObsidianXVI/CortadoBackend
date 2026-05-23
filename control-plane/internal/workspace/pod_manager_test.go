@@ -111,6 +111,18 @@ func TestPodManagerGetServiceDNS(t *testing.T) {
 	}
 }
 
+func TestPodManagerGetServiceDNSUsesConfiguredDomain(t *testing.T) {
+	manager := newPodManager(
+		newMemoryPodClient(),
+		newMemoryServiceClient(),
+		PodManagerConfig{DNSDomain: "cortado-dev.internal"},
+	)
+
+	if got := manager.GetServiceDNS("ws-123"); got != "ws-123.cortado-workspaces.svc.cortado-dev.internal" {
+		t.Fatalf("unexpected service dns: %q", got)
+	}
+}
+
 func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 	pods := newMemoryPodClient()
 	services := newMemoryServiceClient()

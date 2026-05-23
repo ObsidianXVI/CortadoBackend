@@ -25,6 +25,7 @@ const (
 	defaultPtyRows           = 24
 	defaultTerminalQueueSize = 64
 	defaultCreatePtyTimeout  = 10 * time.Second
+	defaultClusterDNSDomain  = "cluster.local"
 	defaultWorkspaceNS       = "cortado-workspaces"
 )
 
@@ -34,6 +35,7 @@ type WorkspaceResolver interface {
 
 type StaticWorkspaceResolver struct {
 	Namespace string
+	DNSDomain string
 }
 
 func (r StaticWorkspaceResolver) GetServiceDNS(workspaceID string) string {
@@ -42,7 +44,12 @@ func (r StaticWorkspaceResolver) GetServiceDNS(workspaceID string) string {
 		namespace = defaultWorkspaceNS
 	}
 
-	return fmt.Sprintf("%s.%s.svc.cluster.local", workspaceID, namespace)
+	dnsDomain := r.DNSDomain
+	if dnsDomain == "" {
+		dnsDomain = defaultClusterDNSDomain
+	}
+
+	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, namespace, dnsDomain)
 }
 
 type GRPCDialFunc func(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
@@ -133,26 +140,22 @@ func (b *TerminalBridge) handleOpen(ctx context.Context, session Session, frame 
 		return errors.New("terminal channel is already open")
 	}
 
-	conn, err := b.clientConn(session.WorkspaceID)
+	conn, err := b.clientConn(session.WorkspaceID, false)
 	if err != nil {
 		b.sendClose(session.Conn, frame.ChannelID, fmt.Sprintf("resolve workspace agent: %v", err))
 		return nil
 	}
 
-	client := agentpb.NewWorkspaceAgentServiceClient(conn)
 	createCtx, cancel := context.WithTimeout(ctx, b.createPtyTimeout)
 	defer cancel()
 
-	createResp, err := client.CreatePty(createCtx, &agentpb.CreatePtyRequest{
-		Cols:  defaultPtyCols,
-		Rows:  defaultPtyRows,
-		Shell: string(frame.Payload),
-	})
+	conn, createResp, err := b.createPty(createCtx, session.WorkspaceID, conn, string(frame.Payload))
 	if err != nil {
 		b.sendClose(session.Conn, frame.ChannelID, fmt.Sprintf("open terminal: %v", err))
 		return nil
 	}
 
+	client := agentpb.NewWorkspaceAgentServiceClient(conn)
 	streamCtx, streamCancel := context.WithCancel(ctx)
 	stream, err := client.StreamPty(streamCtx)
 	if err != nil {
@@ -189,9 +192,45 @@ func (b *TerminalBridge) handleOpen(ctx context.Context, session Session, frame 
 	return nil
 }
 
-func (b *TerminalBridge) clientConn(workspaceID string) (*grpc.ClientConn, error) {
+func (b *TerminalBridge) createPty(ctx context.Context, workspaceID string, conn *grpc.ClientConn, shell string) (*grpc.ClientConn, *agentpb.CreatePtyResponse, error) {
+	request := &agentpb.CreatePtyRequest{
+		Cols:  defaultPtyCols,
+		Rows:  defaultPtyRows,
+		Shell: shell,
+	}
+
+	client := agentpb.NewWorkspaceAgentServiceClient(conn)
+	response, err := client.CreatePty(ctx, request)
+	if err == nil || !shouldRedialWorkspaceConn(err) {
+		return conn, response, err
+	}
+
+	refreshedConn, refreshErr := b.clientConn(workspaceID, true)
+	if refreshErr != nil {
+		return nil, nil, refreshErr
+	}
+
+	client = agentpb.NewWorkspaceAgentServiceClient(refreshedConn)
+	response, err = client.CreatePty(ctx, request)
+	return refreshedConn, response, err
+}
+
+func shouldRedialWorkspaceConn(err error) bool {
+	switch status.Code(err) {
+	case codes.DeadlineExceeded, codes.Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+func (b *TerminalBridge) clientConn(workspaceID string, refresh bool) (*grpc.ClientConn, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	if refresh {
+		b.evictConnLocked(workspaceID)
+	}
 
 	if conn, ok := b.connCache[workspaceID]; ok {
 		return conn, nil
@@ -213,6 +252,15 @@ func (b *TerminalBridge) clientConn(workspaceID string) (*grpc.ClientConn, error
 
 	b.connCache[workspaceID] = conn
 	return conn, nil
+}
+
+func (b *TerminalBridge) evictConnLocked(workspaceID string) {
+	conn, ok := b.connCache[workspaceID]
+	if !ok {
+		return
+	}
+	delete(b.connCache, workspaceID)
+	_ = conn.Close()
 }
 
 func (b *TerminalBridge) registerBinding(conn *MuxConn, binding *terminalBinding) error {

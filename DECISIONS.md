@@ -10,3 +10,6 @@
 
 - Terminal resize travels over the WebSocket mux as message type `0x05` with an 8-byte big-endian payload `[cols:uint32][rows:uint32]`.
   Rationale: the dedicated resize message keeps terminal control traffic distinct from data frames while reusing the same big-endian binary conventions as the mux header and the agent's `WindowSize` gRPC contract.
+
+- v0.1 keeps the control plane on Cloud Run and uses Direct VPC egress plus GKE Cloud DNS additive VPC scope for workspace-agent reachability.
+  Rationale: this preserves the current release/deployment spec while giving the Cloud Run control plane a supported path to resolve and connect to headless workspace Services over private Pod IPs.

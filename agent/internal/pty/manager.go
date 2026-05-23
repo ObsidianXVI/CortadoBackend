@@ -13,6 +13,7 @@ import (
 )
 
 const defaultShell = "/bin/bash"
+const defaultTerm = "TERM=xterm-256color"
 
 var ErrSessionNotFound = errors.New("session not found")
 
@@ -49,7 +50,7 @@ func (m *Manager) Create(shell string, cols, rows uint16, env []string) (*Sessio
 	}
 
 	cmd := exec.Command(resolvedShell)
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = ptyEnv(env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	ptm, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
@@ -175,4 +176,22 @@ func (m *Manager) session(id string) (*Session, error) {
 	}
 
 	return session, nil
+}
+
+func ptyEnv(env []string) []string {
+	base := append([]string(nil), os.Environ()...)
+	if !hasEnvKey(base, "TERM") && !hasEnvKey(env, "TERM") {
+		base = append(base, defaultTerm)
+	}
+	return append(base, env...)
+}
+
+func hasEnvKey(env []string, key string) bool {
+	prefix := key + "="
+	for _, entry := range env {
+		if len(entry) >= len(prefix) && entry[:len(prefix)] == prefix && entry != prefix {
+			return true
+		}
+	}
+	return false
 }

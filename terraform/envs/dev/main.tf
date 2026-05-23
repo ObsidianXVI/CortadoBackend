@@ -4,7 +4,9 @@ locals {
     "bigquery.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    "compute.googleapis.com",
     "container.googleapis.com",
+    "dns.googleapis.com",
     "firestore.googleapis.com",
     "iam.googleapis.com",
     "pubsub.googleapis.com",
@@ -58,10 +60,13 @@ module "gke" {
   source = "../../modules/gke"
 
   control_plane_sa_email  = module.iam.control_plane_service_account_email
+  cluster_dns_domain      = var.cluster_dns_domain
   env                     = var.env
   labels                  = local.common_labels
+  network_name            = var.network_name
   project_id              = var.project_id
   region                  = var.region
+  subnetwork_name         = var.subnetwork_name
   workspace_agent_sa_name = module.iam.workspace_agent_service_account_name
 
   depends_on = [google_project_service.api]
@@ -70,13 +75,17 @@ module "gke" {
 module "cloudrun" {
   source = "../../modules/cloudrun"
 
+  cluster_dns_domain    = var.cluster_dns_domain
   env                   = var.env
   image_tag             = var.control_plane_image_tag
   labels                = local.common_labels
+  network_name          = var.network_name
   project_id            = var.project_id
   region                = var.region
   repository_id         = module.gke.artifact_registry_repository_id
   service_account_email = module.iam.control_plane_service_account_email
+  subnetwork_name       = var.subnetwork_name
+  workspace_namespace   = var.workspace_namespace
 
   depends_on = [google_project_service.api]
 }

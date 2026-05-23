@@ -2,10 +2,19 @@ resource "google_container_cluster" "main" {
   name     = "cortado-${var.env}"
   location = var.region
 
-  enable_autopilot = true
+  deletion_protection = false
+  enable_autopilot    = true
+  network             = var.network_name
+  subnetwork          = var.subnetwork_name
 
   release_channel {
     channel = "RAPID"
+  }
+
+  dns_config {
+    additive_vpc_scope_dns_domain = var.cluster_dns_domain
+    cluster_dns                   = "CLOUD_DNS"
+    cluster_dns_scope             = "CLUSTER_SCOPE"
   }
 
   resource_labels = var.labels

@@ -20,6 +20,7 @@ import (
 
 const (
 	defaultAgentPort               int32 = 9090
+	defaultClusterDNSDomain              = "cluster.local"
 	defaultWorkspaceNamespace            = "cortado-workspaces"
 	defaultWorkspaceServiceAccount       = "workspace-sa"
 	workspaceIDLabel                     = "cortado/workspace-id"
@@ -32,6 +33,7 @@ type StatusSink interface {
 
 type PodManagerConfig struct {
 	AgentPort          int32
+	DNSDomain          string
 	Namespace          string
 	ServiceAccountName string
 	StatusSink         StatusSink
@@ -39,6 +41,7 @@ type PodManagerConfig struct {
 
 type PodManager struct {
 	agentPort          int32
+	dnsDomain          string
 	namespace          string
 	pods               podClient
 	podInformer        cache.SharedIndexInformer
@@ -77,6 +80,7 @@ func newPodManager(pods podClient, services serviceClient, cfg PodManagerConfig)
 
 	manager := &PodManager{
 		agentPort:          cfg.AgentPort,
+		dnsDomain:          cfg.DNSDomain,
 		namespace:          cfg.Namespace,
 		pods:               pods,
 		podInformer:        podInformer,
@@ -99,6 +103,9 @@ func newPodManager(pods podClient, services serviceClient, cfg PodManagerConfig)
 func withDefaultConfig(cfg PodManagerConfig) PodManagerConfig {
 	if cfg.Namespace == "" {
 		cfg.Namespace = defaultWorkspaceNamespace
+	}
+	if cfg.DNSDomain == "" {
+		cfg.DNSDomain = defaultClusterDNSDomain
 	}
 	if cfg.ServiceAccountName == "" {
 		cfg.ServiceAccountName = defaultWorkspaceServiceAccount
@@ -220,7 +227,7 @@ func (m *PodManager) GetStatus(workspaceID string) (corev1.PodPhase, error) {
 }
 
 func (m *PodManager) GetServiceDNS(workspaceID string) string {
-	return fmt.Sprintf("%s.%s.svc.cluster.local", workspaceID, m.namespace)
+	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, m.namespace, m.dnsDomain)
 }
 
 func (m *PodManager) deletePod(workspaceID string) error {

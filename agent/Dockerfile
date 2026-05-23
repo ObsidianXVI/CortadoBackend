@@ -15,11 +15,13 @@ FROM ubuntu:22.04
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bash \
-        zsh \
-        git \
-        curl \
         ca-certificates \
+        curl \
         file \
+        git \
+        python3 \
+        vim \
+        zsh \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -u 1000 workspace
 
