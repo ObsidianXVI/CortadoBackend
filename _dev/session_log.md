@@ -239,3 +239,27 @@
 - M _dev/session_log.md
 - M scripts/initial_setup.sh
 - M scripts/vm_startup_script.sh
+23/05/26 12:02 [FEAT] (pending) `dev-pro-large` Implemented Task 2.1.1 workspace CRUD in the control plane by adding Firestore-backed workspace persistence, authenticated CRUD HTTP endpoints, Kubernetes client bootstrap for both local kubeconfig and Cloud Run GKE discovery, PVC-aware workspace pod lifecycle management with informer-driven status transitions, and Terraform bootstrap for the shared workspace StorageClass in dev and prod.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/main.go
+- A control-plane/cmd/server/bootstrap.go
+- M control-plane/go.mod
+- M control-plane/go.sum
+- M control-plane/internal/api/router.go
+- A control-plane/internal/api/workspaces.go
+- A control-plane/internal/api/workspaces_test.go
+- A control-plane/internal/store/firestore_workspace_store.go
+- A control-plane/internal/workspace/model.go
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
+- A control-plane/internal/workspace/service.go
+- A control-plane/internal/workspace/service_test.go
+- M terraform/envs/dev/main.tf
+- M terraform/envs/prod/main.tf
+- A terraform/k8s/workspace-storageclass.yaml
+- M terraform/modules/cloudrun/main.tf
+- M terraform/modules/cloudrun/variables.tf

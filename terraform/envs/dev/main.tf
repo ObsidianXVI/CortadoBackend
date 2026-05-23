@@ -76,6 +76,7 @@ module "cloudrun" {
   source = "../../modules/cloudrun"
 
   cluster_dns_domain    = var.cluster_dns_domain
+  cluster_name          = module.gke.cluster_name
   env                   = var.env
   image_tag             = var.control_plane_image_tag
   labels                = local.common_labels
@@ -138,6 +139,28 @@ ${local.workspace_test_pod_manifest}
 EOF
       kubectl -n cortado-workspaces delete pod/workspace-pod-test --ignore-not-found
       kubectl apply -f /tmp/cortado-workspace-pod-test-${var.env}.yaml
+    EOT
+  }
+}
+resource "null_resource" "k8s_storageclass" {
+  depends_on = [module.gke]
+
+  triggers = {
+    cluster_name  = module.gke.cluster_name
+    manifest_hash = filesha256("${path.module}/../../k8s/workspace-storageclass.yaml")
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      gcloud container clusters get-credentials ${module.gke.cluster_name} \
+        --region ${var.region} \
+        --project ${var.project_id}
+      cat <<'EOF' >/tmp/cortado-workspace-storageclass-${var.env}.yaml
+${file("${path.module}/../../k8s/workspace-storageclass.yaml")}
+EOF
+      kubectl apply -f /tmp/cortado-workspace-storageclass-${var.env}.yaml
     EOT
   }
 }

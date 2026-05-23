@@ -10,6 +10,7 @@ import (
 
 type RouterConfig struct {
 	ConnectHandler http.Handler
+	WorkspaceSvc   WorkspaceService
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {
@@ -24,6 +25,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	router.Route("/v1", func(r chi.Router) {
 		r.Use(cpmiddleware.DevBypassAuth)
+		if cfg.WorkspaceSvc != nil {
+			handler := newWorkspacesHandler(cfg.WorkspaceSvc)
+			r.Get("/workspaces", handler.list)
+			r.Post("/workspaces", handler.create)
+			r.Get("/workspaces/{id}", handler.get)
+			r.Post("/workspaces/{id}/start", handler.start)
+			r.Post("/workspaces/{id}/stop", handler.stop)
+			r.Delete("/workspaces/{id}", handler.delete)
+		}
 		r.Method(http.MethodGet, "/workspaces/{id}/connect", connectHandler)
 	})
 

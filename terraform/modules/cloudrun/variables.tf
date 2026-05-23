@@ -8,6 +8,11 @@ variable "cluster_dns_domain" {
   type        = string
 }
 
+variable "cluster_name" {
+  description = "GKE cluster name used by the control plane for workspace API operations."
+  type        = string
+}
+
 variable "image_tag" {
   description = "Artifact Registry image tag for the control-plane service."
   type        = string

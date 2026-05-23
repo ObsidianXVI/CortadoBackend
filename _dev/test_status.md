@@ -131,3 +131,10 @@
 - PASS `docker push us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-control-plane:20260523-110240-keepalivefix`
 - PASS `terraform -chdir=terraform/envs/dev apply -auto-approve -target=module.cloudrun.google_cloud_run_v2_service.control_plane`
 - PASS Chrome `demo_app` smoke against `https://cortado-control-plane-dev-dzozcgk63q-uc.a.run.app`: `echo hello_v0_1`, `python3`, `vim`, browser-driven resize (`tput cols` `100 -> 130`), browser RTT `~342 ms`
+23/05/26 12:02
+- PASS `cd control-plane && GOTOOLCHAIN=local /usr/local/go/bin/go mod tidy`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...`
+- PASS `docker build -f control-plane/Dockerfile -t cortado-control-plane:test .`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`

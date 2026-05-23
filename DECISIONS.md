@@ -16,3 +16,9 @@
 
 - Browser terminal sessions negotiate the `cortado-v1` WebSocket subprotocol explicitly.
   Rationale: browser WebSocket clients send a non-empty `Sec-WebSocket-Protocol` header for the terminal transport, and the control plane must echo that exact protocol during upgrade or the handshake fails before any terminal traffic starts.
+
+- Workspace PVCs use the `cortado-workspace` StorageClass by default.
+  Rationale: Task 2.1.1 bootstraps that class via Terraform in both environments, and the control plane now defaults to the same name so dynamically created workspace PVCs bind without extra per-environment overrides.
+
+- The Cloud Run control plane discovers the GKE API endpoint and cluster CA via the Container API when explicit kubeconfig data is unavailable.
+  Rationale: local development can keep using `KUBECONFIG`, but deployed Cloud Run instances do not have a kubeconfig file. Passing cluster identity env vars and resolving endpoint/CA through the Container API gives the workspace CRUD control plane a deployable Kubernetes client path without requiring in-cluster execution.

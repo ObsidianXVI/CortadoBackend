@@ -15,8 +15,9 @@ import (
 
 func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
 	services := newMemoryServiceClient()
-	manager := newPodManager(pods, services, PodManagerConfig{})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
 
 	if err := manager.Create("ws-123", "example.com/cortado/workspace:test", 0.5, 2); err != nil {
 		t.Fatalf("create workspace pod: %v", err)
@@ -49,10 +50,17 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if got := pod.Spec.Containers[0].Resources.Requests.Memory().Value(); got != 2*1024*1024*1024 {
 		t.Fatalf("unexpected memory request: got %d want %d", got, 2*1024*1024*1024)
 	}
+	if pod.Spec.Volumes[0].PersistentVolumeClaim == nil || pod.Spec.Volumes[0].PersistentVolumeClaim.ClaimName != "ws-123-pvc" {
+		t.Fatalf("unexpected pod pvc volume: %#v", pod.Spec.Volumes[0])
+	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); err != nil {
+		t.Fatalf("get workspace pvc: %v", err)
+	}
 }
 
 func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
 	services := newMemoryServiceClient()
 	_, _ = pods.Create(context.Background(), &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -66,7 +74,13 @@ func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 			Namespace: defaultWorkspaceNamespace,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, services, PodManagerConfig{})
+	_, _ = pvcs.Create(context.Background(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123-pvc",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
 
 	if err := manager.Delete("ws-123"); err != nil {
 		t.Fatalf("delete workspace resources: %v", err)
@@ -78,10 +92,14 @@ func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 	if _, err := services.Get("ws-123"); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected service to be deleted, got %v", err)
 	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pvc to be deleted, got %v", err)
+	}
 }
 
 func TestPodManagerGetStatusReturnsPodPhase(t *testing.T) {
 	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
 	services := newMemoryServiceClient()
 	_, _ = pods.Create(context.Background(), &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -92,7 +110,7 @@ func TestPodManagerGetStatusReturnsPodPhase(t *testing.T) {
 			Phase: corev1.PodRunning,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, services, PodManagerConfig{})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
 
 	phase, err := manager.GetStatus("ws-123")
 	if err != nil {
@@ -104,7 +122,7 @@ func TestPodManagerGetStatusReturnsPodPhase(t *testing.T) {
 }
 
 func TestPodManagerGetServiceDNS(t *testing.T) {
-	manager := newPodManager(newMemoryPodClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager := newPodManager(newMemoryPodClient(), newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
 
 	if got := manager.GetServiceDNS("ws-123"); got != "ws-123.cortado-workspaces.svc.cluster.local" {
 		t.Fatalf("unexpected service dns: %q", got)
@@ -114,6 +132,7 @@ func TestPodManagerGetServiceDNS(t *testing.T) {
 func TestPodManagerGetServiceDNSUsesConfiguredDomain(t *testing.T) {
 	manager := newPodManager(
 		newMemoryPodClient(),
+		newMemoryPVCClient(),
 		newMemoryServiceClient(),
 		PodManagerConfig{DNSDomain: "cortado-dev.internal"},
 	)
@@ -125,6 +144,7 @@ func TestPodManagerGetServiceDNSUsesConfiguredDomain(t *testing.T) {
 
 func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
 	services := newMemoryServiceClient()
 	_, _ = pods.Create(context.Background(), &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -142,7 +162,7 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 		deleteCh: make(chan string, 1),
 		phaseCh:  make(chan phaseEvent, 1),
 	}
-	manager := newPodManager(pods, services, PodManagerConfig{StatusSink: sink})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{StatusSink: sink})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -151,7 +171,7 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 
 	select {
 	case event := <-sink.phaseCh:
-		if event.workspaceID != "ws-123" || event.phase != corev1.PodPending {
+		if event.workspaceID != "ws-123" || event.phase != corev1.PodPending || event.deleting {
 			t.Fatalf("unexpected phase event: %#v", event)
 		}
 	case <-time.After(2 * time.Second):
@@ -173,6 +193,7 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 }
 
 type phaseEvent struct {
+	deleting    bool
 	phase       corev1.PodPhase
 	workspaceID string
 }
@@ -182,13 +203,14 @@ type statusSinkStub struct {
 	phaseCh  chan phaseEvent
 }
 
-func (s *statusSinkStub) DeleteWorkspace(_ context.Context, workspaceID string) error {
+func (s *statusSinkStub) OnPodDeleted(_ context.Context, workspaceID string) error {
 	s.deleteCh <- workspaceID
 	return nil
 }
 
-func (s *statusSinkStub) SetWorkspacePhase(_ context.Context, workspaceID string, phase corev1.PodPhase) error {
+func (s *statusSinkStub) OnPodStatus(_ context.Context, workspaceID string, phase corev1.PodPhase, deleting bool) error {
 	s.phaseCh <- phaseEvent{
+		deleting:    deleting,
 		phase:       phase,
 		workspaceID: workspaceID,
 	}
@@ -314,4 +336,52 @@ func (c *memoryServiceClient) Get(name string) (*corev1.Service, error) {
 
 func (c *memoryServiceClient) String() string {
 	return fmt.Sprintf("memoryServiceClient{%d}", len(c.objects))
+}
+
+type memoryPVCClient struct {
+	mu      sync.Mutex
+	objects map[string]*corev1.PersistentVolumeClaim
+}
+
+func newMemoryPVCClient() *memoryPVCClient {
+	return &memoryPVCClient{
+		objects: map[string]*corev1.PersistentVolumeClaim{},
+	}
+}
+
+func (c *memoryPVCClient) Create(_ context.Context, pvc *corev1.PersistentVolumeClaim, _ metav1.CreateOptions) (*corev1.PersistentVolumeClaim, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if _, exists := c.objects[pvc.Name]; exists {
+		return nil, apierrors.NewAlreadyExists(corev1.Resource("persistentvolumeclaims"), pvc.Name)
+	}
+
+	copy := pvc.DeepCopy()
+	c.objects[pvc.Name] = copy
+	return copy.DeepCopy(), nil
+}
+
+func (c *memoryPVCClient) Delete(_ context.Context, name string, _ metav1.DeleteOptions) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if _, exists := c.objects[name]; !exists {
+		return apierrors.NewNotFound(corev1.Resource("persistentvolumeclaims"), name)
+	}
+
+	delete(c.objects, name)
+	return nil
+}
+
+func (c *memoryPVCClient) Get(_ context.Context, name string, _ metav1.GetOptions) (*corev1.PersistentVolumeClaim, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	pvc, exists := c.objects[name]
+	if !exists {
+		return nil, apierrors.NewNotFound(corev1.Resource("persistentvolumeclaims"), name)
+	}
+
+	return pvc.DeepCopy(), nil
 }

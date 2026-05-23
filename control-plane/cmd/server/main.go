@@ -26,6 +26,10 @@ func main() {
 
 	workspaceNamespace := os.Getenv("CORTADO_WORKSPACE_NAMESPACE")
 	clusterDNSDomain := os.Getenv("CORTADO_CLUSTER_DNS_DOMAIN")
+	workspaceService, err := newWorkspaceService(ctx)
+	if err != nil {
+		log.Fatalf("initialize workspace service: %v", err)
+	}
 
 	server := &http.Server{
 		Addr: ":" + port,
@@ -36,6 +40,7 @@ func main() {
 					DNSDomain: clusterDNSDomain,
 				},
 			}),
+			WorkspaceSvc: workspaceService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

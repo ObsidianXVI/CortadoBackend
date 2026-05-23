@@ -42,6 +42,21 @@ resource "google_cloud_run_v2_service" "control_plane" {
       }
 
       env {
+        name  = "CORTADO_GKE_CLUSTER_LOCATION"
+        value = var.region
+      }
+
+      env {
+        name  = "CORTADO_GKE_CLUSTER_NAME"
+        value = var.cluster_name
+      }
+
+      env {
+        name  = "CORTADO_WORKSPACE_STORAGE_CLASS"
+        value = "cortado-workspace"
+      }
+
+      env {
         name  = "CORTADO_WORKSPACE_NAMESPACE"
         value = var.workspace_namespace
       }
