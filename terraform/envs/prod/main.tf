@@ -5,6 +5,7 @@ locals {
     "cloudbuild.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "container.googleapis.com",
+    "firestore.googleapis.com",
     "iam.googleapis.com",
     "pubsub.googleapis.com",
     "run.googleapis.com",
@@ -45,6 +46,10 @@ module "iam" {
 
   env        = var.env
   project_id = var.project_id
+
+  # Grant Firestore data access to the control-plane service account.
+  # Keep existing role(s) and add roles/datastore.user per feat-1-3 Task 1.3.2.
+  control_plane_project_roles = ["roles/container.developer", "roles/datastore.user"]
 
   depends_on = [google_project_service.api]
 }
