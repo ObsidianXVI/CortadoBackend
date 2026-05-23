@@ -36,6 +36,47 @@ func TestSessionRouteIssuesTokensWithoutDevBypass(t *testing.T) {
 	}
 }
 
+func TestSessionRefreshRouteIssuesAccessTokenWithoutDevBypass(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: sessionServiceStub{
+			refreshAccessToken: "new-access-token",
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions/refresh", bytes.NewBufferString(`{"refresh_token":"refresh-token"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body == "" {
+		t.Fatal("expected refresh response body")
+	}
+}
+
+func TestSessionRefreshRouteRejectsInvalidRefreshToken(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: sessionServiceStub{
+			refreshErr: auth.ErrInvalidRefreshToken,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions/refresh", bytes.NewBufferString(`{"refresh_token":"invalid"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestJWKSRouteServesDocument(t *testing.T) {
 	authService := mustAuthService(t)
 	router := NewRouter(RouterConfig{
@@ -59,12 +100,18 @@ func TestJWKSRouteServesDocument(t *testing.T) {
 }
 
 type sessionServiceStub struct {
-	err    error
-	tokens auth.SessionTokens
+	err                error
+	refreshErr         error
+	refreshAccessToken string
+	tokens             auth.SessionTokens
 }
 
 func (s sessionServiceStub) CreateSession(_ context.Context, _, _ string) (auth.SessionTokens, error) {
 	return s.tokens, s.err
+}
+
+func (s sessionServiceStub) RefreshSession(_ context.Context, _ string) (string, error) {
+	return s.refreshAccessToken, s.refreshErr
 }
 
 func mustAuthService(t *testing.T) *auth.Service {
@@ -103,4 +150,8 @@ func (r *authRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord
 
 func (r *authRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {
 	return nil
+}
+
+func (r *authRepositoryStub) GetRefreshToken(_ context.Context, _ string) (auth.RefreshTokenRecord, bool, error) {
+	return auth.RefreshTokenRecord{}, false, nil
 }

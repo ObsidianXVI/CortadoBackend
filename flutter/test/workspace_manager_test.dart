@@ -48,7 +48,7 @@ void main() {
     });
 
     test(
-        'start/stop build correct URLs; web uses dev_token query and no header',
+        'web requests keep query params and use header auth instead of dev_token',
         () async {
       final requests = <RecordedRequest>[];
       final client = RecordingClient((request, body) async {
@@ -75,17 +75,45 @@ void main() {
       expect(
         first.url,
         Uri.parse(
-            'https://api.example.dev/base/v1/workspaces/ws-123/start?foo=bar&dev_token=dev-bypass'),
+            'https://api.example.dev/base/v1/workspaces/ws-123/start?foo=bar'),
       );
       expect(
         second.url,
         Uri.parse(
-            'https://api.example.dev/base/v1/workspaces/ws-456/stop?foo=bar&dev_token=dev-bypass'),
+            'https://api.example.dev/base/v1/workspaces/ws-456/stop?foo=bar'),
       );
 
-      // No header auth when using browser-style query auth.
-      expect(first.headers.containsKey('X-Cortado-Dev-Token'), isFalse);
-      expect(second.headers.containsKey('X-Cortado-Dev-Token'), isFalse);
+      expect(first.headers['X-Cortado-Dev-Token'], 'dev-bypass');
+      expect(second.headers['X-Cortado-Dev-Token'], 'dev-bypass');
+    });
+
+    test('uses bearer auth when a session is present', () async {
+      final requests = <RecordedRequest>[];
+      final client = RecordingClient((request, body) async {
+        requests.add(RecordedRequest(DateTime.now(), request, body));
+        return _stringResponse(204, '');
+      });
+
+      final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
+      final authSession = CortadoAuthSession(baseUrl: 'http://localhost:8080')
+        ..setTokens(
+          accessToken: accessToken,
+          refreshToken: 'refresh-token',
+        );
+      final manager = WorkspaceManager(
+        baseUrl: 'http://localhost:8080',
+        httpClient: client,
+        authSession: authSession,
+        useBrowserAuth: true,
+      );
+
+      await manager.start('ws-123');
+
+      final request = requests.single.request;
+      expect(request.url,
+          Uri.parse('http://localhost:8080/v1/workspaces/ws-123/start'));
+      expect(request.headers['Authorization'], 'Bearer $accessToken');
+      expect(request.headers.containsKey('X-Cortado-Dev-Token'), isFalse);
     });
   });
 
@@ -278,4 +306,15 @@ class RecordingClient extends http.BaseClient {
     final bodyBytes = await http.ByteStream(request.finalize()).toBytes();
     return _handler(request, bodyBytes);
   }
+}
+
+String _jwtExpiringAt(DateTime timestamp) {
+  final header = base64Url.encode(utf8.encode(jsonEncode(<String, String>{
+    'alg': 'RS256',
+    'typ': 'JWT',
+  })));
+  final payload = base64Url.encode(utf8.encode(jsonEncode(<String, Object>{
+    'exp': timestamp.millisecondsSinceEpoch ~/ 1000,
+  })));
+  return '$header.$payload.signature';
 }

@@ -7,6 +7,8 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type FirestoreAuthStoreConfig struct {
@@ -65,4 +67,24 @@ func (s *FirestoreAuthStore) SaveRefreshToken(ctx context.Context, token auth.Re
 		return fmt.Errorf("create refresh token document: %w", err)
 	}
 	return nil
+}
+
+func (s *FirestoreAuthStore) GetRefreshToken(ctx context.Context, refreshToken string) (auth.RefreshTokenRecord, bool, error) {
+	doc, err := s.client.Collection(s.refreshTokensCollection).Doc(refreshToken).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return auth.RefreshTokenRecord{}, false, nil
+	}
+	if err != nil {
+		return auth.RefreshTokenRecord{}, false, fmt.Errorf("get refresh token document: %w", err)
+	}
+
+	var record auth.RefreshTokenRecord
+	if err := doc.DataTo(&record); err != nil {
+		return auth.RefreshTokenRecord{}, false, fmt.Errorf("decode refresh token document %q: %w", doc.Ref.ID, err)
+	}
+	if record.RefreshToken == "" {
+		record.RefreshToken = doc.Ref.ID
+	}
+
+	return record, true, nil
 }

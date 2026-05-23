@@ -367,3 +367,20 @@
 - M control-plane/internal/api/router.go
 - M control-plane/internal/auth/service.go
 - M control-plane/internal/middleware/auth.go
+23/05/26 13:50 [FEAT] (pending) `dev-pro-large` Added control-plane support for Task 2.4.3 refresh-token exchange by introducing `POST /v1/sessions/refresh`, validating opaque persisted refresh tokens against Firestore (including expiry), issuing fresh JWT access tokens for valid refresh tokens, and extending API/auth coverage before re-running the required control-plane test/build checks.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/api/router.go
+- M control-plane/internal/api/sessions.go
+- M control-plane/internal/auth/service.go
+- M control-plane/internal/store/firestore_auth_store.go
+23/05/26 13:52 [FEAT] `dev-pro-large` Implemented the repo-side code for Task 2.4.3 by adding the control-plane refresh endpoint and Firestore-backed refresh-token lookup path, introducing a shared Flutter auth-session object that stores JWT expiry and refresh metadata, switching Flutter HTTP and WebSocket auth to bearer-token usage with development-only fallback behavior retained, and verifying the integrated Go and Flutter test/analyze/build matrix while leaving only the long-running soak and release tag decision open.
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- A flutter/lib/src/cortado_auth_session.dart
+- M flutter/lib/src/cortado_client.dart
+- M flutter/lib/src/workspace_manager.dart
+- M control-plane/internal/api/sessions.go
+- M control-plane/internal/auth/service.go
+- M control-plane/internal/store/firestore_auth_store.go

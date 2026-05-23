@@ -30,12 +30,15 @@ const (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrInvalidRequest     = errors.New("api_key and user_id are required")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrInvalidRequest      = errors.New("api_key and user_id are required")
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrInvalidRefreshInput = errors.New("refresh_token is required")
 )
 
 type Repository interface {
 	ListAPIKeys(ctx context.Context) ([]APIKeyRecord, error)
+	GetRefreshToken(ctx context.Context, refreshToken string) (RefreshTokenRecord, bool, error)
 	SaveRefreshToken(ctx context.Context, token RefreshTokenRecord) error
 }
 
@@ -135,29 +138,16 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 	}
 
 	now := s.now().UTC()
-	claims := AccessClaims{
-		TenantID: tenantID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(accessTokenTTL)),
-			ID:        uuid.NewString(),
-			IssuedAt:  jwt.NewNumericDate(now),
-			Subject:   userID,
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.keyID
-
-	accessToken, err := token.SignedString(s.privateKey)
+	accessToken, jti, err := s.issueAccessToken(now, tenantID, userID)
 	if err != nil {
-		return SessionTokens{}, fmt.Errorf("sign jwt access token: %w", err)
+		return SessionTokens{}, err
 	}
 
 	refreshToken := uuid.NewString()
 	if err := s.repository.SaveRefreshToken(ctx, RefreshTokenRecord{
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(refreshTokenTTL),
-		JTI:          claims.ID,
+		JTI:          jti,
 		RefreshToken: refreshToken,
 		TenantID:     tenantID,
 		UserID:       userID,
@@ -169,6 +159,31 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
+}
+
+func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (string, error) {
+	if strings.TrimSpace(refreshToken) == "" {
+		return "", ErrInvalidRefreshInput
+	}
+
+	record, found, err := s.repository.GetRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return "", fmt.Errorf("get refresh token: %w", err)
+	}
+	if !found {
+		return "", ErrInvalidRefreshToken
+	}
+
+	now := s.now().UTC()
+	if !now.Before(record.ExpiresAt.UTC()) || strings.TrimSpace(record.TenantID) == "" || strings.TrimSpace(record.UserID) == "" {
+		return "", ErrInvalidRefreshToken
+	}
+
+	accessToken, _, err := s.issueAccessToken(now, record.TenantID, record.UserID)
+	if err != nil {
+		return "", err
+	}
+	return accessToken, nil
 }
 
 func (s *Service) JWKS() []byte {
@@ -207,6 +222,27 @@ func (s *Service) resolveTenantID(ctx context.Context, apiKey string) (string, e
 	}
 
 	return "", ErrInvalidCredentials
+}
+
+func (s *Service) issueAccessToken(now time.Time, tenantID, userID string) (string, string, error) {
+	claims := AccessClaims{
+		TenantID: tenantID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(accessTokenTTL)),
+			ID:        uuid.NewString(),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Subject:   userID,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.keyID
+
+	accessToken, err := token.SignedString(s.privateKey)
+	if err != nil {
+		return "", "", fmt.Errorf("sign jwt access token: %w", err)
+	}
+	return accessToken, claims.ID, nil
 }
 
 func parsePrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {

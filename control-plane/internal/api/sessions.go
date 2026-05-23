@@ -21,6 +21,14 @@ type createSessionResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type refreshSessionRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refreshSessionResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 func newSessionsHandler(service SessionService) *sessionsHandler {
 	return &sessionsHandler{service: service}
 }
@@ -44,11 +52,31 @@ func (h *sessionsHandler) create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *sessionsHandler) refresh(w http.ResponseWriter, r *http.Request) {
+	var request refreshSessionRequest
+	if err := decodeJSON(r, &request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	accessToken, err := h.service.RefreshSession(r.Context(), request.RefreshToken)
+	if err != nil {
+		writeSessionError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, refreshSessionResponse{
+		AccessToken: accessToken,
+	})
+}
+
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-	case errors.Is(err, auth.ErrInvalidRequest):
+	case errors.Is(err, auth.ErrInvalidRefreshToken):
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	case errors.Is(err, auth.ErrInvalidRequest), errors.Is(err, auth.ErrInvalidRefreshInput):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)

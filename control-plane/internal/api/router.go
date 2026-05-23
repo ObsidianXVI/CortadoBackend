@@ -19,6 +19,7 @@ type RouterConfig struct {
 
 type SessionService interface {
 	CreateSession(ctx context.Context, apiKey, userID string) (auth.SessionTokens, error)
+	RefreshSession(ctx context.Context, refreshToken string) (string, error)
 }
 
 type JWKSProvider interface {
@@ -44,7 +45,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	router.Route("/v1", func(r chi.Router) {
 		if cfg.SessionSvc != nil {
-			r.Post("/sessions", newSessionsHandler(cfg.SessionSvc).create)
+			sessionsHandler := newSessionsHandler(cfg.SessionSvc)
+			r.Post("/sessions", sessionsHandler.create)
+			r.Post("/sessions/refresh", sessionsHandler.refresh)
 		}
 		r.Group(func(protected chi.Router) {
 			protected.Use(cpmiddleware.NewAuthMiddleware(cpmiddleware.AuthConfig{JWKSJSON: jwksJSON}))

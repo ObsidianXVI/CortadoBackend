@@ -186,3 +186,11 @@
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+23/05/26 13:50
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+23/05/26 13:52
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`

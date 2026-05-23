@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'cortado_auth_session.dart';
 import 'mux_frame.dart';
 import 'platform_web_socket_connector.dart';
 
@@ -39,6 +40,7 @@ class DefaultWebSocketConnector implements WebSocketConnector {
 class CortadoClient {
   CortadoClient({
     required this.baseUrl,
+    this.authSession,
     String devToken = defaultDevToken,
     WebSocketConnector connector = const DefaultWebSocketConnector(),
     bool? useBrowserWebSocket,
@@ -47,6 +49,7 @@ class CortadoClient {
         _useBrowserWebSocket = useBrowserWebSocket ?? kIsWeb;
 
   final String baseUrl;
+  final CortadoAuthSession? authSession;
   final WebSocketConnector _connector;
   final String _devToken;
   final bool _useBrowserWebSocket;
@@ -71,11 +74,12 @@ class CortadoClient {
     }
 
     await disconnect();
+    final accessToken = await authSession?.accessTokenForWebSocket();
 
     final channel = _connector.connect(
-      _connectUri(workspaceId),
+      _connectUri(workspaceId, accessToken: accessToken),
       protocols: const <String>[cortadoProtocol],
-      headers: _headers(),
+      headers: _headers(accessToken: accessToken),
     );
 
     try {
@@ -126,7 +130,7 @@ class CortadoClient {
     ws.sink.add(MuxFrame(channelId, messageType, payload).encode());
   }
 
-  Uri _connectUri(String workspaceId) {
+  Uri _connectUri(String workspaceId, {String? accessToken}) {
     final uri = Uri.parse(baseUrl);
     final scheme = switch (uri.scheme) {
       'http' => 'ws',
@@ -137,7 +141,11 @@ class CortadoClient {
 
     final queryParameters = Map<String, String>.from(uri.queryParameters);
     if (_useBrowserWebSocket) {
-      queryParameters['dev_token'] = _devToken;
+      if (accessToken != null) {
+        queryParameters['token'] = accessToken;
+      } else {
+        queryParameters['dev_token'] = _devToken;
+      }
     }
 
     return uri.replace(
@@ -153,9 +161,15 @@ class CortadoClient {
     );
   }
 
-  Map<String, Object>? _headers() {
+  Map<String, Object>? _headers({String? accessToken}) {
     if (_useBrowserWebSocket) {
       return null;
+    }
+
+    if (accessToken != null) {
+      return <String, Object>{
+        'Authorization': 'Bearer $accessToken',
+      };
     }
 
     return <String, Object>{

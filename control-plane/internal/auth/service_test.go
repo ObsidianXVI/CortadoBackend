@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -146,8 +147,133 @@ func TestServiceCreateSessionRejectsInvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestServiceRefreshSessionIssuesNewAccessToken(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	now := time.Date(2026, time.May, 23, 13, 30, 0, 0, time.UTC)
+	repository := &repositoryStub{
+		apiKeys: []APIKeyRecord{
+			{
+				Hash:     string(hash),
+				TenantID: "tenant-1",
+			},
+		},
+	}
+
+	service, err := NewService(ServiceConfig{
+		Now:           func() time.Time { return now },
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    repository,
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	issued, err := service.CreateSession(context.Background(), "secret-api-key", "user-1")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	initialClaims := parseAccessClaims(t, service, issued.AccessToken)
+
+	now = now.Add(2 * time.Hour)
+	refreshedToken, err := service.RefreshSession(context.Background(), issued.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh session: %v", err)
+	}
+	refreshedClaims := parseAccessClaims(t, service, refreshedToken)
+
+	if refreshedClaims.Subject != "user-1" {
+		t.Fatalf("unexpected subject: got %q want %q", refreshedClaims.Subject, "user-1")
+	}
+	if refreshedClaims.TenantID != "tenant-1" {
+		t.Fatalf("unexpected tenant: got %q want %q", refreshedClaims.TenantID, "tenant-1")
+	}
+	if refreshedClaims.ID == initialClaims.ID {
+		t.Fatalf("expected new jti, both were %q", refreshedClaims.ID)
+	}
+	if refreshedClaims.ExpiresAt == nil || !refreshedClaims.ExpiresAt.Time.Equal(now.Add(accessTokenTTL)) {
+		t.Fatalf("unexpected expiry: %#v", refreshedClaims.ExpiresAt)
+	}
+}
+
+func TestServiceRefreshSessionRejectsInvalidOrExpiredToken(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	now := time.Date(2026, time.May, 23, 13, 30, 0, 0, time.UTC)
+	repository := &repositoryStub{
+		apiKeys: []APIKeyRecord{
+			{
+				Hash:     string(hash),
+				TenantID: "tenant-1",
+			},
+		},
+	}
+
+	service, err := NewService(ServiceConfig{
+		Now:           func() time.Time { return now },
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    repository,
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	issued, err := service.CreateSession(context.Background(), "secret-api-key", "user-1")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if _, err := service.RefreshSession(context.Background(), "missing-refresh-token"); !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expected invalid refresh token error, got %v", err)
+	}
+
+	now = now.Add(refreshTokenTTL + time.Minute)
+	if _, err := service.RefreshSession(context.Background(), issued.RefreshToken); !errors.Is(err, ErrInvalidRefreshToken) {
+		t.Fatalf("expected invalid refresh token error for expired token, got %v", err)
+	}
+}
+
+func parseAccessClaims(t *testing.T, service *Service, accessToken string) *AccessClaims {
+	t.Helper()
+
+	verifier, err := keyfunc.NewJWKSetJSON(json.RawMessage(service.JWKS()))
+	if err != nil {
+		t.Fatalf("new jwks verifier: %v", err)
+	}
+	token, err := jwt.ParseWithClaims(accessToken, &AccessClaims{}, verifier.Keyfunc, jwt.WithValidMethods([]string{"RS256"}))
+	if err != nil {
+		t.Fatalf("parse access token: %v", err)
+	}
+	claims, ok := token.Claims.(*AccessClaims)
+	if !ok {
+		t.Fatalf("unexpected claims type: %T", token.Claims)
+	}
+	return claims
+}
+
 type repositoryStub struct {
 	apiKeys            []APIKeyRecord
+	refreshTokens      map[string]RefreshTokenRecord
 	listCalls          int
 	savedRefreshTokens []RefreshTokenRecord
 }
@@ -158,8 +284,17 @@ func (r *repositoryStub) ListAPIKeys(_ context.Context) ([]APIKeyRecord, error) 
 }
 
 func (r *repositoryStub) SaveRefreshToken(_ context.Context, token RefreshTokenRecord) error {
+	if r.refreshTokens == nil {
+		r.refreshTokens = map[string]RefreshTokenRecord{}
+	}
+	r.refreshTokens[token.RefreshToken] = token
 	r.savedRefreshTokens = append(r.savedRefreshTokens, token)
 	return nil
+}
+
+func (r *repositoryStub) GetRefreshToken(_ context.Context, refreshToken string) (RefreshTokenRecord, bool, error) {
+	token, ok := r.refreshTokens[refreshToken]
+	return token, ok, nil
 }
 
 type cacheStub struct {

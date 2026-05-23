@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'cortado_auth_session.dart';
 import 'cortado_client.dart';
 import 'workspace_models.dart';
 
 class WorkspaceManager {
   WorkspaceManager({
     required this.baseUrl,
+    this.authSession,
     String devToken = defaultDevToken,
     http.Client? httpClient,
     bool? useBrowserAuth,
@@ -17,14 +18,13 @@ class WorkspaceManager {
     this.runningPollInterval = const Duration(seconds: 30),
   })  : _client = httpClient ?? http.Client(),
         _devToken = devToken,
-        _ownsClient = httpClient == null,
-        _useBrowserAuth = useBrowserAuth ?? kIsWeb;
+        _ownsClient = httpClient == null;
 
   final String baseUrl;
+  final CortadoAuthSession? authSession;
   final http.Client _client;
   final String _devToken;
   final bool _ownsClient;
-  final bool _useBrowserAuth;
   final Duration transitionalPollInterval;
   final Duration runningPollInterval;
 
@@ -42,7 +42,7 @@ class WorkspaceManager {
     };
     final response = await _client.post(
       _collectionUri(),
-      headers: _headers(includeJson: true),
+      headers: await _headers(includeJson: true),
       body: jsonEncode(payload),
     );
 
@@ -134,7 +134,7 @@ class WorkspaceManager {
 
     final response = await _client.get(
       _workspaceUri(id),
-      headers: _headers(),
+      headers: await _headers(),
     );
 
     return _decodeWorkspace(response);
@@ -145,7 +145,7 @@ class WorkspaceManager {
 
     final response = await _client.post(
       _workspaceUri(id, action),
-      headers: _headers(),
+      headers: await _headers(),
     );
     _throwIfError(response);
   }
@@ -183,9 +183,12 @@ class WorkspaceManager {
     );
   }
 
-  Map<String, String> _headers({bool includeJson = false}) {
+  Future<Map<String, String>> _headers({bool includeJson = false}) async {
     final headers = <String, String>{};
-    if (!_useBrowserAuth) {
+    final accessToken = await authSession?.accessTokenForHttpRequest();
+    if (accessToken != null) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    } else {
       headers['X-Cortado-Dev-Token'] = _devToken;
     }
     if (includeJson) {
@@ -207,17 +210,12 @@ class WorkspaceManager {
 
   Uri _buildUri(List<String> segments) {
     final baseUri = Uri.parse(baseUrl);
-    final queryParameters = Map<String, String>.from(baseUri.queryParameters);
-    if (_useBrowserAuth) {
-      queryParameters['dev_token'] = _devToken;
-    }
 
     return baseUri.replace(
       pathSegments: <String>[
         ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
         ...segments,
       ],
-      queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
   }
 

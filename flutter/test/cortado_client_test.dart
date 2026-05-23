@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cortado/cortado.dart';
@@ -7,8 +8,64 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 void main() {
   group('CortadoClient', () {
-    test('uses a dev_token query parameter for browser websocket connections',
+    test('uses a token query parameter for browser websocket connections',
         () async {
+      final connector = FakeWebSocketConnector();
+      final authSession = CortadoAuthSession(baseUrl: 'https://api.example.dev')
+        ..setTokens(
+          accessToken: _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15)),
+          refreshToken: 'refresh-token',
+        );
+      final client = CortadoClient(
+        baseUrl: 'https://api.example.dev/base',
+        authSession: authSession,
+        connector: connector,
+        useBrowserWebSocket: true,
+      );
+
+      await client.connect('ws-123');
+
+      expect(
+        connector.lastUri,
+        Uri.parse(
+            'wss://api.example.dev/base/v1/workspaces/ws-123/connect?token=${_jwtExpiringAt(DateTime.utc(2026, 5, 23, 15))}'),
+      );
+      expect(connector.lastHeaders, isNull);
+
+      await client.dispose();
+    });
+
+    test('uses authorization headers for non-browser websocket connections',
+        () async {
+      final connector = FakeWebSocketConnector();
+      final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
+      final authSession = CortadoAuthSession(baseUrl: 'http://localhost:8080')
+        ..setTokens(
+          accessToken: accessToken,
+          refreshToken: 'refresh-token',
+        );
+      final client = CortadoClient(
+        baseUrl: 'http://localhost:8080',
+        authSession: authSession,
+        connector: connector,
+        useBrowserWebSocket: false,
+      );
+
+      await client.connect('ws-123');
+
+      expect(
+        connector.lastUri,
+        Uri.parse('ws://localhost:8080/v1/workspaces/ws-123/connect'),
+      );
+      expect(
+        connector.lastHeaders,
+        <String, Object>{'Authorization': 'Bearer $accessToken'},
+      );
+
+      await client.dispose();
+    });
+
+    test('falls back to dev_token query auth without a session', () async {
       final connector = FakeWebSocketConnector();
       final client = CortadoClient(
         baseUrl: 'https://api.example.dev/base',
@@ -28,7 +85,7 @@ void main() {
       await client.dispose();
     });
 
-    test('uses headers for non-browser websocket connections', () async {
+    test('falls back to dev headers without a session', () async {
       final connector = FakeWebSocketConnector();
       final client = CortadoClient(
         baseUrl: 'http://localhost:8080',
@@ -38,10 +95,6 @@ void main() {
 
       await client.connect('ws-123');
 
-      expect(
-        connector.lastUri,
-        Uri.parse('ws://localhost:8080/v1/workspaces/ws-123/connect'),
-      );
       expect(
         connector.lastHeaders,
         <String, Object>{'X-Cortado-Dev-Token': 'dev-bypass'},
@@ -97,9 +150,11 @@ void main() {
 
     test('rethrows ready failures and publishes them on the error stream',
         () async {
-      final readyCompleter = Completer<void>();
       final connector = FakeWebSocketConnector(
-        ready: readyCompleter.future,
+        ready: Future<void>.delayed(
+          Duration.zero,
+          () => throw StateError('connection failed'),
+        ),
       );
       final client = CortadoClient(
         baseUrl: 'http://localhost:8080',
@@ -109,11 +164,6 @@ void main() {
 
       final errorFuture = client.errors.first;
       final connectFuture = client.connect('ws-123');
-      unawaited(
-        Future<void>.microtask(
-          () => readyCompleter.completeError(StateError('connection failed')),
-        ),
-      );
 
       await expectLater(
         connectFuture,
@@ -142,6 +192,17 @@ void main() {
       await client.dispose();
     });
   });
+}
+
+String _jwtExpiringAt(DateTime timestamp) {
+  final header = base64Url.encode(utf8.encode(jsonEncode(<String, String>{
+    'alg': 'RS256',
+    'typ': 'JWT',
+  })));
+  final payload = base64Url.encode(utf8.encode(jsonEncode(<String, Object>{
+    'exp': timestamp.millisecondsSinceEpoch ~/ 1000,
+  })));
+  return '$header.$payload.signature';
 }
 
 class FakeWebSocketConnector implements WebSocketConnector {

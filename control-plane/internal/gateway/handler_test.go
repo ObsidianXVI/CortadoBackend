@@ -293,3 +293,7 @@ func (r *authRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord
 func (r *authRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {
 	return nil
 }
+
+func (r *authRepositoryStub) GetRefreshToken(_ context.Context, _ string) (auth.RefreshTokenRecord, bool, error) {
+	return auth.RefreshTokenRecord{}, false, nil
+}

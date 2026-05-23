@@ -1,5 +1,6 @@
 library cortado;
 
+export 'src/cortado_auth_session.dart';
 export 'src/cortado_client.dart';
 export 'src/cortado_workspace_provider.dart';
 export 'src/mux_frame.dart';
