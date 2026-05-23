@@ -13,6 +13,8 @@ Completed Task 1.3.1 by scaffolding the control-plane HTTP service with chi rout
 ## What was done this session
 Added the first `client-go`-based `WorkspacePodManager` to the control plane, including pod/service creation, deletion, status lookup, stable headless-service DNS generation, and a background watch loop that can push pod lifecycle changes into a downstream status sink. Provisioned Firestore in both Terraform env roots by enabling the Firestore API, creating the default native database in `us-central1`, and granting the control-plane service account `roles/datastore.user`.
 
+Applied a CI hotfix to `.github/workflows/build-agent.yml` so `build-and-push` now detects whether Google Cloud credentials are actually available, authenticates with Workload Identity or a service-account JSON secret when present, and otherwise falls back to a local Docker build without attempting Artifact Registry auth or push. Verified the build path with `docker build -t cortado-workspace:test agent/`.
+
 ## Remaining work this session
 None.
 
