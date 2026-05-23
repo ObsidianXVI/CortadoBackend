@@ -1,16 +1,38 @@
 # demo_app
 
-A new Flutter project.
+This app is the manual smoke harness for the Flutter terminal package work in
+Feature 1.4.
 
-## Getting Started
+## Run
 
-This project is a starting point for a Flutter application.
+1. Start the app in Chrome:
 
-A few resources to get you started if this is your first Flutter project:
+   ```bash
+   /home/OBSiDIAN/tools/flutter/bin/flutter run -d chrome
+   ```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+2. Provide a control-plane base URL and workspace ID in the form fields, or
+   launch with query parameters:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+   ```text
+   ?baseUrl=https://control-plane.example.run.app&workspaceId=ws-123&shell=/bin/bash
+   ```
+
+3. Press `Connect` to open the terminal widget.
+
+## Smoke checklist
+
+- Run `echo hello_v0_1` and verify the echoed line renders in the terminal.
+- Run `vim` and verify the full-screen TUI redraw works.
+- Run `python3` and verify the REPL prompt accepts input without broken echo.
+- Drag the resize handle below the terminal, then run `tput cols` to confirm
+  the shell sees the new width.
+- Measure keystroke round-trip timing in Chrome DevTools via the WebSocket
+  frames inspector.
+
+## Notes
+
+- `demo_app/web/index.html` supplies the xterm.js CSS/JS includes required by
+  the package on Flutter Web.
+- The package still requires a live workspace ID from the broader Cortado
+  environment; this app only provides the browser-side smoke harness.
