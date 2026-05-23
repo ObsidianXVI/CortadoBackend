@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: workspace-pod-test
+  namespace: cortado-workspaces
+  labels:
+    app.kubernetes.io/name: cortado-workspace-agent
+    cortado/test-pod: "true"
+spec:
+  serviceAccountName: workspace-sa
+  restartPolicy: Never
+  containers:
+    - name: workspace-agent
+      image: ${workspace_image}
+      ports:
+        - containerPort: 9090

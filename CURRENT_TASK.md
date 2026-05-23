@@ -2,31 +2,34 @@
 
 
 ## Release · Feature · Task
-v0.1 → Feature 1.2 (Workspace Agent — PTY Core) → Task 1.2.4
+v0.1 → Feature 1.2 (Workspace Agent — PTY Core) → Task 1.2.5
 
 ## Status
 DONE
 
 ## What was done last session
-Completed Task 1.2.3 by implementing the first runnable workspace-agent gRPC server with PTY streaming, a `cmd/agent` entrypoint, and bufconn tests.
+Completed Task 1.2.4 by adding the multi-stage agent Dockerfile, a GitHub Actions build/push workflow, and verifying the built container contains a statically linked `cortado-agent` binary.
 
 ## What was done this session
-Added `agent/Dockerfile` as a multi-stage build that produces a statically linked `cortado-agent` binary from `./cmd/agent` and packages it into an Ubuntu 22.04 runtime image with the shell/tooling needed for workspace sessions. Added `.github/workflows/build-agent.yml` to build and push the agent image to `us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cortado-dev/cortado-workspace:${GITHUB_SHA}`. Verified locally with `docker build -t cortado-agent:test agent` and `docker run --rm --entrypoint file cortado-agent:test /usr/local/bin/cortado-agent`, which reports the binary as `statically linked`.
+Added Terraform-managed Kubernetes bootstrap wiring under `terraform/k8s/` and both env roots. The base namespace/service account manifest is now re-applied by `null_resource.k8s_bootstrap`, and the one-off workspace pod test manifest is gated by `workspace_test_pod_enabled` and parameterized by an Artifact Registry image tag. Pushed the current workspace-agent image to `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613`, applied the dev Terraform changes, and verified the live cluster state: `workspace-sa` still has the expected Workload Identity annotations and `workspace-pod-test` reached `Ready` after Autopilot scaled up a node.
 
 ## Remaining work this session
 None.
 
 ## Definition of done
-- [x] `agent/Dockerfile` builds the workspace agent with `CGO_ENABLED=0`
-- [x] Runtime image includes shell/tooling needed for workspace sessions
-- [x] `.github/workflows/build-agent.yml` builds and pushes the agent image to Artifact Registry
-- [x] Local `docker build` succeeds for `agent/`
-- [x] `file /usr/local/bin/cortado-agent` inside the container reports `statically linked`
+- [x] `terraform/k8s/workspace-namespace.yaml` exists and is applied from Terraform
+- [x] `terraform/k8s/workspace-pod-test.yaml` exists for validating agent deployment
+- [x] Dev/prod env roots contain the Kubernetes bootstrap `null_resource`
+- [x] `terraform validate` passes in `terraform/envs/dev`
+- [x] `terraform validate` passes in `terraform/envs/prod`
+- [x] `terraform apply` succeeds in `terraform/envs/dev`
+- [x] Namespace/service account bootstrap remains correct in the dev cluster
+- [x] The workspace test pod image exists in Artifact Registry and the pod reaches `Ready`
 - [x] CURRENT_RELEASE.md points at the next task after this one
 
 ## Next task after this one
-Task 1.2.5 — Terraform: Kubernetes manifests for workspace pod
-See _dev/docs/release_timeline.md §Feature 1.2 Task 1.2.5 for full spec
+Task 1.3.1 — Control plane Go app skeleton + dev bypass
+See _dev/docs/release_timeline.md §Feature 1.3 Task 1.3.1 for full spec
 
 ## Blocked on / decisions needed
 None.

@@ -19,3 +19,7 @@ gcloud storage buckets create gs://cortado-tf-state-dev \
 ```
 
 After the bucket exists, initialize Terraform from the matching environment directory as usual.
+
+## Kubernetes credentials note
+
+The `null_resource` pattern used for early Kubernetes bootstrap runs `gcloud container clusters get-credentials` before `kubectl apply`. When Terraform runs inside the devcontainer, that updates the devcontainer's `~/.kube/config`, not the host machine's kubeconfig. If `kubectl` works in the devcontainer but not on the host, refresh credentials in the environment where you plan to run the command.
