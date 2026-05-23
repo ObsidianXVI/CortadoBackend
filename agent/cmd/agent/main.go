@@ -13,6 +13,7 @@ import (
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	agentserver "github.com/your-org/cortado/agent/internal/server"
+	"github.com/your-org/cortado/agent/internal/usage"
 	"google.golang.org/grpc"
 )
 
@@ -33,8 +34,24 @@ func main() {
 	}
 	defer listener.Close()
 
+	usageTracker, err := usage.NewTrackerFromEnv(ctx)
+	if err != nil {
+		log.Fatalf("initialize usage tracker: %v", err)
+	}
+	defer func() {
+		if closeErr := usageTracker.Close(); closeErr != nil {
+			log.Printf("close usage tracker: %v", closeErr)
+		}
+	}()
+	if err := usageTracker.ReplayPending(ctx); err != nil {
+		log.Printf("replay usage WAL: %v", err)
+	}
+
 	grpcServer := grpc.NewServer()
-	pb.RegisterWorkspaceAgentServiceServer(grpcServer, agentserver.NewAgentServer(&ptymanager.Manager{}))
+	pb.RegisterWorkspaceAgentServiceServer(
+		grpcServer,
+		agentserver.NewAgentServer(&ptymanager.Manager{}, usageTracker),
+	)
 
 	go func() {
 		<-ctx.Done()

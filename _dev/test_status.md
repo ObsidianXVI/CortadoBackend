@@ -152,3 +152,23 @@
 - PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+23/05/26 12:56
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
+23/05/26 13:00
+- PASS `terraform fmt -recursive terraform`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`
+23/05/26 13:16
+- PASS `cd proto && buf lint`
+- PASS `cd agent && GOTOOLCHAIN=local go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd control-plane && GOTOOLCHAIN=local go mod tidy`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod validate`

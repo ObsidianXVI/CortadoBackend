@@ -20,7 +20,7 @@ import (
 func TestAgentServerHealth(t *testing.T) {
 	t.Parallel()
 
-	client, cleanup := newTestClient(t)
+	client, cleanup := newTestClient(t, nil)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -38,7 +38,7 @@ func TestAgentServerHealth(t *testing.T) {
 func TestAgentServerGetIdleStatus(t *testing.T) {
 	t.Parallel()
 
-	client, cleanup := newTestClient(t)
+	client, cleanup := newTestClient(t, nil)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -56,7 +56,8 @@ func TestAgentServerGetIdleStatus(t *testing.T) {
 func TestAgentServerCreateAndStreamPty(t *testing.T) {
 	t.Parallel()
 
-	client, cleanup := newTestClient(t)
+	tracker := &usageTrackerStub{}
+	client, cleanup := newTestClient(t, tracker)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -69,6 +70,9 @@ func TestAgentServerCreateAndStreamPty(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("create pty: %v", err)
+	}
+	if len(tracker.started) != 1 || tracker.started[0] != createResp.GetPtyId() {
+		t.Fatalf("unexpected tracked sessions: %#v", tracker.started)
 	}
 
 	stream, err := client.StreamPty(ctx)
@@ -114,7 +118,7 @@ func TestAgentServerCreateAndStreamPty(t *testing.T) {
 func TestAgentServerRejectsMissingStreamPtySessionID(t *testing.T) {
 	t.Parallel()
 
-	client, cleanup := newTestClient(t)
+	client, cleanup := newTestClient(t, nil)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -135,12 +139,33 @@ func TestAgentServerRejectsMissingStreamPtySessionID(t *testing.T) {
 	}
 }
 
-func newTestClient(t *testing.T) (pb.WorkspaceAgentServiceClient, func()) {
+func TestAgentServerFlushUsageWAL(t *testing.T) {
+	t.Parallel()
+
+	tracker := &usageTrackerStub{}
+	client, cleanup := newTestClient(t, tracker)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.FlushUsageWAL(ctx, &pb.FlushUsageWALRequest{}); err != nil {
+		t.Fatalf("flush usage WAL: %v", err)
+	}
+	if tracker.flushCalls != 1 {
+		t.Fatalf("unexpected flush call count: got %d want 1", tracker.flushCalls)
+	}
+}
+
+func newTestClient(t *testing.T, tracker usageTracker) (pb.WorkspaceAgentServiceClient, func()) {
 	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	pb.RegisterWorkspaceAgentServiceServer(grpcServer, NewAgentServer(&ptymanager.Manager{}))
+	pb.RegisterWorkspaceAgentServiceServer(
+		grpcServer,
+		NewAgentServer(&ptymanager.Manager{}, tracker),
+	)
 
 	go func() {
 		if serveErr := grpcServer.Serve(listener); serveErr != nil {
@@ -171,4 +196,20 @@ func newTestClient(t *testing.T) (pb.WorkspaceAgentServiceClient, func()) {
 	}
 
 	return pb.NewWorkspaceAgentServiceClient(conn), cleanup
+}
+
+type usageTrackerStub struct {
+	flushCalls int
+	started    []string
+}
+
+func (u *usageTrackerStub) EndSession(string) {}
+
+func (u *usageTrackerStub) Flush(context.Context) error {
+	u.flushCalls++
+	return nil
+}
+
+func (u *usageTrackerStub) StartSession(sessionID string) {
+	u.started = append(u.started, sessionID)
 }

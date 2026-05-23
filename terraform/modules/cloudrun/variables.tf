@@ -57,3 +57,8 @@ variable "workspace_namespace" {
   description = "Kubernetes namespace that contains workspace Services."
   type        = string
 }
+
+variable "usage_events_topic_name" {
+  description = "Pub/Sub topic name that receives usage events from workspace agents."
+  type        = string
+}

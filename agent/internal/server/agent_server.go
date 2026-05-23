@@ -19,15 +19,25 @@ import (
 type AgentServer struct {
 	pb.UnimplementedWorkspaceAgentServiceServer
 
-	ptyMgr *ptymanager.Manager
+	ptyMgr       *ptymanager.Manager
+	usageTracker usageTracker
 }
 
-func NewAgentServer(ptyMgr *ptymanager.Manager) *AgentServer {
+type usageTracker interface {
+	EndSession(sessionID string)
+	Flush(ctx context.Context) error
+	StartSession(sessionID string)
+}
+
+func NewAgentServer(ptyMgr *ptymanager.Manager, tracker usageTracker) *AgentServer {
 	if ptyMgr == nil {
 		ptyMgr = &ptymanager.Manager{}
 	}
 
-	return &AgentServer{ptyMgr: ptyMgr}
+	return &AgentServer{
+		ptyMgr:       ptyMgr,
+		usageTracker: tracker,
+	}
 }
 
 func (s *AgentServer) CreatePty(ctx context.Context, req *pb.CreatePtyRequest) (*pb.CreatePtyResponse, error) {
@@ -45,6 +55,8 @@ func (s *AgentServer) CreatePty(ctx context.Context, req *pb.CreatePtyRequest) (
 		}
 		return nil, status.Errorf(codes.Internal, "create pty: %v", err)
 	}
+
+	s.trackSessionLifetime(session.ID)
 
 	return &pb.CreatePtyResponse{PtyId: session.ID}, nil
 }
@@ -67,6 +79,16 @@ func (s *AgentServer) GetIdleStatus(ctx context.Context, req *pb.GetIdleStatusRe
 	}
 
 	return response, nil
+}
+
+func (s *AgentServer) FlushUsageWAL(ctx context.Context, req *pb.FlushUsageWALRequest) (*pb.FlushUsageWALResponse, error) {
+	if s.usageTracker != nil {
+		if err := s.usageTracker.Flush(ctx); err != nil {
+			return nil, status.Errorf(codes.Internal, "flush usage WAL: %v", err)
+		}
+	}
+
+	return &pb.FlushUsageWALResponse{}, nil
 }
 
 func (s *AgentServer) StreamPty(stream pb.WorkspaceAgentService_StreamPtyServer) error {
@@ -261,4 +283,24 @@ func parseSignal(value int32) (syscall.Signal, error) {
 	default:
 		return 0, status.Errorf(codes.InvalidArgument, "unsupported signal %d", value)
 	}
+}
+
+func (s *AgentServer) trackSessionLifetime(sessionID string) {
+	if s.usageTracker == nil || strings.TrimSpace(sessionID) == "" {
+		return
+	}
+
+	s.usageTracker.StartSession(sessionID)
+
+	exitCh, err := s.ptyMgr.OnExit(sessionID)
+	if err != nil {
+		s.usageTracker.EndSession(sessionID)
+		return
+	}
+
+	go func() {
+		defer s.usageTracker.EndSession(sessionID)
+		for range exitCh {
+		}
+	}()
 }

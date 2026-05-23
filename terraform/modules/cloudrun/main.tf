@@ -60,6 +60,11 @@ resource "google_cloud_run_v2_service" "control_plane" {
         name  = "CORTADO_WORKSPACE_NAMESPACE"
         value = var.workspace_namespace
       }
+
+      env {
+        name  = "CORTADO_USAGE_EVENTS_TOPIC"
+        value = var.usage_events_topic_name
+      }
     }
 
     vpc_access {

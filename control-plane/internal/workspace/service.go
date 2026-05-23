@@ -31,7 +31,7 @@ type Repository interface {
 }
 
 type Provisioner interface {
-	Create(workspaceID, image string, cpu, memGB float64) error
+	Create(workspace Workspace) error
 	Delete(workspaceID string) error
 	Stop(workspaceID string) error
 }
@@ -121,7 +121,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, params CreateParams) (Wor
 		return Workspace{}, fmt.Errorf("create workspace record: %w", err)
 	}
 
-	if err := s.provisioner.Create(workspace.ID, workspace.Image, workspace.Resources.CPU, workspace.Resources.MemoryGB); err != nil {
+	if err := s.provisioner.Create(workspace); err != nil {
 		if deleteErr := s.repository.Delete(ctx, workspace.ID); deleteErr != nil {
 			return Workspace{}, fmt.Errorf("provision workspace: %w (cleanup record: %v)", err, deleteErr)
 		}
@@ -221,7 +221,7 @@ func (s *Service) StartWorkspace(ctx context.Context, tenantID, workspaceID stri
 		return Workspace{}, fmt.Errorf("set workspace starting: %w", err)
 	}
 
-	if err := s.provisioner.Create(workspace.ID, workspace.Image, workspace.Resources.CPU, workspace.Resources.MemoryGB); err != nil {
+	if err := s.provisioner.Create(workspace); err != nil {
 		if _, rollbackErr := s.repository.UpdateStatus(ctx, workspaceID, StatusStopped, s.now().UTC()); rollbackErr != nil {
 			return Workspace{}, fmt.Errorf("start workspace: %w (rollback status: %v)", err, rollbackErr)
 		}

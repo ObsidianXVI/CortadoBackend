@@ -51,13 +51,19 @@ func newWorkspaceService(ctx context.Context) (*workspace.Service, error) {
 		DNSDomain:        os.Getenv("CORTADO_CLUSTER_DNS_DOMAIN"),
 		Namespace:        os.Getenv("CORTADO_WORKSPACE_NAMESPACE"),
 		PVCSize:          os.Getenv("CORTADO_WORKSPACE_PVC_SIZE"),
+		ProjectID:        projectID,
+		Region:           os.Getenv("CORTADO_GKE_CLUSTER_LOCATION"),
 		StorageClassName: os.Getenv("CORTADO_WORKSPACE_STORAGE_CLASS"),
+		UsageEventsTopic: os.Getenv("CORTADO_USAGE_EVENTS_TOPIC"),
 	})
 	service := workspace.NewService(workspace.ServiceConfig{
 		Provisioner: podManager,
 		Repository:  repository,
 	})
 	podManager.SetStatusSink(service)
+	podManager.SetUsageFlusher(workspace.NewAgentUsageFlusher(workspace.AgentUsageFlusherConfig{
+		WorkspaceResolver: podManager,
+	}))
 	podManager.Run(ctx)
 
 	return service, nil

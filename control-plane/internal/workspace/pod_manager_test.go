@@ -19,7 +19,16 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	services := newMemoryServiceClient()
 	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
 
-	if err := manager.Create("ws-123", "example.com/cortado/workspace:test", 0.5, 2); err != nil {
+	if err := manager.Create(Workspace{
+		ID:       "ws-123",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Image:    "example.com/cortado/workspace:test",
+		Resources: Resources{
+			CPU:      0.5,
+			MemoryGB: 2,
+		},
+	}); err != nil {
 		t.Fatalf("create workspace pod: %v", err)
 	}
 
@@ -58,6 +67,53 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 }
 
+func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
+	pods := newMemoryPodClient()
+	manager := newPodManager(
+		pods,
+		newMemoryPVCClient(),
+		newMemoryServiceClient(),
+		PodManagerConfig{
+			PVCSize:          "10Gi",
+			ProjectID:        "cortado-ide",
+			Region:           "us-central1",
+			UsageEventsTopic: "cortado-usage-events-dev",
+		},
+	)
+
+	if err := manager.Create(Workspace{
+		ID:       "ws-123",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Image:    "example.com/cortado/workspace:test",
+		Resources: Resources{
+			CPU:      1,
+			MemoryGB: 2,
+		},
+	}); err != nil {
+		t.Fatalf("create workspace pod: %v", err)
+	}
+
+	pod, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get workspace pod: %v", err)
+	}
+
+	env := map[string]string{}
+	for _, entry := range pod.Spec.Containers[0].Env {
+		env[entry.Name] = entry.Value
+	}
+	if env[envGoogleCloudProject] != "cortado-ide" {
+		t.Fatalf("unexpected project env: %#v", env)
+	}
+	if env[envUsageEventsTopic] != "cortado-usage-events-dev" {
+		t.Fatalf("unexpected topic env: %#v", env)
+	}
+	if env[envWorkspaceID] != "ws-123" || env[envTenantID] != "tenant-1" || env[envWorkspaceUserID] != "user-1" {
+		t.Fatalf("unexpected workspace identity env: %#v", env)
+	}
+}
+
 func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 	pods := newMemoryPodClient()
 	pvcs := newMemoryPVCClient()
@@ -81,9 +137,14 @@ func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 		},
 	}, metav1.CreateOptions{})
 	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
+	flusher := &usageFlusherStub{}
+	manager.SetUsageFlusher(flusher)
 
 	if err := manager.Delete("ws-123"); err != nil {
 		t.Fatalf("delete workspace resources: %v", err)
+	}
+	if flusher.workspaceID != "ws-123" {
+		t.Fatalf("unexpected flushed workspace: %q", flusher.workspaceID)
 	}
 
 	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
@@ -203,6 +264,10 @@ type statusSinkStub struct {
 	phaseCh  chan phaseEvent
 }
 
+type usageFlusherStub struct {
+	workspaceID string
+}
+
 func (s *statusSinkStub) OnPodDeleted(_ context.Context, workspaceID string) error {
 	s.deleteCh <- workspaceID
 	return nil
@@ -214,6 +279,11 @@ func (s *statusSinkStub) OnPodStatus(_ context.Context, workspaceID string, phas
 		phase:       phase,
 		workspaceID: workspaceID,
 	}
+	return nil
+}
+
+func (u *usageFlusherStub) FlushUsageWAL(_ context.Context, workspaceID string) error {
+	u.workspaceID = workspaceID
 	return nil
 }
 

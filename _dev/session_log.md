@@ -218,11 +218,26 @@
 - M terraform/envs/dev/variables.tf
 - M terraform/envs/prod/main.tf
 - M terraform/envs/prod/terraform.tfvars
-- M terraform/envs/prod/variables.tf
-- M terraform/modules/cloudrun/main.tf
-- M terraform/modules/cloudrun/variables.tf
-- M terraform/modules/gke/main.tf
-- M terraform/modules/gke/variables.tf
+23/05/26 12:56 [FEAT] (3773b94) `dev-pro-large` Completed Task 2.2.2 by teaching the Flutter terminal to recover from broken WebSocket sessions with a reconnecting overlay, workspace restart/status polling, retry-aware PTY reopen handling, buffered pre-open input, and a resumed-session banner, then advanced the release pointer to Feature 2.3 Task 2.3.1 after adding widget-level coverage for the resume and reopen-retry flows.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M flutter/lib/src/terminal/cortado_terminal.dart
+- M flutter/test/cortado_terminal_test.dart
+23/05/26 13:00 [FEAT] (2e457a3) `dev-pro-large` Completed Task 2.3.1 by introducing a shared Terraform billing-events module that provisions the usage-events Pub/Sub topic, DLQ topic, billing dataset/table, BigQuery export subscription, and Pub/Sub service-agent dataset IAM for both environments, then advanced the release pointer to Task 2.3.2 after validating both env roots.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- A terraform/modules/billing_events/main.tf
+- A terraform/modules/billing_events/outputs.tf
+- A terraform/modules/billing_events/schemas/usage_events.json
+- A terraform/modules/billing_events/variables.tf
+- A terraform/modules/billing_events/versions.tf
+- M terraform/envs/dev/main.tf
+- M terraform/envs/dev/outputs.tf
+- M terraform/envs/prod/main.tf
 23/05/26 11:02 [FIX] (pending) `dev-pro-large` Closed Task 1.4.4 by importing the existing Firestore database into Terraform state, installing local Chrome/Xvfb for browser automation, fixing browser WebSocket subprotocol negotiation and over-aggressive control-plane gRPC keepalive behavior, redeploying the control plane, and verifying the live Flutter smoke harness in Chrome for `echo hello_v0_1`, `python3`, `vim`, resize propagation, and browser-observed RTT against the Cloud Run dev service.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
@@ -289,3 +304,30 @@
 - A flutter/lib/src/workspace_models.freezed.dart
 - A flutter/lib/src/workspace_models.g.dart
 - M flutter/pubspec.yaml
+23/05/26 13:16 [FEAT] (pending) `dev-pro-large` Completed Task 2.3.2 by adding workspace-agent usage tracking with WAL-backed Pub/Sub publishing and startup replay, exposing a `FlushUsageWAL` gRPC path plus control-plane pre-delete flushing, injecting workspace usage metadata into agent pods, and extending Terraform IAM/env wiring so workspace agents can publish usage events before advancing the release pointer to Task 2.4.1.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M agent/cmd/agent/main.go
+- M agent/go.mod
+- M agent/go.sum
+- M agent/internal/server/agent_server.go
+- M agent/internal/server/agent_server_test.go
+- A agent/internal/usage/tracker.go
+- A agent/internal/usage/tracker_test.go
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/go.mod
+- M control-plane/go.sum
+- A control-plane/internal/workspace/agent_usage_flusher.go
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
+- M control-plane/internal/workspace/service.go
+- M control-plane/internal/workspace/service_test.go
+- M proto/agent/v1/agent.proto
+- M terraform/envs/dev/main.tf
+- M terraform/envs/prod/main.tf
+- M terraform/modules/billing_events/main.tf
+- M terraform/modules/billing_events/variables.tf
+- M terraform/modules/cloudrun/main.tf
+- M terraform/modules/cloudrun/variables.tf

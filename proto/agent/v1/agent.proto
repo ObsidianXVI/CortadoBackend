@@ -11,6 +11,7 @@ service WorkspaceAgentService {
   // Returns recent idle/activity info for this agent.
   // Used by the control plane to distinguish busy builds from idle sessions.
   rpc GetIdleStatus(GetIdleStatusRequest) returns (GetIdleStatusResponse);
+  rpc FlushUsageWAL(FlushUsageWALRequest) returns (FlushUsageWALResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
 }
 
@@ -68,3 +69,7 @@ message GetIdleStatusResponse {
   // The value accounts for container CPU quotas if detectable; otherwise it is based on host CPUs.
   double cpu_percent_over_sixty_seconds = 2;
 }
+
+message FlushUsageWALRequest {}
+
+message FlushUsageWALResponse {}

@@ -32,11 +32,15 @@ func TestServiceCreateWorkspacePersistsAndProvisions(t *testing.T) {
 	if ws.Status != StatusCreating {
 		t.Fatalf("unexpected create status: %q", ws.Status)
 	}
-	if provisioner.createdWorkspaceID != "ws-123" {
-		t.Fatalf("unexpected provisioned workspace: %q", provisioner.createdWorkspaceID)
+	if provisioner.createdWorkspace.ID != "ws-123" {
+		t.Fatalf("unexpected provisioned workspace: %q", provisioner.createdWorkspace.ID)
 	}
-	if provisioner.createdCPU != 1 || provisioner.createdMemGB != 2 {
-		t.Fatalf("unexpected default resources: cpu=%v mem=%v", provisioner.createdCPU, provisioner.createdMemGB)
+	if provisioner.createdWorkspace.Resources.CPU != 1 || provisioner.createdWorkspace.Resources.MemoryGB != 2 {
+		t.Fatalf(
+			"unexpected default resources: cpu=%v mem=%v",
+			provisioner.createdWorkspace.Resources.CPU,
+			provisioner.createdWorkspace.Resources.MemoryGB,
+		)
 	}
 	if ws.LastActive != now {
 		t.Fatalf("unexpected last active time: %v", ws.LastActive)
@@ -71,8 +75,8 @@ func TestServiceStartWorkspaceTransitionsToStarting(t *testing.T) {
 	if ws.Status != StatusStarting {
 		t.Fatalf("unexpected workspace status: %q", ws.Status)
 	}
-	if provisioner.createdWorkspaceID != "ws-123" {
-		t.Fatalf("unexpected provisioned workspace: %q", provisioner.createdWorkspaceID)
+	if provisioner.createdWorkspace.ID != "ws-123" {
+		t.Fatalf("unexpected provisioned workspace: %q", provisioner.createdWorkspace.ID)
 	}
 }
 
@@ -334,19 +338,15 @@ func (r *memoryRepository) UpdateStatus(_ context.Context, workspaceID string, s
 
 type provisionerStub struct {
 	createErr          error
+	createdWorkspace   Workspace
 	deleteErr          error
 	stopErr            error
-	createdCPU         float64
-	createdMemGB       float64
-	createdWorkspaceID string
 	deletedWorkspaceID string
 	stoppedWorkspaceID string
 }
 
-func (p *provisionerStub) Create(workspaceID, _ string, cpu, memGB float64) error {
-	p.createdWorkspaceID = workspaceID
-	p.createdCPU = cpu
-	p.createdMemGB = memGB
+func (p *provisionerStub) Create(workspace Workspace) error {
+	p.createdWorkspace = workspace
 	return p.createErr
 }
 

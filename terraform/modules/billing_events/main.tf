@@ -17,6 +17,13 @@ resource "google_pubsub_topic" "usage_events_dlq" {
   labels  = var.labels
 }
 
+resource "google_pubsub_topic_iam_member" "workspace_agent_publisher" {
+  project = var.project_id
+  topic   = google_pubsub_topic.usage_events.name
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${var.workspace_agent_service_account_email}"
+}
+
 resource "google_bigquery_dataset" "billing" {
   project    = var.project_id
   dataset_id = "cortado_billing_${var.env}"

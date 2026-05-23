@@ -22,3 +22,8 @@ variable "region" {
   description = "Google Cloud region for regional resources."
   type        = string
 }
+
+variable "workspace_agent_service_account_email" {
+  description = "Workspace agent service account email allowed to publish usage events."
+  type        = string
+}

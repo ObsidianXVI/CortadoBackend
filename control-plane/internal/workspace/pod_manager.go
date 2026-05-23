@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,14 +35,29 @@ type StatusSink interface {
 	OnPodStatus(ctx context.Context, workspaceID string, phase corev1.PodPhase, deleting bool) error
 }
 
+const (
+	envGoogleCloudProject = "GOOGLE_CLOUD_PROJECT"
+	envTenantID           = "CORTADO_TENANT_ID"
+	envUsageEventsTopic   = "CORTADO_USAGE_EVENTS_TOPIC"
+	envWorkspaceCPU       = "CORTADO_WORKSPACE_CPU"
+	envWorkspaceID        = "CORTADO_WORKSPACE_ID"
+	envWorkspaceMemoryGB  = "CORTADO_WORKSPACE_MEMORY_GB"
+	envWorkspaceRegion    = "CORTADO_GCP_REGION"
+	envWorkspaceStorageGB = "CORTADO_WORKSPACE_STORAGE_GB"
+	envWorkspaceUserID    = "CORTADO_USER_ID"
+)
+
 type PodManagerConfig struct {
 	AgentPort          int32
 	DNSDomain          string
 	PVCSize            string
+	ProjectID          string
+	Region             string
 	Namespace          string
 	ServiceAccountName string
 	StorageClassName   string
 	StatusSink         StatusSink
+	UsageEventsTopic   string
 }
 
 type PodManager struct {
@@ -52,11 +68,15 @@ type PodManager struct {
 	podInformer        cache.SharedIndexInformer
 	pvcs               pvcClient
 	pvcSize            resource.Quantity
+	projectID          string
+	region             string
 	runOnce            sync.Once
 	serviceAccountName string
 	services           serviceClient
 	storageClassName   string
 	statusSink         StatusSink
+	usageEventsTopic   string
+	usageFlusher       UsageFlusher
 }
 
 func NewPodManager(client kubernetes.Interface, cfg PodManagerConfig) *PodManager {
@@ -95,10 +115,13 @@ func newPodManager(pods podClient, pvcs pvcClient, services serviceClient, cfg P
 		podInformer:        podInformer,
 		pvcs:               pvcs,
 		pvcSize:            resource.MustParse(cfg.PVCSize),
+		projectID:          cfg.ProjectID,
+		region:             cfg.Region,
 		serviceAccountName: cfg.ServiceAccountName,
 		services:           services,
 		storageClassName:   cfg.StorageClassName,
 		statusSink:         cfg.StatusSink,
+		usageEventsTopic:   cfg.UsageEventsTopic,
 	}
 
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -144,25 +167,29 @@ func (m *PodManager) SetStatusSink(statusSink StatusSink) {
 	m.statusSink = statusSink
 }
 
-func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error {
-	if workspaceID == "" {
+func (m *PodManager) SetUsageFlusher(usageFlusher UsageFlusher) {
+	m.usageFlusher = usageFlusher
+}
+
+func (m *PodManager) Create(workspace Workspace) error {
+	if workspace.ID == "" {
 		return errors.New("workspaceID is required")
 	}
-	if image == "" {
+	if workspace.Image == "" {
 		return errors.New("image is required")
 	}
 
-	resources, err := workspaceResources(cpu, memGB)
+	resources, err := workspaceResources(workspace.Resources.CPU, workspace.Resources.MemoryGB)
 	if err != nil {
 		return err
 	}
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      workspaceID,
+			Name:      workspace.ID,
 			Namespace: m.namespace,
 			Labels: map[string]string{
-				workspaceIDLabel: workspaceID,
+				workspaceIDLabel: workspace.ID,
 			},
 		},
 		Spec: corev1.ServiceSpec{
@@ -175,7 +202,7 @@ func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error
 				},
 			},
 			Selector: map[string]string{
-				workspaceIDLabel: workspaceID,
+				workspaceIDLabel: workspace.ID,
 			},
 		},
 	}
@@ -183,28 +210,28 @@ func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error
 	serviceCreated := false
 	if _, err := m.services.Create(context.Background(), service, metav1.CreateOptions{}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("create workspace service %q: %w", workspaceID, err)
+			return fmt.Errorf("create workspace service %q: %w", workspace.ID, err)
 		}
 	} else {
 		serviceCreated = true
 	}
 
-	pvcCreated, err := m.ensurePersistentVolumeClaim(workspaceID)
+	pvcCreated, err := m.ensurePersistentVolumeClaim(workspace.ID)
 	if err != nil {
 		if serviceCreated {
-			if cleanupErr := m.deleteService(workspaceID); cleanupErr != nil {
-				return fmt.Errorf("create workspace pvc %q: %w (cleanup service: %v)", workspaceID, err, cleanupErr)
+			if cleanupErr := m.deleteService(workspace.ID); cleanupErr != nil {
+				return fmt.Errorf("create workspace pvc %q: %w (cleanup service: %v)", workspace.ID, err, cleanupErr)
 			}
 		}
-		return fmt.Errorf("create workspace pvc %q: %w", workspaceID, err)
+		return fmt.Errorf("create workspace pvc %q: %w", workspace.ID, err)
 	}
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      workspaceID,
+			Name:      workspace.ID,
 			Namespace: m.namespace,
 			Labels: map[string]string{
-				workspaceIDLabel: workspaceID,
+				workspaceIDLabel: workspace.ID,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -212,8 +239,9 @@ func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error
 			Containers: []corev1.Container{
 				{
 					Name:      "workspace",
-					Image:     image,
+					Image:     workspace.Image,
 					Resources: resources,
+					Env:       m.workspaceAgentEnv(workspace),
 					Ports: []corev1.ContainerPort{
 						{
 							ContainerPort: m.agentPort,
@@ -233,7 +261,7 @@ func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error
 					Name: "workspace-data",
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: workspacePVCName(workspaceID),
+							ClaimName: workspacePVCName(workspace.ID),
 						},
 					},
 				},
@@ -243,16 +271,16 @@ func (m *PodManager) Create(workspaceID, image string, cpu, memGB float64) error
 
 	if _, err := m.pods.Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
 		if pvcCreated {
-			if cleanupErr := m.deletePersistentVolumeClaim(workspaceID); cleanupErr != nil {
-				return fmt.Errorf("create workspace pod %q: %w (cleanup pvc: %v)", workspaceID, err, cleanupErr)
+			if cleanupErr := m.deletePersistentVolumeClaim(workspace.ID); cleanupErr != nil {
+				return fmt.Errorf("create workspace pod %q: %w (cleanup pvc: %v)", workspace.ID, err, cleanupErr)
 			}
 		}
 		if serviceCreated {
-			if cleanupErr := m.deleteService(workspaceID); cleanupErr != nil {
-				return fmt.Errorf("create workspace pod %q: %w (cleanup service: %v)", workspaceID, err, cleanupErr)
+			if cleanupErr := m.deleteService(workspace.ID); cleanupErr != nil {
+				return fmt.Errorf("create workspace pod %q: %w (cleanup service: %v)", workspace.ID, err, cleanupErr)
 			}
 		}
-		return fmt.Errorf("create workspace pod %q: %w", workspaceID, err)
+		return fmt.Errorf("create workspace pod %q: %w", workspace.ID, err)
 	}
 
 	return nil
@@ -269,6 +297,16 @@ func (m *PodManager) Stop(workspaceID string) error {
 func (m *PodManager) Delete(workspaceID string) error {
 	if workspaceID == "" {
 		return errors.New("workspaceID is required")
+	}
+
+	if _, err := m.pods.Get(context.Background(), workspaceID, metav1.GetOptions{}); err == nil {
+		if m.usageFlusher != nil {
+			if err := m.usageFlusher.FlushUsageWAL(context.Background(), workspaceID); err != nil {
+				return fmt.Errorf("flush usage WAL for workspace %q: %w", workspaceID, err)
+			}
+		}
+	} else if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("get workspace pod %q before delete: %w", workspaceID, err)
 	}
 
 	if err := m.Stop(workspaceID); err != nil {
@@ -403,6 +441,24 @@ func (m *PodManager) deletePersistentVolumeClaim(workspaceID string) error {
 
 func workspacePVCName(workspaceID string) string {
 	return workspaceID + "-pvc"
+}
+
+func (m *PodManager) storageGB() float64 {
+	return m.pvcSize.AsApproximateFloat64() / (1024 * 1024 * 1024)
+}
+
+func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: envGoogleCloudProject, Value: m.projectID},
+		{Name: envTenantID, Value: workspace.TenantID},
+		{Name: envUsageEventsTopic, Value: m.usageEventsTopic},
+		{Name: envWorkspaceCPU, Value: strconv.FormatFloat(workspace.Resources.CPU, 'f', -1, 64)},
+		{Name: envWorkspaceID, Value: workspace.ID},
+		{Name: envWorkspaceMemoryGB, Value: strconv.FormatFloat(workspace.Resources.MemoryGB, 'f', -1, 64)},
+		{Name: envWorkspaceRegion, Value: m.region},
+		{Name: envWorkspaceStorageGB, Value: strconv.FormatFloat(m.storageGB(), 'f', -1, 64)},
+		{Name: envWorkspaceUserID, Value: workspace.UserID},
+	}
 }
 
 func ptr[T any](value T) *T {
