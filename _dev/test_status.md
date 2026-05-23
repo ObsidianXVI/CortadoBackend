@@ -147,3 +147,8 @@
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...`
 - PASS `docker build -t cortado-workspace:test agent/`
 - PASS `docker build -f control-plane/Dockerfile -t cortado-control-plane:test .`
+23/05/26 12:44
+- PASS `cd flutter && flutter pub get`
+- PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`

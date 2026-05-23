@@ -1,7 +1,7 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.1 → Feature 2.1 (Workspace CRUD API) → Task 2.1.2
+v0.1 → Feature 2.2 (Flutter Workspace Manager) → Task 2.2.1
 
 ## Status
 DONE
@@ -10,31 +10,28 @@ DONE
 Completed Task 2.1.1 by adding the Firestore-backed workspace CRUD API to the control plane, provisioning PVC-backed workspace pods/services, wiring Cloud Run-compatible Kubernetes client bootstrap, and bootstrapping the shared workspace StorageClass in Terraform.
 
 ## What was done this session
-Implemented Task 2.1.2 end-to-end across the agent and control plane. Added agent-side idle tracking with PTY activity timestamps, a rolling `/proc/stat` CPU sampler, and the new `GetIdleStatus` gRPC method. On the control-plane side, extended workspace persistence to track `lastActiveAt`, rate-limited activity writes to Firestore when terminal data frames arrive, added a background idle monitor that polls `GetIdleStatus` on running workspaces every five minutes, and added the 30-minute Firestore stale-activity fallback stop path. The main server now wraps terminal traffic so activity is recorded as PTY data flows through the mux, and the idle timeout honors `CORTADO_IDLE_TIMEOUT_MINUTES` with the documented default of 20 minutes.
+Implemented Task 2.2.1 in the Flutter package by adding a REST-backed `WorkspaceManager`, freezed workspace/status models with JSON serialization, and a `CortadoWorkspaceProvider` that scopes both `workspaceId` and a `WorkspaceManager` via Riverpod while exposing `CortadoWorkspaceProvider.of(context).workspaceId`. `watchStatus()` now polls `/v1/workspaces/{id}` at the required 3-second transitional and 30-second running cadences using a cancellation-aware timer-backed stream, and the package exports/tests were expanded to cover create/start/stop requests, polling cadence transitions, terminal-state completion, and provider disposal cleanup.
 
 ## Remaining work this session
-None. Advance to Task 2.2.1.
+None. Advance to Task 2.2.2.
 
 ## Definition of done
-- [x] The workspace agent records PTY activity timestamps on terminal input
-- [x] The workspace agent exposes `GetIdleStatus()` over gRPC
-- [x] `GetIdleStatus()` reports a recent CPU utilization window alongside the last PTY activity timestamp
-- [x] The control plane records `lastActiveAt` in Firestore from terminal data frames with write throttling
-- [x] A background control-plane monitor polls running workspaces every five minutes and stops workspaces idle beyond the configured timeout
-- [x] The control plane also scans Firestore for stale activity older than 30 minutes and stops stale non-stopped workspaces
-- [x] `CORTADO_IDLE_TIMEOUT_MINUTES` overrides the default 20-minute idle timeout
-- [x] `cd proto && buf lint` passes
-- [x] `cd proto && buf generate` passes
-- [x] `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...` passes
-- [x] `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...` passes
-- [x] `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...` passes
-- [x] `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...` passes
-- [x] `docker build -t cortado-workspace:test agent/` passes
-- [x] `docker build -f control-plane/Dockerfile -t cortado-control-plane:test .` passes
+- [x] `WorkspaceManager.create()` creates workspaces through `POST /v1/workspaces`
+- [x] `WorkspaceManager.start()` and `WorkspaceManager.stop()` target the correct control-plane transition endpoints
+- [x] `watchStatus()` polls every 3 seconds while a workspace is `CREATING`, `STARTING`, or `STOPPING`
+- [x] `watchStatus()` drops to a 30-second polling cadence when a workspace is `RUNNING`
+- [x] `watchStatus()` stops polling when the caller cancels the stream subscription
+- [x] `Workspace` and `WorkspaceStatus` are implemented as freezed data classes with JSON serialization
+- [x] `CortadoWorkspaceProvider` exposes `workspaceId` through `CortadoWorkspaceProvider.of(context)`
+- [x] The Riverpod-backed status providers cancel their `watchStatus()` subscriptions on dispose
+- [x] `cd flutter && flutter pub get` passes
+- [x] `cd flutter && dart run build_runner build --delete-conflicting-outputs` passes
+- [x] `cd flutter && flutter test` passes
+- [x] `cd flutter && flutter analyze` passes
 
 ## Next task after this one
-Task 2.2.1 — WorkspaceManager + status polling
-See _dev/docs/release_timeline.md §Feature 2.2 Task 2.2.1 for full spec
+Task 2.2.2 — Reconnection after cold start
+See _dev/docs/release_timeline.md §Feature 2.2 Task 2.2.2 for full spec
 
 ## Blocked on / decisions needed
 None.

@@ -277,3 +277,15 @@
 - A control-plane/internal/workspace/idle_monitor.go
 - M control-plane/internal/workspace/service.go
 - M proto/agent/v1/agent.proto
+23/05/26 12:44 [FEAT] (pending) `dev-pro-large` Completed Task 2.2.1 in the Flutter package by adding a REST-backed `WorkspaceManager`, freezed workspace lifecycle models, and a Riverpod-backed `CortadoWorkspaceProvider` scope, plus regression tests covering workspace CRUD requests, status polling cadence changes, and provider disposal cleanup.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/cortado_workspace_provider.dart
+- A flutter/lib/src/workspace_manager.dart
+- A flutter/lib/src/workspace_models.dart
+- A flutter/lib/src/workspace_models.freezed.dart
+- A flutter/lib/src/workspace_models.g.dart
+- M flutter/pubspec.yaml
