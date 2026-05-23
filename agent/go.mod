@@ -3,6 +3,8 @@ module github.com/your-org/cortado/agent
 go 1.23.4
 
 require (
+	github.com/creack/pty v1.1.24
+	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.74.3
 	google.golang.org/protobuf v1.36.11
 )
