@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -17,13 +18,16 @@ type Session struct {
 	WorkspaceID string
 }
 
-type TerminalFrameHandler func(ctx context.Context, session Session, frame Frame) error
+type TerminalFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
 
 type ConnectHandlerConfig struct {
-	Logger          *log.Logger
-	MuxConnConfig   MuxConnConfig
-	TerminalHandler TerminalFrameHandler
-	Upgrader        websocket.Upgrader
+	Logger             *log.Logger
+	MuxConnConfig      MuxConnConfig
+	TerminalHandler    TerminalFrameHandler
+	GRPCDialer         GRPCDialFunc
+	Upgrader           websocket.Upgrader
+	WorkspaceNamespace string
+	WorkspaceResolver  WorkspaceResolver
 }
 
 func NewConnectHandler(cfg ConnectHandlerConfig) http.Handler {
@@ -77,9 +81,16 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 	cfg.MuxConnConfig = withMuxConnDefaults(cfg.MuxConnConfig)
 
 	if cfg.TerminalHandler == nil {
-		cfg.TerminalHandler = func(context.Context, Session, Frame) error {
-			return errors.New("terminal bridge not implemented")
+		resolver := cfg.WorkspaceResolver
+		if resolver == nil {
+			resolver = StaticWorkspaceResolver{Namespace: cfg.WorkspaceNamespace}
 		}
+		bridge := NewTerminalBridge(TerminalBridgeConfig{
+			Dialer:            cfg.GRPCDialer,
+			Logger:            cfg.Logger,
+			WorkspaceResolver: resolver,
+		})
+		cfg.TerminalHandler = bridge.HandleFrame
 	}
 
 	if cfg.Upgrader.CheckOrigin == nil {
@@ -109,6 +120,7 @@ func readLoop(ctx context.Context, session Session, terminalHandler TerminalFram
 		if messageType != websocket.BinaryMessage {
 			continue
 		}
+		receivedAt := time.Now()
 
 		frame, err := DecodeFrame(payload)
 		if err != nil {
@@ -122,7 +134,7 @@ func readLoop(ctx context.Context, session Session, terminalHandler TerminalFram
 			session.Conn.SendFrame(frame)
 			continue
 		}
-		if err := terminalHandler(ctx, session, frame); err != nil {
+		if err := terminalHandler(ctx, session, frame, receivedAt); err != nil {
 			session.Conn.SendError(frame.ChannelID, err.Error())
 		}
 	}

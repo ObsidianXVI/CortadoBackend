@@ -1,3 +1,3 @@
 # Current Release
 
-Current task: v0.1 → Feature 1.3 → Task 1.3.4 — Bridge: WebSocket mux channel ↔ gRPC agent stream.
+Current task: v0.1 → Feature 1.4 → Task 1.4.1 — Package scaffold and WebSocket client.

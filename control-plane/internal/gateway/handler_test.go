@@ -54,7 +54,7 @@ func TestConnectRouteDispatchesTerminalFrames(t *testing.T) {
 				Logger:       newDiscardLogger(),
 				PingInterval: time.Hour,
 			},
-			TerminalHandler: func(_ context.Context, session gateway.Session, frame gateway.Frame) error {
+			TerminalHandler: func(_ context.Context, session gateway.Session, frame gateway.Frame, _ time.Time) error {
 				workspaceIDs <- session.WorkspaceID
 				received <- frame
 				session.Conn.SendFrame(gateway.Frame{
