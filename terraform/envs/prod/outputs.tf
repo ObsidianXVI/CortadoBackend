@@ -3,6 +3,11 @@ output "artifact_registry_repository_id" {
   value       = module.gke.artifact_registry_repository_id
 }
 
+output "billing_dataset_id" {
+  description = "BigQuery dataset ID for billing usage events in the prod environment."
+  value       = module.billing_events.billing_dataset_id
+}
+
 output "cluster_name" {
   description = "Name of the GKE cluster for the prod environment."
   value       = module.gke.cluster_name
@@ -21,4 +26,19 @@ output "control_plane_service_account_email" {
 output "workspace_agent_service_account_email" {
   description = "Workspace agent service account email for the prod environment."
   value       = module.iam.workspace_agent_service_account_email
+}
+
+output "usage_events_subscription_name" {
+  description = "Pub/Sub subscription name for usage-event export in the prod environment."
+  value       = module.billing_events.usage_events_subscription_name
+}
+
+output "usage_events_table_id" {
+  description = "BigQuery table ID for usage events in the prod environment."
+  value       = module.billing_events.usage_events_table_id
+}
+
+output "usage_events_topic_name" {
+  description = "Pub/Sub topic name for usage events in the prod environment."
+  value       = module.billing_events.usage_events_topic_name
 }

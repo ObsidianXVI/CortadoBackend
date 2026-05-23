@@ -36,6 +36,10 @@ locals {
   })
 }
 
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
 resource "google_project_service" "api" {
   for_each = toset(local.apis)
 
@@ -91,6 +95,18 @@ module "cloudrun" {
   depends_on = [google_project_service.api]
 }
 
+module "billing_events" {
+  source = "../../modules/billing_events"
+
+  env            = var.env
+  labels         = local.common_labels
+  project_id     = var.project_id
+  project_number = data.google_project.current.number
+  region         = var.region
+
+  depends_on = [google_project_service.api]
+}
+
 resource "null_resource" "k8s_bootstrap" {
   depends_on = [module.gke]
 
@@ -142,6 +158,7 @@ EOF
     EOT
   }
 }
+
 resource "null_resource" "k8s_storageclass" {
   depends_on = [module.gke]
 
