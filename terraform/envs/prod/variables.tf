@@ -3,6 +3,11 @@ variable "env" {
   type        = string
 }
 
+variable "control_plane_image_tag" {
+  description = "Artifact Registry image tag for the control-plane service."
+  type        = string
+}
+
 variable "project_id" {
   description = "Google Cloud project ID."
   type        = string

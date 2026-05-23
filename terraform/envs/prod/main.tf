@@ -2,10 +2,12 @@ locals {
   apis = [
     "artifactregistry.googleapis.com",
     "bigquery.googleapis.com",
+    "cloudbuild.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "container.googleapis.com",
     "iam.googleapis.com",
     "pubsub.googleapis.com",
+    "run.googleapis.com",
     "secretmanager.googleapis.com",
   ]
 
@@ -56,6 +58,20 @@ module "gke" {
   project_id              = var.project_id
   region                  = var.region
   workspace_agent_sa_name = module.iam.workspace_agent_service_account_name
+
+  depends_on = [google_project_service.api]
+}
+
+module "cloudrun" {
+  source = "../../modules/cloudrun"
+
+  env                   = var.env
+  image_tag             = var.control_plane_image_tag
+  labels                = local.common_labels
+  project_id            = var.project_id
+  region                = var.region
+  repository_id         = module.gke.artifact_registry_repository_id
+  service_account_email = module.iam.control_plane_service_account_email
 
   depends_on = [google_project_service.api]
 }

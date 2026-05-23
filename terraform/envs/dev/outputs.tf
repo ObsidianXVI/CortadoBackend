@@ -8,6 +8,11 @@ output "cluster_name" {
   value       = module.gke.cluster_name
 }
 
+output "control_plane_service_uri" {
+  description = "Public URI of the control-plane Cloud Run service for the dev environment."
+  value       = module.cloudrun.service_uri
+}
+
 output "control_plane_service_account_email" {
   description = "Control plane service account email for the dev environment."
   value       = module.iam.control_plane_service_account_email

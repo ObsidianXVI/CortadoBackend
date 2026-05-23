@@ -2,34 +2,35 @@
 
 
 ## Release · Feature · Task
-v0.1 → Feature 1.2 (Workspace Agent — PTY Core) → Task 1.2.5
+v0.1 → Feature 1.3 (Control Plane — WebSocket Gateway) → Task 1.3.1
 
 ## Status
 DONE
 
 ## What was done last session
-Completed Task 1.2.4 by adding the multi-stage agent Dockerfile, a GitHub Actions build/push workflow, and verifying the built container contains a statically linked `cortado-agent` binary.
+Completed Task 1.2.5 by adding Terraform-managed Kubernetes bootstrap/test-pod manifests, wiring them into the env roots, pushing the current workspace-agent image into Artifact Registry, applying the dev Terraform changes, and verifying the workspace bootstrap objects plus the test pod in the dev cluster.
 
 ## What was done this session
-Added Terraform-managed Kubernetes bootstrap wiring under `terraform/k8s/` and both env roots. The base namespace/service account manifest is now re-applied by `null_resource.k8s_bootstrap`, and the one-off workspace pod test manifest is gated by `workspace_test_pod_enabled` and parameterized by an Artifact Registry image tag. Pushed the current workspace-agent image to `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613`, applied the dev Terraform changes, and verified the live cluster state: `workspace-sa` still has the expected Workload Identity annotations and `workspace-pod-test` reached `Ready` after Autopilot scaled up a node.
+Initialized the control-plane HTTP service under `control-plane/` with a chi router, `/health`, graceful shutdown, and dev-bypass auth that accepts either `X-Cortado-Dev-Token: dev-bypass` or `?dev_token=dev-bypass` in development. Added the minimal Cloud Run Terraform module and wired both env roots to deploy `cortado-control-plane-${var.env}` from the regional Artifact Registry repository using a commit-pinned image tag, with `run.googleapis.com` and `cloudbuild.googleapis.com` enabled and the current control-plane service account reused for the service.
 
 ## Remaining work this session
-None.
+None. Live Cloud Run apply is deferred until a control-plane container image exists in Artifact Registry.
 
 ## Definition of done
-- [x] `terraform/k8s/workspace-namespace.yaml` exists and is applied from Terraform
-- [x] `terraform/k8s/workspace-pod-test.yaml` exists for validating agent deployment
-- [x] Dev/prod env roots contain the Kubernetes bootstrap `null_resource`
+- [x] `control-plane/` contains the chi-based app skeleton and package layout for API, middleware, gateway, store, and workspace code
+- [x] `GET /health` returns the expected JSON payload
+- [x] Dev-bypass auth middleware enforces `dev-bypass` in development and injects fake tenant/user context
+- [x] `CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...` passes in `control-plane/`
+- [x] `CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...` passes in `control-plane/`
+- [x] A reusable Terraform Cloud Run module exists for the control plane
+- [x] Dev/prod env roots wire the Cloud Run module with commit-pinned image tags
 - [x] `terraform validate` passes in `terraform/envs/dev`
 - [x] `terraform validate` passes in `terraform/envs/prod`
-- [x] `terraform apply` succeeds in `terraform/envs/dev`
-- [x] Namespace/service account bootstrap remains correct in the dev cluster
-- [x] The workspace test pod image exists in Artifact Registry and the pod reaches `Ready`
 - [x] CURRENT_RELEASE.md points at the next task after this one
 
 ## Next task after this one
-Task 1.3.1 — Control plane Go app skeleton + dev bypass
-See _dev/docs/release_timeline.md §Feature 1.3 Task 1.3.1 for full spec
+Task 1.3.2 — Workspace pod manager (client-go) + Terraform Firestore
+See _dev/docs/release_timeline.md §Feature 1.3 Task 1.3.2 for full spec
 
 ## Blocked on / decisions needed
 None.

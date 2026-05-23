@@ -1,3 +1,4 @@
+control_plane_image_tag    = "pending"
 env                        = "prod"
 project_id                 = "cortado-ide"
 region                     = "us-central1"
