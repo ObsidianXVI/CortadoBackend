@@ -431,7 +431,7 @@
 - M flutter/lib/cortado.dart
 - A flutter/lib/src/filesystem/cortado_file_tree.dart
 - M flutter/lib/src/mux_frame.dart
-23/05/26 14:47 [FEAT] (pending) `dev-pro-large` Unblocked the remaining Task 3.2.2 file-tree actions by extending the workspace-agent filesystem contract with explicit mkdir and rename RPCs, wiring matching control-plane file endpoints and error mapping for those operations, adding regression coverage in both Go modules, and confirming the proto/Go verification matrix before returning the active task to the still-pending file-tree UI work.
+23/05/26 14:47 [FEAT] (f4adf26) `dev-pro-large` Unblocked the remaining Task 3.2.2 file-tree actions by extending the workspace-agent filesystem contract with explicit mkdir and rename RPCs, wiring matching control-plane file endpoints and error mapping for those operations, adding regression coverage in both Go modules, and confirming the proto/Go verification matrix before returning the active task to the still-pending file-tree UI work.
 - M CURRENT_TASK.md
 - M DECISIONS_NEEDED.md
 - M _dev/session_log.md
@@ -441,3 +441,24 @@
 - M control-plane/internal/api/router.go
 - M control-plane/internal/workspace/agent_file_client.go
 - M proto/agent/v1/agent.proto
+23/05/26 14:54 [DOCS] (pending) `dev-pro-large` Added a new top-level `docs/` set covering the repository architecture, control-plane API flow, workspace-agent gRPC and PTY behavior, Flutter package integration, shared wire protocols, and Terraform/GKE deployment topology with concrete data-shape examples and cross-links to the implementation.
+- A docs/README.md
+- A docs/system-architecture.md
+- A docs/control-plane.md
+- A docs/agent.md
+- A docs/flutter-package.md
+- A docs/protocols.md
+- A docs/terraform-deployment.md
+23/05/26 14:58 [FIX] (—) `dev-pro-large` Stabilized auth-session unit test by injecting fixed clock to prevent immediate refresh HTTP call; ran targeted auth-session tests successfully
+- M flutter/test/cortado_auth_session_test.dart
+23/05/26 15:02 [FEAT] (pending) `dev-pro-large` Completed Task 3.2.2 by wiring the remaining Flutter file-tree actions to the new file APIs, adding inline rename and context-menu create/delete flows, fixing multi-segment workspace file endpoint URL construction, and stabilizing the remaining auth/client/workspace-manager tests so the full Flutter suite and analyzer pass without advancing to the next task.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M flutter/lib/src/filesystem/cortado_file_tree.dart
+- M flutter/lib/src/workspace_manager.dart
+- M flutter/test/cortado_auth_session_test.dart
+- M flutter/test/cortado_client_test.dart
+- M flutter/test/cortado_file_tree_test.dart
+- M flutter/test/workspace_manager_test.dart

@@ -27,9 +27,14 @@ void main() {
         });
       });
 
+      // Use a fixed clock so the test doesn't race wall-clock time.
+      // If the current time is already within the 5-minute refresh lead,
+      // CortadoAuthSession would schedule an immediate refresh that triggers
+      // an unexpected extra HTTP call during this test.
       final session = CortadoAuthSession(
         baseUrl: 'https://api.example.dev',
         httpClient: client,
+        now: () => DateTime.utc(2026, 5, 23, 12), // well before expiry
       );
 
       await session.createSession(

@@ -89,14 +89,22 @@ void main() {
 
     test('uses bearer auth when a session is present', () async {
       final requests = <RecordedRequest>[];
+      final timers = <FakeTimer>[];
       final client = RecordingClient((request, body) async {
         requests.add(RecordedRequest(DateTime.now(), request, body));
         return _stringResponse(204, '');
       });
 
       final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
-      final authSession = CortadoAuthSession(baseUrl: 'http://localhost:8080')
-        ..setTokens(
+      final authSession = CortadoAuthSession(
+        baseUrl: 'http://localhost:8080',
+        now: () => DateTime.utc(2026, 5, 23, 14),
+        timerFactory: (duration, callback) {
+          final timer = FakeTimer(duration, callback);
+          timers.add(timer);
+          return timer;
+        },
+      )..setTokens(
           accessToken: accessToken,
           refreshToken: 'refresh-token',
         );
@@ -114,9 +122,13 @@ void main() {
           Uri.parse('http://localhost:8080/v1/workspaces/ws-123/start'));
       expect(request.headers['Authorization'], 'Bearer $accessToken');
       expect(request.headers.containsKey('X-Cortado-Dev-Token'), isFalse);
+      expect(timers, hasLength(1));
+
+      await authSession.dispose();
     });
 
-    test('listDirectory requests the file endpoint and parses entries', () async {
+    test('listDirectory requests the file endpoint and parses entries',
+        () async {
       final requests = <RecordedRequest>[];
       final client = RecordingClient((request, body) async {
         requests.add(RecordedRequest(DateTime.now(), request, body));
@@ -157,6 +169,114 @@ void main() {
         ),
       );
       expect(request.headers['X-Cortado-Dev-Token'], 'dev-bypass');
+    });
+
+    test('file content and mutation helpers use the expected endpoints',
+        () async {
+      final requests = <RecordedRequest>[];
+      final client = RecordingClient((request, body) async {
+        requests.add(RecordedRequest(DateTime.now(), request, body));
+
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123/files/content')) {
+          return _stringResponse(200, 'hello file');
+        }
+        if (request.method == 'PUT' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123/files/content')) {
+          return _stringResponse(
+            200,
+            jsonEncode(<String, Object>{
+              'bytesWritten': body.length,
+              'checksum': <int>[1, 2, 3],
+            }),
+            headers: const <String, String>{'Content-Type': 'application/json'},
+          );
+        }
+        if (request.method == 'POST' &&
+            request.url.path
+                .endsWith('/v1/workspaces/ws-123/files/directory')) {
+          return _stringResponse(201, '');
+        }
+        if (request.method == 'POST' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123/files/rename')) {
+          return _stringResponse(204, '');
+        }
+        if (request.method == 'DELETE' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123/files')) {
+          return _stringResponse(204, '');
+        }
+        return _stringResponse(404, 'not found');
+      });
+
+      final manager = WorkspaceManager(
+        baseUrl: 'http://localhost:8080/api?foo=bar',
+        httpClient: client,
+        useBrowserAuth: false,
+      );
+
+      final readBytes =
+          await manager.readFile('ws-123', path: '/lib/main.dart');
+      expect(utf8.decode(readBytes), 'hello file');
+
+      final writeResult = await manager.writeFile(
+        'ws-123',
+        path: '/lib/main.dart',
+        content: utf8.encode('updated'),
+      );
+      expect(writeResult.bytesWritten, 7);
+      expect(writeResult.checksum, orderedEquals(const <int>[1, 2, 3]));
+
+      await manager.makeDir('ws-123', path: '/lib/newdir');
+      await manager.renamePath(
+        'ws-123',
+        oldPath: '/lib/main.dart',
+        newPath: '/lib/app.dart',
+      );
+      await manager.deletePath('ws-123', path: '/lib/app.dart');
+
+      expect(requests, hasLength(5));
+      expect(
+        requests[0].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/content?foo=bar&path=lib%2Fmain.dart',
+        ),
+      );
+      expect(
+        requests[1].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/content?foo=bar&path=lib%2Fmain.dart',
+        ),
+      );
+      expect(
+        requests[2].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/directory?foo=bar&path=lib%2Fnewdir',
+        ),
+      );
+      expect(
+        requests[3].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/rename?foo=bar&path=lib%2Fmain.dart&newPath=lib%2Fapp.dart',
+        ),
+      );
+      expect(
+        requests[4].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files?foo=bar&path=lib%2Fapp.dart',
+        ),
+      );
+      expect(
+        requests[1].request.headers['Content-Type'],
+        'application/octet-stream',
+      );
+      expect(utf8.decode(requests[1].bodyBytes), 'updated');
+      expect(
+        requests.every(
+          (request) =>
+              request.request.headers['X-Cortado-Dev-Token'] == 'dev-bypass',
+        ),
+        isTrue,
+      );
     });
   });
 
@@ -349,6 +469,32 @@ class RecordingClient extends http.BaseClient {
     final bodyBytes = await http.ByteStream(request.finalize()).toBytes();
     return _handler(request, bodyBytes);
   }
+}
+
+class FakeTimer implements Timer {
+  FakeTimer(this.duration, this._callback);
+
+  final Duration duration;
+  final void Function() _callback;
+  bool _isActive = true;
+
+  void fire() {
+    if (!_isActive) {
+      return;
+    }
+    _callback();
+  }
+
+  @override
+  void cancel() {
+    _isActive = false;
+  }
+
+  @override
+  bool get isActive => _isActive;
+
+  @override
+  int get tick => 0;
 }
 
 String _jwtExpiringAt(DateTime timestamp) {

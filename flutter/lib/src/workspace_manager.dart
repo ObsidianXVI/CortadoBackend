@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -42,7 +43,7 @@ class WorkspaceManager {
     };
     final response = await _client.post(
       _collectionUri(),
-      headers: await _headers(includeJson: true),
+      headers: await _headers(contentType: 'application/json'),
       body: jsonEncode(payload),
     );
 
@@ -88,6 +89,100 @@ class WorkspaceManager {
       }
       return WorkspaceDirectoryEntry.fromJson(entry);
     }).toList(growable: false);
+  }
+
+  Future<Uint8List> readFile(
+    String workspaceId, {
+    required String path,
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.get(
+      _workspaceUri(
+        workspaceId,
+        action: 'files/content',
+        queryParameters: _fileQueryParameters(path),
+      ),
+      headers: await _headers(),
+    );
+    _throwIfError(response);
+    return Uint8List.fromList(response.bodyBytes);
+  }
+
+  Future<WorkspaceWriteFileResult> writeFile(
+    String workspaceId, {
+    required String path,
+    List<int> content = const <int>[],
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.put(
+      _workspaceUri(
+        workspaceId,
+        action: 'files/content',
+        queryParameters: _fileQueryParameters(path),
+      ),
+      headers: await _headers(contentType: 'application/octet-stream'),
+      body: content,
+    );
+    _throwIfError(response);
+    return WorkspaceWriteFileResult.fromJson(
+        _decodeJsonObject(response.bodyBytes));
+  }
+
+  Future<void> makeDir(
+    String workspaceId, {
+    required String path,
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.post(
+      _workspaceUri(
+        workspaceId,
+        action: 'files/directory',
+        queryParameters: _fileQueryParameters(path),
+      ),
+      headers: await _headers(),
+    );
+    _throwIfError(response);
+  }
+
+  Future<void> renamePath(
+    String workspaceId, {
+    required String oldPath,
+    required String newPath,
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.post(
+      _workspaceUri(
+        workspaceId,
+        action: 'files/rename',
+        queryParameters: <String, String>{
+          'path': _fileApiPath(oldPath),
+          'newPath': _fileApiPath(newPath),
+        },
+      ),
+      headers: await _headers(),
+    );
+    _throwIfError(response);
+  }
+
+  Future<void> deletePath(
+    String workspaceId, {
+    required String path,
+  }) async {
+    _validateWorkspaceId(workspaceId);
+
+    final response = await _client.delete(
+      _workspaceUri(
+        workspaceId,
+        action: 'files',
+        queryParameters: _fileQueryParameters(path),
+      ),
+      headers: await _headers(),
+    );
+    _throwIfError(response);
   }
 
   Stream<WorkspaceStatus> watchStatus(String id) {
@@ -216,7 +311,7 @@ class WorkspaceManager {
     );
   }
 
-  Future<Map<String, String>> _headers({bool includeJson = false}) async {
+  Future<Map<String, String>> _headers({String? contentType}) async {
     final headers = <String, String>{};
     final accessToken = await authSession?.accessTokenForHttpRequest();
     if (accessToken != null) {
@@ -224,8 +319,8 @@ class WorkspaceManager {
     } else {
       headers['X-Cortado-Dev-Token'] = _devToken;
     }
-    if (includeJson) {
-      headers['Content-Type'] = 'application/json';
+    if (contentType != null) {
+      headers['Content-Type'] = contentType;
     }
     return headers;
   }
@@ -242,7 +337,8 @@ class WorkspaceManager {
           'v1',
           'workspaces',
           id,
-          if (action != null) action,
+          if (action != null)
+            ...action.split('/').where((segment) => segment.isNotEmpty),
         ],
         queryParameters: queryParameters,
       );
@@ -277,6 +373,12 @@ class WorkspaceManager {
     }
     return trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
   }
+
+  Map<String, String> _fileQueryParameters(String path) {
+    return <String, String>{
+      'path': _fileApiPath(path),
+    };
+  }
 }
 
 class WorkspaceDirectoryEntry {
@@ -303,6 +405,30 @@ class WorkspaceDirectoryEntry {
   final String name;
   final int permissions;
   final int size;
+}
+
+class WorkspaceWriteFileResult {
+  const WorkspaceWriteFileResult({
+    required this.bytesWritten,
+    required this.checksum,
+  });
+
+  factory WorkspaceWriteFileResult.fromJson(Map<String, dynamic> json) {
+    final checksum = json['checksum'];
+    return WorkspaceWriteFileResult(
+      bytesWritten: (json['bytesWritten'] as num).toInt(),
+      checksum: checksum is List<Object?>
+          ? Uint8List.fromList(
+              checksum
+                  .map((value) => (value as num).toInt())
+                  .toList(growable: false),
+            )
+          : Uint8List(0),
+    );
+  }
+
+  final int bytesWritten;
+  final Uint8List checksum;
 }
 
 class WorkspaceRequestException implements Exception {

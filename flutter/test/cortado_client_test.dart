@@ -11,8 +11,16 @@ void main() {
     test('uses a token query parameter for browser websocket connections',
         () async {
       final connector = FakeWebSocketConnector();
-      final authSession = CortadoAuthSession(baseUrl: 'https://api.example.dev')
-        ..setTokens(
+      final timers = <FakeTimer>[];
+      final authSession = CortadoAuthSession(
+        baseUrl: 'https://api.example.dev',
+        now: () => DateTime.utc(2026, 5, 23, 14),
+        timerFactory: (duration, callback) {
+          final timer = FakeTimer(duration, callback);
+          timers.add(timer);
+          return timer;
+        },
+      )..setTokens(
           accessToken: _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15)),
           refreshToken: 'refresh-token',
         );
@@ -33,14 +41,24 @@ void main() {
       expect(connector.lastHeaders, isNull);
 
       await client.dispose();
+      await authSession.dispose();
+      expect(timers, hasLength(1));
     });
 
     test('uses authorization headers for non-browser websocket connections',
         () async {
       final connector = FakeWebSocketConnector();
       final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
-      final authSession = CortadoAuthSession(baseUrl: 'http://localhost:8080')
-        ..setTokens(
+      final timers = <FakeTimer>[];
+      final authSession = CortadoAuthSession(
+        baseUrl: 'http://localhost:8080',
+        now: () => DateTime.utc(2026, 5, 23, 14),
+        timerFactory: (duration, callback) {
+          final timer = FakeTimer(duration, callback);
+          timers.add(timer);
+          return timer;
+        },
+      )..setTokens(
           accessToken: accessToken,
           refreshToken: 'refresh-token',
         );
@@ -63,6 +81,8 @@ void main() {
       );
 
       await client.dispose();
+      await authSession.dispose();
+      expect(timers, hasLength(1));
     });
 
     test('falls back to dev_token query auth without a session', () async {
@@ -224,6 +244,32 @@ class FakeWebSocketConnector implements WebSocketConnector {
     channel.protocols = protocols.toList(growable: false);
     return channel;
   }
+}
+
+class FakeTimer implements Timer {
+  FakeTimer(this.duration, this._callback);
+
+  final Duration duration;
+  final void Function() _callback;
+  bool _isActive = true;
+
+  void fire() {
+    if (!_isActive) {
+      return;
+    }
+    _callback();
+  }
+
+  @override
+  void cancel() {
+    _isActive = false;
+  }
+
+  @override
+  bool get isActive => _isActive;
+
+  @override
+  int get tick => 0;
 }
 
 class FakeWebSocketChannel implements WebSocketChannel {

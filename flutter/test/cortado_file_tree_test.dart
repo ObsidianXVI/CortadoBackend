@@ -10,7 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('CortadoFileTree', () {
-    testWidgets('loads the root, opens the file watch channel, and expands directories lazily',
+    testWidgets(
+        'loads the root, opens the file watch channel, and expands directories lazily',
         (tester) async {
       final manager = _FakeWorkspaceManager(
         responses: <String, List<List<WorkspaceDirectoryEntry>>>{
@@ -81,7 +82,8 @@ void main() {
       expect(client.sentFrames.last.messageType, muxMessageTypeClose);
     });
 
-    testWidgets('applies file watch events from the mux channel', (tester) async {
+    testWidgets('applies file watch events from the mux channel',
+        (tester) async {
       final manager = _FakeWorkspaceManager(
         responses: <String, List<List<WorkspaceDirectoryEntry>>>{
           vfsRootPath: <List<WorkspaceDirectoryEntry>>[
@@ -138,6 +140,230 @@ void main() {
       await tester.pump();
 
       expect(closedMessage, 'watch closed');
+    });
+
+    testWidgets('context menu creates folders and files from directory rows',
+        (tester) async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 493,
+              ),
+            ],
+          ],
+          '/lib': <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 32,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 5),
+                permissions: 420,
+              ),
+            ],
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'docs',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22, 10),
+                permissions: 493,
+              ),
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 32,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 5),
+                permissions: 420,
+              ),
+            ],
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'docs',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22, 10),
+                permissions: 493,
+              ),
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 32,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 5),
+                permissions: 420,
+              ),
+              WorkspaceDirectoryEntry(
+                name: 'notes.txt',
+                size: 0,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 15),
+                permissions: 420,
+              ),
+            ],
+          ],
+        },
+      );
+      final client = _FakeCortadoClient();
+      final selectedFiles = <String>[];
+
+      await tester.pumpWidget(
+        _wrapTree(
+          client: client,
+          manager: manager,
+          child: CortadoFileTree(
+            client: client,
+            onFileSelected: selectedFiles.add,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('lib'));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('lib'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New Folder'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'docs');
+      await tester.tap(find.text('Create Folder'));
+      await tester.pumpAndSettle();
+
+      expect(manager.makeDirRequests, const <String>['ws-123:/lib/docs']);
+      expect(find.text('docs'), findsOneWidget);
+
+      await tester.longPress(find.text('lib'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New File'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'notes.txt');
+      await tester.tap(find.text('Create File'));
+      await tester.pumpAndSettle();
+
+      expect(
+        manager.writeRequests,
+        hasLength(1),
+      );
+      expect(manager.writeRequests.single.path, 'ws-123:/lib/notes.txt');
+      expect(manager.writeRequests.single.content, isEmpty);
+      expect(selectedFiles, contains('/lib/notes.txt'));
+      expect(find.text('notes.txt'), findsOneWidget);
+    });
+
+    testWidgets('rename action shows an inline editor and commits the rename',
+        (tester) async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'README.md',
+                size: 12,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 420,
+              ),
+            ],
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'CHANGELOG.md',
+                size: 12,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 10),
+                permissions: 420,
+              ),
+            ],
+          ],
+        },
+      );
+      final client = _FakeCortadoClient();
+
+      await tester.pumpWidget(
+        _wrapTree(
+          client: client,
+          manager: manager,
+          child: CortadoFileTree(client: client),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('README.md'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename'));
+      await tester.pump();
+
+      expect(find.byType(TextField), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'CHANGELOG.md');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(
+        manager.renameRequests,
+        const <_RenameRequest>[
+          _RenameRequest('ws-123:/README.md', 'ws-123:/CHANGELOG.md'),
+        ],
+      );
+      expect(find.text('CHANGELOG.md'), findsOneWidget);
+    });
+
+    testWidgets('delete action confirms and removes the node', (tester) async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'README.md',
+                size: 12,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 420,
+              ),
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 493,
+              ),
+            ],
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 493,
+              ),
+            ],
+          ],
+        },
+      );
+      final client = _FakeCortadoClient();
+
+      await tester.pumpWidget(
+        _wrapTree(
+          client: client,
+          manager: manager,
+          child: CortadoFileTree(client: client),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('README.md'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(manager.deleteRequests, const <String>['ws-123:/README.md']);
+      expect(find.text('README.md'), findsNothing);
     });
   });
 }
@@ -201,6 +427,10 @@ class _FakeWorkspaceManager extends WorkspaceManager {
 
   final Map<String, Queue<List<WorkspaceDirectoryEntry>>> _responses;
   final List<String> requests = <String>[];
+  final List<String> makeDirRequests = <String>[];
+  final List<_RenameRequest> renameRequests = <_RenameRequest>[];
+  final List<String> deleteRequests = <String>[];
+  final List<_WriteRequest> writeRequests = <_WriteRequest>[];
 
   @override
   Future<List<WorkspaceDirectoryEntry>> listDirectory(
@@ -217,4 +447,75 @@ class _FakeWorkspaceManager extends WorkspaceManager {
     }
     return queue.removeFirst();
   }
+
+  @override
+  Future<void> makeDir(
+    String workspaceId, {
+    required String path,
+  }) async {
+    makeDirRequests.add('$workspaceId:$path');
+  }
+
+  @override
+  Future<void> renamePath(
+    String workspaceId, {
+    required String oldPath,
+    required String newPath,
+  }) async {
+    renameRequests
+        .add(_RenameRequest('$workspaceId:$oldPath', '$workspaceId:$newPath'));
+  }
+
+  @override
+  Future<void> deletePath(
+    String workspaceId, {
+    required String path,
+  }) async {
+    deleteRequests.add('$workspaceId:$path');
+  }
+
+  @override
+  Future<WorkspaceWriteFileResult> writeFile(
+    String workspaceId, {
+    required String path,
+    List<int> content = const <int>[],
+  }) async {
+    writeRequests.add(
+      _WriteRequest(
+        content: Uint8List.fromList(content),
+        path: '$workspaceId:$path',
+      ),
+    );
+    return WorkspaceWriteFileResult(
+      bytesWritten: 0,
+      checksum: Uint8List(0),
+    );
+  }
+}
+
+class _RenameRequest {
+  const _RenameRequest(this.oldPath, this.newPath);
+
+  final String oldPath;
+  final String newPath;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _RenameRequest &&
+        other.oldPath == oldPath &&
+        other.newPath == newPath;
+  }
+
+  @override
+  int get hashCode => Object.hash(oldPath, newPath);
+}
+
+class _WriteRequest {
+  const _WriteRequest({
+    required this.content,
+    required this.path,
+  });
+
+  final Uint8List content;
+  final String path;
 }

@@ -198,6 +198,8 @@
 - PASS `cd flutter && flutter test test/auth_refresh_smoke_test.dart`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+23/05/26 14:58
+- PASS `cd flutter && flutter test test/cortado_auth_session_test.dart`
 23/05/26 14:12
 - PASS `cd proto && buf lint`
 - PASS `cd proto && buf generate`
@@ -222,3 +224,8 @@
 - PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+23/05/26 15:02
+- PASS `cd flutter && flutter test test/cortado_auth_session_test.dart test/workspace_manager_test.dart test/cortado_file_tree_test.dart`
+- PASS `cd flutter && flutter test test/cortado_client_test.dart`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
