@@ -14,6 +14,7 @@ import (
 	"github.com/your-org/cortado/control-plane/internal/gateway"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -422,6 +423,71 @@ func TestConnectRouteRedialsWorkspaceConnAfterCreateDeadlineExceeded(t *testing.
 	}
 }
 
+func TestConnectRouteDoesNotSendGRPCKeepalivesByDefault(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	dialer, cleanup := newTCPAgentDialerWithServerOptions(
+		t,
+		&stubAgentServer{
+			createPty: func(_ context.Context, _ *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error) {
+				return &agentpb.CreatePtyResponse{PtyId: "pty-idle"}, nil
+			},
+			streamPty: func(stream agentpb.WorkspaceAgentService_StreamPtyServer) error {
+				if _, err := stream.Recv(); err != nil {
+					return err
+				}
+				<-stream.Context().Done()
+				return stream.Context().Err()
+			},
+		},
+		[]grpc.ServerOption{
+			grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+				MinTime:             time.Hour,
+				PermitWithoutStream: true,
+			}),
+		},
+		nil,
+	)
+	defer cleanup()
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+			GRPCDialer: dialer,
+			WorkspaceResolver: testWorkspaceResolver{
+				dns: "workspace.test.svc.cluster.local",
+			},
+		}),
+	}))
+	defer server.Close()
+
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	defer ws.Close()
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.TerminalChannelID,
+		MessageType: gateway.MessageTypeOpen,
+		Payload:     []byte("/bin/bash"),
+	})
+
+	if err := ws.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+
+	_, _, err := ws.ReadMessage()
+	if err == nil {
+		t.Fatal("expected idle connection to remain open without emitting a frame")
+	}
+	netErr, ok := err.(net.Error)
+	if !ok || !netErr.Timeout() {
+		t.Fatalf("expected read timeout, got %v", err)
+	}
+}
+
 type stubAgentServer struct {
 	agentpb.UnimplementedWorkspaceAgentServiceServer
 
@@ -453,9 +519,14 @@ func (r testWorkspaceResolver) GetServiceDNS(string) string {
 
 func newAgentDialer(t *testing.T, server agentpb.WorkspaceAgentServiceServer, onDial func(target string)) (gateway.GRPCDialFunc, func()) {
 	t.Helper()
+	return newAgentDialerWithServerOptions(t, server, nil, onDial)
+}
+
+func newAgentDialerWithServerOptions(t *testing.T, server agentpb.WorkspaceAgentServiceServer, serverOpts []grpc.ServerOption, onDial func(target string)) (gateway.GRPCDialFunc, func()) {
+	t.Helper()
 
 	listener := bufconn.Listen(1024 * 1024)
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(serverOpts...)
 	agentpb.RegisterWorkspaceAgentServiceServer(grpcServer, server)
 
 	go func() {
@@ -472,6 +543,38 @@ func newAgentDialer(t *testing.T, server agentpb.WorkspaceAgentServiceServer, on
 			return listener.Dial()
 		}))
 		return grpc.NewClient("passthrough:///bufconn", opts...)
+	}
+
+	cleanup := func() {
+		grpcServer.Stop()
+		_ = listener.Close()
+	}
+
+	return dialer, cleanup
+}
+
+func newTCPAgentDialerWithServerOptions(t *testing.T, server agentpb.WorkspaceAgentServiceServer, serverOpts []grpc.ServerOption, onDial func(target string)) (gateway.GRPCDialFunc, func()) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen tcp: %v", err)
+	}
+
+	grpcServer := grpc.NewServer(serverOpts...)
+	agentpb.RegisterWorkspaceAgentServiceServer(grpcServer, server)
+
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Errorf("serve tcp grpc server: %v", err)
+		}
+	}()
+
+	dialer := func(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		if onDial != nil {
+			onDial(target)
+		}
+		return grpc.NewClient(listener.Addr().String(), opts...)
 	}
 
 	cleanup := func() {

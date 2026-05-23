@@ -13,3 +13,6 @@
 
 - v0.1 keeps the control plane on Cloud Run and uses Direct VPC egress plus GKE Cloud DNS additive VPC scope for workspace-agent reachability.
   Rationale: this preserves the current release/deployment spec while giving the Cloud Run control plane a supported path to resolve and connect to headless workspace Services over private Pod IPs.
+
+- Browser terminal sessions negotiate the `cortado-v1` WebSocket subprotocol explicitly.
+  Rationale: browser WebSocket clients send a non-empty `Sec-WebSocket-Protocol` header for the terminal transport, and the control plane must echo that exact protocol during upgrade or the handshake fails before any terminal traffic starts.

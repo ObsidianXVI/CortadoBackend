@@ -1,5 +1,5 @@
 cluster_dns_domain         = "cortado-dev.internal"
-control_plane_image_tag    = "20260523-103219-stalefix"
+control_plane_image_tag    = "20260523-110240-keepalivefix"
 env                        = "dev"
 network_name               = "default"
 project_id                 = "cortado-ide"

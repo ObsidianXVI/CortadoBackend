@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -239,11 +238,6 @@ func (b *TerminalBridge) clientConn(workspaceID string, refresh bool) (*grpc.Cli
 	target := fmt.Sprintf("%s:%d", b.workspaceResolver.GetServiceDNS(workspaceID), defaultAgentAddressPort)
 	conn, err := b.dialer(
 		target,
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                30 * time.Second,
-			Timeout:             10 * time.Second,
-			PermitWithoutStream: true,
-		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {

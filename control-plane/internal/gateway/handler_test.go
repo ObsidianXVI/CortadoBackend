@@ -124,6 +124,34 @@ func TestConnectRouteDispatchesTerminalFrames(t *testing.T) {
 	}
 }
 
+func TestConnectRouteNegotiatesCortadoSubprotocol(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+		}),
+	}))
+	defer server.Close()
+
+	dialer := websocket.Dialer{
+		Subprotocols: []string{"cortado-v1"},
+	}
+	conn, response, err := dialer.Dial(websocketURL(server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass"), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v (response=%v)", err, response)
+	}
+	defer conn.Close()
+
+	if got := conn.Subprotocol(); got != "cortado-v1" {
+		t.Fatalf("unexpected negotiated subprotocol: got %q want %q", got, "cortado-v1")
+	}
+}
+
 func TestConnectRouteReturnsErrorForUnsupportedChannel(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "development")
 

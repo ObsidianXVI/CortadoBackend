@@ -13,6 +13,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const cortadoWebSocketProtocol = "cortado-v1"
+
 type Session struct {
 	Conn        *MuxConn
 	WorkspaceID string
@@ -95,6 +97,9 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 
 	if cfg.Upgrader.CheckOrigin == nil {
 		cfg.Upgrader.CheckOrigin = func(*http.Request) bool { return true }
+	}
+	if len(cfg.Upgrader.Subprotocols) == 0 {
+		cfg.Upgrader.Subprotocols = []string{cortadoWebSocketProtocol}
 	}
 
 	return cfg

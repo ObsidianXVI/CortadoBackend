@@ -1,3 +1,3 @@
 # Current Release
 
-Current task: v0.1 → Feature 1.4 → Task 1.4.4 — End-to-end smoke test.
+Current task: v0.1 → Feature 2.1 → Task 2.1.1 — Workspace CRUD endpoints.
