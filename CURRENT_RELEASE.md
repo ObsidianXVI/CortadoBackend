@@ -1,3 +1,3 @@
 # Current Release
 
-Current task: v0.1 → Feature 1.2 → Task 1.2.4 — Dockerfile for workspace agent.
+Current task: v0.1 → Feature 1.2 → Task 1.2.5 — Terraform: Kubernetes manifests for workspace pod.

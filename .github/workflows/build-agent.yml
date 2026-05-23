@@ -1,0 +1,40 @@
+name: build-agent
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "agent/**"
+      - "proto/**"
+      - ".github/workflows/build-agent.yml"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_GITHUB_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push workspace agent
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT }}/cortado-dev/cortado-workspace"
+          docker build -t "${IMAGE}:${GITHUB_SHA}" agent/
+          docker push "${IMAGE}:${GITHUB_SHA}"
