@@ -1,4 +1,22 @@
 apiVersion: v1
+kind: Service
+metadata:
+  name: workspace-pod-test
+  namespace: cortado-workspaces
+  labels:
+    app.kubernetes.io/name: cortado-workspace-agent
+    cortado/test-pod: "true"
+    cortado/workspace-id: workspace-pod-test
+spec:
+  clusterIP: None
+  selector:
+    cortado/workspace-id: workspace-pod-test
+  ports:
+    - name: grpc
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: workspace-pod-test
@@ -6,6 +24,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cortado-workspace-agent
     cortado/test-pod: "true"
+    cortado/workspace-id: workspace-pod-test
 spec:
   serviceAccountName: workspace-sa
   restartPolicy: Never

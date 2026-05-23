@@ -1,0 +1,86 @@
+name: build-control-plane
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "control-plane/**"
+      - "agent/**"
+      - "proto/**"
+      - ".github/workflows/build-control-plane.yml"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_GITHUB_SERVICE_ACCOUNT: ${{ secrets.GCP_GITHUB_SERVICE_ACCOUNT }}
+      GCP_CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS_JSON }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Determine Google Cloud auth mode
+        id: auth-mode
+        run: |
+          if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER}" && -n "${GCP_GITHUB_SERVICE_ACCOUNT}" ]]; then
+            echo "mode=workload_identity" >> "${GITHUB_OUTPUT}"
+          elif [[ -n "${GCP_CREDENTIALS_JSON}" ]]; then
+            echo "mode=credentials_json" >> "${GITHUB_OUTPUT}"
+          else
+            echo "mode=none" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Authenticate to Google Cloud
+        if: steps.auth-mode.outputs.mode == 'workload_identity'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_GITHUB_SERVICE_ACCOUNT }}
+
+      - name: Authenticate to Google Cloud with service account key
+        if: steps.auth-mode.outputs.mode == 'credentials_json'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_CREDENTIALS_JSON }}
+
+      - name: Set up gcloud
+        if: steps.auth-mode.outputs.mode != 'none'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: steps.auth-mode.outputs.mode != 'none'
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build control-plane image
+        run: |
+          if [[ "${{ steps.auth-mode.outputs.mode }}" == "none" ]]; then
+            IMAGE="cortado-control-plane:${GITHUB_SHA}"
+          else
+            if [[ -z "${GCP_PROJECT}" ]]; then
+              echo "GCP_PROJECT repo variable must be set when pushing to Artifact Registry." >&2
+              exit 1
+            fi
+            IMAGE="us-central1-docker.pkg.dev/${GCP_PROJECT}/cortado-dev/cortado-control-plane:${GITHUB_SHA}"
+          fi
+
+          echo "IMAGE=${IMAGE}" >> "${GITHUB_ENV}"
+          docker build -f control-plane/Dockerfile -t "${IMAGE}" .
+
+      - name: Push control-plane image
+        if: steps.auth-mode.outputs.mode != 'none'
+        run: |
+          docker push "${IMAGE}"
+
+      - name: Skip image push without Google Cloud credentials
+        if: steps.auth-mode.outputs.mode == 'none'
+        run: |
+          echo "No Google Cloud credentials were available for this workflow run."
+          echo "Built the control-plane image locally and skipped Artifact Registry push."
