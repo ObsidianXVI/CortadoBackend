@@ -390,3 +390,6 @@
 23/05/26 13:56 [FIX] `dev-pro-large` Corrected the release trackers after the local `v0.2.0` tag was created but `git push --tags` failed against the HTTPS GitHub remote without credentials, leaving Task 2.4.3 accurately marked as blocked on tag publication instead of prematurely advancing the active task pointer.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
+23/05/26 14:02 [FEAT] `dev-pro-large` Advanced the repo state past the completed v0.2 auth release after the `v0.2.0` tag was published externally, resetting the active task trackers to v0.3 Feature 3.1 Task 3.1.1 so the next work starts at the filesystem proto contract instead of lingering on release bookkeeping.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
