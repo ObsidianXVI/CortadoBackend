@@ -234,3 +234,8 @@
 - M control-plane/internal/gateway/handler.go
 - M control-plane/internal/gateway/handler_test.go
 - M terraform/envs/dev/terraform.tfvars
+23/05/26 11:31 [FIX] (pending) `dev-pro-large` Raised the VM Flutter/Dart toolchain floor for MCP compatibility by pinning bootstrap installs to Flutter `3.41.9` with bundled Dart `3.11.5`, adding explicit bundled-Dart verification during setup, and teaching the VM startup runtime to export the Flutter toolchain on PATH and warn when the installed SDK drifts from the pinned versions.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M scripts/initial_setup.sh
+- M scripts/vm_startup_script.sh

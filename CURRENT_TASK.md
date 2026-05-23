@@ -15,6 +15,8 @@ Closed the remaining infrastructure gap for the dev environment by importing the
 
 The Chrome validation exposed and fixed the last browser-specific control-plane issues for Task 1.4.4. First, browser WebSocket upgrades sent `Sec-WebSocket-Protocol: cortado-v1`, but the gateway upgrader did not advertise that subprotocol, so the browser handshake failed until the control plane explicitly negotiated `cortado-v1`. Second, long-lived browser PTY sessions were later torn down with `ENHANCE_YOUR_CALM` / `too_many_pings` because the control-plane gRPC client forced aggressive custom keepalive pings to the workspace agent; the bridge now relies on default gRPC client behavior instead. After redeploying image `20260523-110240-keepalivefix`, the live browser smoke passed for `echo hello_v0_1`, `python3` with `print('py_ok')`, `vim` full-screen redraw, and PTY resize propagation (`tput cols` changed from `100` to `130` after a browser-driven resize). Browser-observed round-trip latency was recorded at about `342 ms` using a Chrome DevTools-driven DOM echo timer on the live page because the MCP Network adapter did not expose WebSocket frame timings directly.
 
+Post-completion repo maintenance also bumped the VM bootstrap/runtime Flutter SDK expectation from `3.27.0` to `3.41.9` and recorded the bundled Dart expectation as `3.11.5` so local and VM setup clears the MCP server's Dart `3.9+` requirement.
+
 ## Remaining work this session
 None. Advance to Task 2.1.1.
 

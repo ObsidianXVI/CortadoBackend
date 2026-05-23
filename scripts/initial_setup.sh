@@ -16,7 +16,8 @@ die()     { echo -e "${RED}[FAIL]${NC} $*" >&2; exit 1; }
 
 # ── Pinned versions (mirror devcontainer Dockerfile) ─────────────────────────
 GO_VERSION=1.23.4
-FLUTTER_VERSION=3.27.0
+FLUTTER_VERSION=3.41.9
+DART_VERSION=3.11.5
 TERRAFORM_VERSION=1.9.8
 BUF_VERSION=1.47.2
 NODE_MAJOR=22
@@ -325,7 +326,7 @@ FLUTTER_DIR="$TOOLS_DIR/flutter"
 
 if [[ ! -d "$FLUTTER_DIR" ]] || \
    [[ "$("$FLUTTER_DIR/bin/flutter" --version 2>/dev/null | head -1 | awk '{print $2}')" != "$FLUTTER_VERSION" ]]; then
-  info "Installing Flutter ${FLUTTER_VERSION}..."
+  info "Installing Flutter ${FLUTTER_VERSION} (bundled Dart ${DART_VERSION})..."
   rm -rf "$FLUTTER_DIR"
   git clone --depth 1 \
     --branch "$FLUTTER_VERSION" \
@@ -341,6 +342,12 @@ if [[ ! -d "$FLUTTER_DIR" ]] || \
 else
   success "Flutter ${FLUTTER_VERSION} already installed."
   export PATH="$FLUTTER_DIR/bin:$PATH"
+fi
+
+if ! dart --version 2>&1 | grep -q "Dart SDK version: ${DART_VERSION}"; then
+  warn "Expected bundled Dart ${DART_VERSION}, but found: $(dart --version 2>&1 | head -1)"
+else
+  success "Bundled Dart ${DART_VERSION} available."
 fi
 
 # Dart pub global tools

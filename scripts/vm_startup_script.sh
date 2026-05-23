@@ -28,6 +28,11 @@ SSH_GROUP="$(id -gn "${SSH_USER}" 2>/dev/null || echo "${SSH_USER}")"
 BIN_DIR="${SSH_HOME}/bin"
 ENV_FILE="${PROJECT_DIR}/.env"
 
+FLUTTER_VERSION="3.41.9"
+DART_VERSION="3.11.5"
+FLUTTER_BIN="${SSH_HOME}/tools/flutter/bin/flutter"
+DART_BIN="${SSH_HOME}/tools/flutter/bin/dart"
+
 CODEX_RELAY_VERSION="1.1.0"
 CODEX_RELAY_WRAPPER="${BIN_DIR}/codex-relay"
 CODEX_RELAY_STARTER="${BIN_DIR}/codex-relay-start"
@@ -206,6 +211,12 @@ set -euo pipefail
 SSH_USER="${SSH_USER}"
 SSH_HOME="${SSH_HOME}"
 ENV_FILE="${ENV_FILE}"
+FLUTTER_BIN="${FLUTTER_BIN}"
+DART_BIN="${DART_BIN}"
+EXPECTED_FLUTTER_VERSION="${FLUTTER_VERSION}"
+EXPECTED_DART_VERSION="${DART_VERSION}"
+
+export PATH="${SSH_HOME}/tools/flutter/bin:${SSH_HOME}/go/bin:${SSH_HOME}/bin:/usr/local/go/bin:${PATH}"
 
 if [[ -f "\${ENV_FILE}" ]]; then
   set -o allexport
@@ -213,6 +224,24 @@ if [[ -f "\${ENV_FILE}" ]]; then
   source "\${ENV_FILE}"
   set +o allexport
   printenv OPENAI_API_KEY | codex login --with-api-key
+fi
+
+if [[ -x "\${FLUTTER_BIN}" ]]; then
+  FLUTTER_INSTALLED_VERSION="$("\${FLUTTER_BIN}" --version 2>/dev/null | head -1 | awk '{print \$2}')"
+  if [[ "\${FLUTTER_INSTALLED_VERSION}" != "\${EXPECTED_FLUTTER_VERSION}" ]]; then
+    echo "[WARN] Expected Flutter \${EXPECTED_FLUTTER_VERSION}, found \${FLUTTER_INSTALLED_VERSION:-missing} at \${FLUTTER_BIN}." >&2
+  fi
+else
+  echo "[WARN] Flutter is not installed at \${FLUTTER_BIN}. Run scripts/initial_setup.sh to install Flutter \${EXPECTED_FLUTTER_VERSION}." >&2
+fi
+
+if [[ -x "\${DART_BIN}" ]]; then
+  DART_INSTALLED_VERSION="$("\${DART_BIN}" --version 2>&1 | sed -E 's/^Dart SDK version: ([0-9.]+).*/\1/' | head -1)"
+  if [[ "\${DART_INSTALLED_VERSION}" != "\${EXPECTED_DART_VERSION}" ]]; then
+    echo "[WARN] Expected Dart \${EXPECTED_DART_VERSION}, found \${DART_INSTALLED_VERSION:-missing} at \${DART_BIN}." >&2
+  fi
+else
+  echo "[WARN] Dart is not installed at \${DART_BIN}. Run scripts/initial_setup.sh to install bundled Dart \${EXPECTED_DART_VERSION}." >&2
 fi
 
 if command -v tailscale >/dev/null 2>&1; then
