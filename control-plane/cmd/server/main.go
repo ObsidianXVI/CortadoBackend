@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/your-org/cortado/control-plane/internal/api"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
+	"github.com/your-org/cortado/control-plane/internal/workspace"
 )
 
 const defaultHTTPPort = "8080"
@@ -30,17 +32,41 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize workspace service: %v", err)
 	}
+	resolver := gateway.StaticWorkspaceResolver{
+		Namespace: workspaceNamespace,
+		DNSDomain: clusterDNSDomain,
+	}
+	terminalBridge := gateway.NewTerminalBridge(gateway.TerminalBridgeConfig{
+		WorkspaceResolver: resolver,
+	})
+	connectHandler := gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+		TerminalHandler: func(handlerCtx context.Context, session gateway.Session, frame gateway.Frame, receivedAt time.Time) error {
+			if err := terminalBridge.HandleFrame(handlerCtx, session, frame, receivedAt); err != nil {
+				return err
+			}
+			if frame.MessageType == gateway.MessageTypeData {
+				if activityErr := workspaceService.RecordActivity(handlerCtx, session.WorkspaceID, receivedAt); activityErr != nil {
+					log.Printf("record workspace activity workspace=%s: %v", session.WorkspaceID, activityErr)
+				}
+			}
+			return nil
+		},
+		WorkspaceResolver: resolver,
+	})
+
+	go workspace.NewIdleMonitor(workspace.IdleMonitorConfig{
+		IdleInspector: workspace.NewAgentIdleInspector(workspace.AgentIdleInspectorConfig{
+			WorkspaceResolver: resolver,
+		}),
+		IdleTimeout: idleTimeoutFromEnv(),
+		Service:     workspaceService,
+	}).Run(ctx)
 
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: api.NewRouter(api.RouterConfig{
-			ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
-				WorkspaceResolver: gateway.StaticWorkspaceResolver{
-					Namespace: workspaceNamespace,
-					DNSDomain: clusterDNSDomain,
-				},
-			}),
-			WorkspaceSvc: workspaceService,
+			ConnectHandler: connectHandler,
+			WorkspaceSvc:   workspaceService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -60,4 +86,19 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("listen and serve: %v", err)
 	}
+}
+
+func idleTimeoutFromEnv() time.Duration {
+	value := os.Getenv("CORTADO_IDLE_TIMEOUT_MINUTES")
+	if value == "" {
+		return 20 * time.Minute
+	}
+
+	minutes, err := strconv.Atoi(value)
+	if err != nil || minutes <= 0 {
+		log.Printf("invalid CORTADO_IDLE_TIMEOUT_MINUTES=%q, using default 20", value)
+		return 20 * time.Minute
+	}
+
+	return time.Duration(minutes) * time.Minute
 }

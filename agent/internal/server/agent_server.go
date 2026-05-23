@@ -7,11 +7,13 @@ import (
 	"math"
 	"strings"
 	"syscall"
+	"time"
 
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type AgentServer struct {
@@ -49,6 +51,22 @@ func (s *AgentServer) CreatePty(ctx context.Context, req *pb.CreatePtyRequest) (
 
 func (s *AgentServer) Health(ctx context.Context, req *pb.HealthRequest) (*pb.HealthResponse, error) {
 	return &pb.HealthResponse{Status: "ok"}, nil
+}
+
+func (s *AgentServer) GetIdleStatus(ctx context.Context, req *pb.GetIdleStatusRequest) (*pb.GetIdleStatusResponse, error) {
+	lastActivity, cpuPercent, err := s.ptyMgr.IdleStatus(time.Now())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get idle status: %v", err)
+	}
+
+	response := &pb.GetIdleStatusResponse{
+		CpuPercentOverSixtySeconds: cpuPercent,
+	}
+	if !lastActivity.IsZero() {
+		response.LastPtyActivityTime = timestamppb.New(lastActivity)
+	}
+
+	return response, nil
 }
 
 func (s *AgentServer) StreamPty(stream pb.WorkspaceAgentService_StreamPtyServer) error {

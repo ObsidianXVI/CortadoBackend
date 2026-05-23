@@ -38,6 +38,9 @@ func TestServiceCreateWorkspacePersistsAndProvisions(t *testing.T) {
 	if provisioner.createdCPU != 1 || provisioner.createdMemGB != 2 {
 		t.Fatalf("unexpected default resources: cpu=%v mem=%v", provisioner.createdCPU, provisioner.createdMemGB)
 	}
+	if ws.LastActive != now {
+		t.Fatalf("unexpected last active time: %v", ws.LastActive)
+	}
 }
 
 func TestServiceStartWorkspaceTransitionsToStarting(t *testing.T) {
@@ -204,8 +207,44 @@ func TestServiceOnPodDeletedPreservesDeletedWorkspace(t *testing.T) {
 	}
 }
 
+func TestServiceRecordActivityRateLimitsWrites(t *testing.T) {
+	now := time.Date(2026, time.May, 23, 19, 30, 0, 0, time.UTC)
+	repository := newMemoryRepository(
+		Workspace{
+			ID:         "ws-123",
+			TenantID:   "tenant-1",
+			Status:     StatusRunning,
+			LastActive: now.Add(-5 * time.Minute),
+		},
+	)
+	service := NewService(ServiceConfig{
+		Provisioner: &provisionerStub{},
+		Repository:  repository,
+		Now:         func() time.Time { return now },
+	})
+
+	if err := service.RecordActivity(context.Background(), "ws-123", now); err != nil {
+		t.Fatalf("record first activity: %v", err)
+	}
+	if err := service.RecordActivity(context.Background(), "ws-123", now.Add(30*time.Second)); err != nil {
+		t.Fatalf("record throttled activity: %v", err)
+	}
+
+	if repository.activityUpdates != 1 {
+		t.Fatalf("unexpected activity update count: got %d want %d", repository.activityUpdates, 1)
+	}
+	ws, err := repository.Get(context.Background(), "ws-123")
+	if err != nil {
+		t.Fatalf("get workspace after activity update: %v", err)
+	}
+	if !ws.LastActive.Equal(now) {
+		t.Fatalf("unexpected last active time: %v", ws.LastActive)
+	}
+}
+
 type memoryRepository struct {
-	workspaces map[string]Workspace
+	activityUpdates int
+	workspaces      map[string]Workspace
 }
 
 func newMemoryRepository(workspaces ...Workspace) *memoryRepository {
@@ -247,6 +286,39 @@ func (r *memoryRepository) ListByTenant(_ context.Context, tenantID string) ([]W
 		}
 	}
 	return result, nil
+}
+
+func (r *memoryRepository) ListByStatus(_ context.Context, status Status) ([]Workspace, error) {
+	result := make([]Workspace, 0)
+	for _, workspace := range r.workspaces {
+		if workspace.Status == status {
+			result = append(result, workspace)
+		}
+	}
+	return result, nil
+}
+
+func (r *memoryRepository) ListInactiveSince(_ context.Context, threshold time.Time) ([]Workspace, error) {
+	result := make([]Workspace, 0)
+	for _, workspace := range r.workspaces {
+		if workspace.LastActive.IsZero() || workspace.LastActive.After(threshold) {
+			continue
+		}
+		result = append(result, workspace)
+	}
+	return result, nil
+}
+
+func (r *memoryRepository) UpdateLastActive(_ context.Context, workspaceID string, observedAt time.Time) (Workspace, error) {
+	workspace, ok := r.workspaces[workspaceID]
+	if !ok {
+		return Workspace{}, ErrNotFound
+	}
+	workspace.LastActive = observedAt
+	workspace.UpdatedAt = observedAt
+	r.activityUpdates++
+	r.workspaces[workspaceID] = workspace
+	return workspace, nil
 }
 
 func (r *memoryRepository) UpdateStatus(_ context.Context, workspaceID string, status Status, updatedAt time.Time) (Workspace, error) {

@@ -138,3 +138,12 @@
 - PASS `docker build -f control-plane/Dockerfile -t cortado-control-plane:test .`
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+23/05/26 12:20
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build ./...`
+- PASS `docker build -t cortado-workspace:test agent/`
+- PASS `docker build -f control-plane/Dockerfile -t cortado-control-plane:test .`

@@ -35,6 +35,24 @@ func TestAgentServerHealth(t *testing.T) {
 	}
 }
 
+func TestAgentServerGetIdleStatus(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.GetIdleStatus(ctx, &pb.GetIdleStatusRequest{})
+	if err != nil {
+		t.Fatalf("get idle status: %v", err)
+	}
+	if resp.GetCpuPercentOverSixtySeconds() < 0 {
+		t.Fatalf("unexpected cpu percent: %f", resp.GetCpuPercentOverSixtySeconds())
+	}
+}
+
 func TestAgentServerCreateAndStreamPty(t *testing.T) {
 	t.Parallel()
 

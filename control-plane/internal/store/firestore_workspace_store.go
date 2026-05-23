@@ -72,28 +72,59 @@ func (s *FirestoreWorkspaceStore) ListByTenant(ctx context.Context, tenantID str
 	iter := s.collectionRef().Where("tenantId", "==", tenantID).Documents(ctx)
 	defer iter.Stop()
 
-	workspaces := make([]workspace.Workspace, 0)
-	for {
-		doc, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("iterate workspace documents: %w", err)
-		}
-
-		var ws workspace.Workspace
-		if err := doc.DataTo(&ws); err != nil {
-			return nil, fmt.Errorf("decode workspace document: %w", err)
-		}
-		workspaces = append(workspaces, ws)
+	workspaces, err := collectWorkspaceDocuments(iter)
+	if err != nil {
+		return nil, err
 	}
-
 	sort.Slice(workspaces, func(i, j int) bool {
 		return workspaces[i].CreatedAt.After(workspaces[j].CreatedAt)
 	})
 
 	return workspaces, nil
+}
+
+func (s *FirestoreWorkspaceStore) ListByStatus(ctx context.Context, status workspace.Status) ([]workspace.Workspace, error) {
+	iter := s.collectionRef().Where("status", "==", status).Documents(ctx)
+	defer iter.Stop()
+
+	return collectWorkspaceDocuments(iter)
+}
+
+func (s *FirestoreWorkspaceStore) ListInactiveSince(ctx context.Context, threshold time.Time) ([]workspace.Workspace, error) {
+	iter := s.collectionRef().Where("lastActiveAt", "<=", threshold).Documents(ctx)
+	defer iter.Stop()
+
+	workspaces, err := collectWorkspaceDocuments(iter)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := workspaces[:0]
+	for _, ws := range workspaces {
+		switch ws.Status {
+		case workspace.StatusDeleted, workspace.StatusStopped:
+			continue
+		default:
+			filtered = append(filtered, ws)
+		}
+	}
+
+	return filtered, nil
+}
+
+func (s *FirestoreWorkspaceStore) UpdateLastActive(ctx context.Context, workspaceID string, observedAt time.Time) (workspace.Workspace, error) {
+	_, err := s.collectionRef().Doc(workspaceID).Update(ctx, []firestore.Update{
+		{Path: "lastActiveAt", Value: observedAt},
+		{Path: "updatedAt", Value: observedAt},
+	})
+	if err != nil {
+		if isNotFound(err) {
+			return workspace.Workspace{}, workspace.ErrNotFound
+		}
+		return workspace.Workspace{}, fmt.Errorf("update workspace last activity: %w", err)
+	}
+
+	return s.Get(ctx, workspaceID)
 }
 
 func (s *FirestoreWorkspaceStore) UpdateStatus(ctx context.Context, workspaceID string, status workspace.Status, updatedAt time.Time) (workspace.Workspace, error) {
@@ -117,4 +148,23 @@ func (s *FirestoreWorkspaceStore) collectionRef() *firestore.CollectionRef {
 
 func isNotFound(err error) bool {
 	return grpcstatus.Code(err) == codes.NotFound
+}
+
+func collectWorkspaceDocuments(iter *firestore.DocumentIterator) ([]workspace.Workspace, error) {
+	workspaces := make([]workspace.Workspace, 0)
+	for {
+		doc, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			return workspaces, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate workspace documents: %w", err)
+		}
+
+		var ws workspace.Workspace
+		if err := doc.DataTo(&ws); err != nil {
+			return nil, fmt.Errorf("decode workspace document: %w", err)
+		}
+		workspaces = append(workspaces, ws)
+	}
 }

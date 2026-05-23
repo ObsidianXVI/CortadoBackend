@@ -1,12 +1,16 @@
 syntax = "proto3";
 
 package agent.v1;
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/your-org/cortado/agent/gen/agent/v1";
 
 service WorkspaceAgentService {
   rpc CreatePty(CreatePtyRequest) returns (CreatePtyResponse);
   rpc StreamPty(stream StreamPtyRequest) returns (stream StreamPtyResponse);
+  // Returns recent idle/activity info for this agent.
+  // Used by the control plane to distinguish busy builds from idle sessions.
+  rpc GetIdleStatus(GetIdleStatusRequest) returns (GetIdleStatusResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
 }
 
@@ -47,4 +51,20 @@ message HealthRequest {}
 
 message HealthResponse {
   string status = 1;
+}
+
+// GetIdleStatusRequest requests the agent recent idle/activity status.
+message GetIdleStatusRequest {}
+
+// IdleStatus reports the last PTY write activity time and an
+// averaged CPU utilization over the last 60 seconds for the
+// current container/cgroup.
+message GetIdleStatusResponse {
+  // RFC3339 timestamp of the most recent PTY write activity observed.
+  // If no PTY write has occurred since the agent started, this field may be unset.
+  google.protobuf.Timestamp last_pty_activity_time = 1;
+
+  // Average CPU usage percentage over the last 60 seconds, in the range [0, 100 * cpu_count].
+  // The value accounts for container CPU quotas if detectable; otherwise it is based on host CPUs.
+  double cpu_percent_over_sixty_seconds = 2;
 }

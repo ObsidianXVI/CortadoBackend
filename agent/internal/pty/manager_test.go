@@ -27,6 +27,9 @@ func TestManagerCreateWriteReadAndKill(t *testing.T) {
 	if err := manager.Write(session.ID, []byte("echo hello_cortado\nexit\n")); err != nil {
 		t.Fatalf("write session: %v", err)
 	}
+	if manager.lastActivity.Load() == 0 {
+		t.Fatal("expected last activity to be recorded after PTY write")
+	}
 
 	outputCh := make(chan string, 1)
 	errCh := make(chan error, 1)
@@ -130,4 +133,35 @@ func lastEnvValue(env []string, key string) string {
 		}
 	}
 	return value
+}
+
+func TestManagerIdleStatusUsesRecordedActivityAndSamples(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 23, 20, 30, 0, 0, time.UTC)
+	manager := &Manager{}
+	manager.lastActivity.Store(now.Add(-10 * time.Minute).UnixNano())
+	manager.cpuSamples = []cpuSample{
+		{at: now.Add(-60 * time.Second), total: 1000, idle: 400},
+		{at: now, total: 1600, idle: 700},
+	}
+
+	lastActivity, cpuPercent, err := manager.IdleStatus(now)
+	if err != nil {
+		t.Fatalf("idle status: %v", err)
+	}
+	if !lastActivity.Equal(now.Add(-10 * time.Minute)) {
+		t.Fatalf("unexpected last activity time: %v", lastActivity)
+	}
+	if cpuPercent != 50 {
+		t.Fatalf("unexpected cpu percent: got %.2f want 50.00", cpuPercent)
+	}
+}
+
+func TestParseCPUSampleRejectsMalformedLine(t *testing.T) {
+	t.Parallel()
+
+	if _, err := parseCPUSample("bogus", time.Now()); err == nil {
+		t.Fatal("expected malformed cpu stat error")
+	}
 }

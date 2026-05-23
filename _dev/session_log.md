@@ -263,3 +263,17 @@
 - A terraform/k8s/workspace-storageclass.yaml
 - M terraform/modules/cloudrun/main.tf
 - M terraform/modules/cloudrun/variables.tf
+23/05/26 12:20 [FEAT] (pending) `dev-pro-large` Completed Task 2.1.2 by adding agent-side idle telemetry and the new `GetIdleStatus` gRPC surface, propagating terminal activity into Firestore with throttling, wiring a background control-plane idle/stale monitor to stop idle workspaces automatically, and validating the updated agent and control-plane runtime images.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M agent/internal/pty/manager.go
+- M agent/internal/server/agent_server.go
+- M control-plane/cmd/server/main.go
+- M control-plane/internal/store/firestore_workspace_store.go
+- A control-plane/internal/workspace/agent_idle_client.go
+- A control-plane/internal/workspace/idle_monitor.go
+- M control-plane/internal/workspace/service.go
+- M proto/agent/v1/agent.proto

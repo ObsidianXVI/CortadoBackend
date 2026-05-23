@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +23,10 @@ type Repository interface {
 	Create(ctx context.Context, workspace Workspace) error
 	Delete(ctx context.Context, workspaceID string) error
 	Get(ctx context.Context, workspaceID string) (Workspace, error)
+	ListByStatus(ctx context.Context, status Status) ([]Workspace, error)
 	ListByTenant(ctx context.Context, tenantID string) ([]Workspace, error)
+	ListInactiveSince(ctx context.Context, threshold time.Time) ([]Workspace, error)
+	UpdateLastActive(ctx context.Context, workspaceID string, observedAt time.Time) (Workspace, error)
 	UpdateStatus(ctx context.Context, workspaceID string, status Status, updatedAt time.Time) (Workspace, error)
 }
 
@@ -41,6 +45,8 @@ type ServiceConfig struct {
 }
 
 type Service struct {
+	activityMu       sync.Mutex
+	lastActivitySync map[string]time.Time
 	defaultResources Resources
 	idGenerator      func() string
 	now              func() time.Time
@@ -72,6 +78,7 @@ func NewService(cfg ServiceConfig) *Service {
 	}
 
 	return &Service{
+		lastActivitySync: map[string]time.Time{},
 		defaultResources: cfg.DefaultResources,
 		idGenerator:      cfg.IDGenerator,
 		now:              cfg.Now,
@@ -99,14 +106,15 @@ func (s *Service) CreateWorkspace(ctx context.Context, params CreateParams) (Wor
 
 	now := s.now().UTC()
 	workspace := Workspace{
-		ID:        s.idGenerator(),
-		TenantID:  params.TenantID,
-		UserID:    params.UserID,
-		Image:     params.Image,
-		Resources: params.Resources,
-		Status:    StatusCreating,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         s.idGenerator(),
+		TenantID:   params.TenantID,
+		UserID:     params.UserID,
+		Image:      params.Image,
+		Resources:  params.Resources,
+		Status:     StatusCreating,
+		CreatedAt:  now,
+		LastActive: now,
+		UpdatedAt:  now,
 	}
 
 	if err := s.repository.Create(ctx, workspace); err != nil {
@@ -141,6 +149,55 @@ func (s *Service) ListWorkspaces(ctx context.Context, tenantID string) ([]Worksp
 		return nil, fmt.Errorf("list workspaces: %w", err)
 	}
 	return workspaces, nil
+}
+
+func (s *Service) ListWorkspacesByStatus(ctx context.Context, status Status) ([]Workspace, error) {
+	workspaces, err := s.repository.ListByStatus(ctx, status)
+	if err != nil {
+		return nil, fmt.Errorf("list workspaces by status: %w", err)
+	}
+	return workspaces, nil
+}
+
+func (s *Service) ListInactiveWorkspaces(ctx context.Context, threshold time.Time) ([]Workspace, error) {
+	workspaces, err := s.repository.ListInactiveSince(ctx, threshold.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("list inactive workspaces: %w", err)
+	}
+	return workspaces, nil
+}
+
+func (s *Service) RecordActivity(ctx context.Context, workspaceID string, observedAt time.Time) error {
+	if workspaceID == "" {
+		return ErrWorkspace
+	}
+	if observedAt.IsZero() {
+		observedAt = s.now().UTC()
+	} else {
+		observedAt = observedAt.UTC()
+	}
+
+	s.activityMu.Lock()
+	lastObserved, ok := s.lastActivitySync[workspaceID]
+	if ok && observedAt.Sub(lastObserved) < time.Minute {
+		s.activityMu.Unlock()
+		return nil
+	}
+	s.lastActivitySync[workspaceID] = observedAt
+	s.activityMu.Unlock()
+
+	if _, err := s.repository.UpdateLastActive(ctx, workspaceID, observedAt); err != nil {
+		s.activityMu.Lock()
+		delete(s.lastActivitySync, workspaceID)
+		s.activityMu.Unlock()
+
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
+		return fmt.Errorf("update workspace activity: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) StartWorkspace(ctx context.Context, tenantID, workspaceID string) (Workspace, error) {

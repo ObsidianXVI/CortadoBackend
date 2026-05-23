@@ -22,3 +22,6 @@
 
 - The Cloud Run control plane discovers the GKE API endpoint and cluster CA via the Container API when explicit kubeconfig data is unavailable.
   Rationale: local development can keep using `KUBECONFIG`, but deployed Cloud Run instances do not have a kubeconfig file. Passing cluster identity env vars and resolving endpoint/CA through the Container API gives the workspace CRUD control plane a deployable Kubernetes client path without requiring in-cluster execution.
+
+- Workspace hibernation uses a 20-minute idle timeout by default, records terminal activity to Firestore at most once per minute, and applies a separate 30-minute stale-activity fallback scan.
+  Rationale: this matches Task 2.1.2’s intended UX and cost controls while preventing Firestore write amplification and still catching agent-unreachable `RUNNING` workspaces that would otherwise leak.
