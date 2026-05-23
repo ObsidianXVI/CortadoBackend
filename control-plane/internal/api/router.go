@@ -30,6 +30,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if connectHandler == nil {
 		connectHandler = gateway.NewConnectHandler(gateway.ConnectHandlerConfig{})
 	}
+	var jwksJSON []byte
+	if cfg.JWKSProvider != nil {
+		jwksJSON = cfg.JWKSProvider.JWKS()
+	}
 
 	router := chi.NewRouter()
 
@@ -43,7 +47,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			r.Post("/sessions", newSessionsHandler(cfg.SessionSvc).create)
 		}
 		r.Group(func(protected chi.Router) {
-			protected.Use(cpmiddleware.DevBypassAuth)
+			protected.Use(cpmiddleware.NewAuthMiddleware(cpmiddleware.AuthConfig{JWKSJSON: jwksJSON}))
 			if cfg.WorkspaceSvc != nil {
 				handler := newWorkspacesHandler(cfg.WorkspaceSvc)
 				protected.Get("/workspaces", handler.list)

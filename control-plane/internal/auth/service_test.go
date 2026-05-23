@@ -2,10 +2,12 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -53,15 +55,16 @@ func TestServiceCreateSessionIssuesTokens(t *testing.T) {
 		t.Fatalf("unexpected saved refresh token count: %d", len(repository.savedRefreshTokens))
 	}
 
-	privateKey, err := parsePrivateKey(privateKeyPEM)
+	verifier, err := keyfunc.NewJWKSetJSON(json.RawMessage(service.JWKS()))
 	if err != nil {
-		t.Fatalf("parse private key: %v", err)
+		t.Fatalf("new jwks verifier: %v", err)
 	}
-	token, err := jwt.ParseWithClaims(tokens.AccessToken, &AccessClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return &privateKey.PublicKey, nil
-	})
+	token, err := jwt.ParseWithClaims(tokens.AccessToken, &AccessClaims{}, verifier.Keyfunc, jwt.WithValidMethods([]string{"RS256"}))
 	if err != nil {
 		t.Fatalf("parse access token: %v", err)
+	}
+	if got := token.Header["kid"]; got != service.keyID {
+		t.Fatalf("unexpected token header kid: got %v want %q", got, service.keyID)
 	}
 
 	claims, ok := token.Claims.(*AccessClaims)

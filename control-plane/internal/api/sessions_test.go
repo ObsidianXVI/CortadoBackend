@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/your-org/cortado/control-plane/internal/auth"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestSessionRouteIssuesTokensWithoutDevBypass(t *testing.T) {
@@ -36,8 +37,9 @@ func TestSessionRouteIssuesTokensWithoutDevBypass(t *testing.T) {
 }
 
 func TestJWKSRouteServesDocument(t *testing.T) {
+	authService := mustAuthService(t)
 	router := NewRouter(RouterConfig{
-		JWKSProvider: jwksProviderStub{payload: []byte(`{"keys":[{"kid":"kid-1"}]}`)},
+		JWKSProvider: authService,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/.well-known/jwks.json", nil)
@@ -51,7 +53,7 @@ func TestJWKSRouteServesDocument(t *testing.T) {
 	if got := rec.Header().Get("Content-Type"); got != "application/json" {
 		t.Fatalf("unexpected content type: %q", got)
 	}
-	if got := rec.Body.String(); got != `{"keys":[{"kid":"kid-1"}]}` {
+	if got := rec.Body.Bytes(); string(got) != string(authService.JWKS()) {
 		t.Fatalf("unexpected body: %q", got)
 	}
 }
@@ -65,10 +67,40 @@ func (s sessionServiceStub) CreateSession(_ context.Context, _, _ string) (auth.
 	return s.tokens, s.err
 }
 
-type jwksProviderStub struct {
-	payload []byte
+func mustAuthService(t *testing.T) *auth.Service {
+	t.Helper()
+
+	privateKeyPEM, err := auth.GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := auth.NewService(auth.ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &authRepositoryStub{
+			apiKeys: []auth.APIKeyRecord{{TenantID: "tenant-1", Hash: string(hash)}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new auth service: %v", err)
+	}
+
+	return service
 }
 
-func (j jwksProviderStub) JWKS() []byte {
-	return append([]byte(nil), j.payload...)
+type authRepositoryStub struct {
+	apiKeys []auth.APIKeyRecord
+}
+
+func (r *authRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord, error) {
+	return append([]auth.APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *authRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {
+	return nil
 }

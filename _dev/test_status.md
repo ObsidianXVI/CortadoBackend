@@ -53,6 +53,9 @@
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+23/05/26 13:43
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 23/05/26 06:03
 - PASS `cd control-plane && GOTOOLCHAIN=local /usr/local/go/bin/go mod tidy`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go test ./...`

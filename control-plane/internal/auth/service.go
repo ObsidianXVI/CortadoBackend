@@ -145,7 +145,10 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 		},
 	}
 
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(s.privateKey)
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.keyID
+
+	accessToken, err := token.SignedString(s.privateKey)
 	if err != nil {
 		return SessionTokens{}, fmt.Errorf("sign jwt access token: %w", err)
 	}

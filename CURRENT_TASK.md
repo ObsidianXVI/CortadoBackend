@@ -1,32 +1,33 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.1 → Feature 2.4 (Real JWT Authentication) → Task 2.4.2
+v0.1 → Feature 2.4 (Real JWT Authentication) → Task 2.4.3
 
 ## Status
 IN PROGRESS
 
 ## What was done last session
-Completed Task 2.4.1 by adding JWT session issuance and JWKS exposure in the control plane, wiring Firestore-backed API-key and refresh-token persistence, adding Redis-compatible API-key validation caching, and extending Terraform with Secret Manager and Memorystore resources plus Cloud Run runtime injection for the signing key and cache address.
+Completed Task 2.4.2 by replacing the control-plane dev-only auth gate with JWKS-backed JWT validation, keeping the dev-bypass fallback gated to development only, accepting browser WebSocket JWTs from `?token=...`, injecting `tenant_id` and `user_id` from claims, and extending the control-plane test suite so the protected HTTP and WebSocket entry points now verify real bearer tokens.
 
 ## What was done this session
-Loaded the Task 2.4.2 spec and advanced the release/task pointers so the JWT-first middleware chain, dev-bypass fallback, and WebSocket token handling can be implemented against the documented acceptance criteria instead of guessed requirements.
+Loaded the Task 2.4.3 spec and audited the current Flutter client plus control-plane session surface; the client still authenticates with dev-bypass headers/query params and the control plane does not yet expose `/v1/sessions/refresh`, so the refresh work is now scoped against the actual code rather than the release outline alone.
 
 ## Remaining work this session
-Replace the dev-only middleware with JWT validation backed by JWKS, preserve the dev-bypass path only in development, accept JWTs from the WebSocket query string for browser upgrades, and cover the new auth chain with tests plus the required Go verification.
+Add the refresh-token exchange on the control plane if needed by the client contract, teach `CortadoClient` to store JWT metadata and refresh tokens, schedule refresh five minutes before expiry while also refreshing synchronously when a request sees an expired token, replace dev-bypass auth with bearer auth for HTTP and WebSocket connections while preserving the development fallback, and cover the new behavior with Flutter plus control-plane verification before tagging `v0.2.0`.
 
 ## Definition of done
-- [ ] The control plane validates `Authorization: Bearer {jwt}` using JWKS-backed key resolution
-- [ ] The middleware falls back to `X-Cortado-Dev-Token: dev-bypass` only when `CORTADO_ENV=development`
-- [ ] Valid JWTs inject `tenant_id` and `user_id` request context from the `tid` and `sub` claims
-- [ ] Browser WebSocket upgrades can authenticate with `?token={jwt}` on `/v1/workspaces/{id}/connect`
-- [ ] Invalid or missing JWTs return `401 Unauthorized` on protected HTTP and WebSocket entry points
-- [ ] `cd control-plane && CGO_ENABLED=0 go build ./...` passes
-- [ ] `cd control-plane && go test ./...` passes
+- [ ] `CortadoClient` stores the access JWT, refresh token, and parsed `exp` claim
+- [ ] The client refreshes the access JWT five minutes before expiry via `POST /v1/sessions/refresh`
+- [ ] The client also refreshes synchronously when a request or connection sees an expired or suspended-session JWT
+- [ ] HTTP requests use `Authorization: Bearer {jwt}` and browser WebSocket upgrades use `?token={jwt}`
+- [ ] Development fallback auth remains available only when `CORTADO_ENV=development`
+- [ ] Any new control-plane refresh flow is covered by tests and `cd control-plane && go test ./...` plus `CGO_ENABLED=0 go build ./...` pass
+- [ ] `cd flutter && flutter test` passes
+- [ ] `cd flutter && flutter analyze` passes
 
 ## Next task after this one
-Task 2.4.3 — JWT refresh in Flutter client + tag v0.2
-See _dev/docs/release_timeline.md §Feature 2.4 Task 2.4.3 for full spec
+v0.3 → Feature 3.1 (File API) → Task 3.1.1 — Proto: filesystem operations
+See _dev/docs/release_timeline.md §Feature 3.1 Task 3.1.1 for full spec
 
 ## Blocked on / decisions needed
 None.

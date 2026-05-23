@@ -6,13 +6,16 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/your-org/cortado/control-plane/internal/api"
+	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestConnectRouteRejectsUnauthorizedUpgrade(t *testing.T) {
@@ -43,11 +46,13 @@ func TestConnectRouteRejectsUnauthorizedUpgrade(t *testing.T) {
 }
 
 func TestConnectRouteDispatchesTerminalFrames(t *testing.T) {
-	t.Setenv("CORTADO_ENV", "development")
+	t.Setenv("CORTADO_ENV", "production")
 
 	received := make(chan gateway.Frame, 1)
 	workspaceIDs := make(chan string, 1)
+	authService, accessToken := mustIssueAccessToken(t, "tenant-1", "user-1")
 	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		JWKSProvider: authService,
 		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
 			Logger: newDiscardLogger(),
 			MuxConnConfig: gateway.MuxConnConfig{
@@ -68,7 +73,7 @@ func TestConnectRouteDispatchesTerminalFrames(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?token="+url.QueryEscape(accessToken))
 	defer ws.Close()
 
 	outbound := gateway.Frame{
@@ -122,6 +127,32 @@ func TestConnectRouteDispatchesTerminalFrames(t *testing.T) {
 	if string(ack.Payload) != "ack" {
 		t.Fatalf("unexpected ack payload: %q", ack.Payload)
 	}
+}
+
+func TestConnectRouteAcceptsJWTQueryToken(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	authService, accessToken := mustIssueAccessToken(t, "tenant-1", "user-1")
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		JWKSProvider: authService,
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+		}),
+	}))
+	defer server.Close()
+
+	dialer := websocket.Dialer{
+		Subprotocols: []string{"cortado-v1"},
+	}
+	conn, response, err := dialer.Dial(websocketURL(server.URL+"/v1/workspaces/ws-123/connect?token="+url.QueryEscape(accessToken)), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v (response=%v)", err, response)
+	}
+	defer conn.Close()
 }
 
 func TestConnectRouteNegotiatesCortadoSubprotocol(t *testing.T) {
@@ -218,4 +249,47 @@ func websocketURL(rawURL string) string {
 
 func newDiscardLogger() *log.Logger {
 	return log.New(io.Discard, "", 0)
+}
+
+func mustIssueAccessToken(t *testing.T, tenantID, userID string) (*auth.Service, string) {
+	t.Helper()
+
+	privateKeyPEM, err := auth.GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := auth.NewService(auth.ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &authRepositoryStub{
+			apiKeys: []auth.APIKeyRecord{{TenantID: tenantID, Hash: string(hash)}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new auth service: %v", err)
+	}
+
+	tokens, err := service.CreateSession(context.Background(), "secret-api-key", userID)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	return service, tokens.AccessToken
+}
+
+type authRepositoryStub struct {
+	apiKeys []auth.APIKeyRecord
+}
+
+func (r *authRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord, error) {
+	return append([]auth.APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *authRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {
+	return nil
 }

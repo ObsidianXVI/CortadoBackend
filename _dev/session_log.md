@@ -360,3 +360,10 @@
 - A terraform/modules/secrets/outputs.tf
 - A terraform/modules/secrets/variables.tf
 - M terraform/modules/secrets/versions.tf
+23/05/26 13:43 [FEAT] `dev-pro-large` Completed Task 2.4.2 by switching the control-plane protected routes from dev-bypass-only auth to JWKS-backed JWT validation with a development-only bypass fallback, issuing JWTs with `kid` headers for JWKS lookup, authenticating browser WebSocket upgrades via `?token=...`, adding route and middleware coverage for bearer-token auth failures and successes, and advancing the active task pointer to Task 2.4.3 after confirming the current Flutter client still needs refresh-token and bearer-auth work.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M control-plane/go.mod
+- M control-plane/internal/api/router.go
+- M control-plane/internal/auth/service.go
+- M control-plane/internal/middleware/auth.go

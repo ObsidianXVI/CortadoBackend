@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestWorkspaceRoutesCreateListAndGet(t *testing.T) {
@@ -148,6 +150,40 @@ func TestWorkspaceRoutesMapNotFoundErrors(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRoutesCreateWithJWTAuth(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	now := time.Date(2026, time.May, 23, 19, 0, 0, 0, time.UTC)
+	authService, accessToken := mustIssueAccessToken(t, "tenant-1", "user-1")
+	service := &workspaceServiceStub{
+		createResult: workspace.Workspace{
+			ID:        "ws-123",
+			TenantID:  "tenant-1",
+			UserID:    "user-1",
+			Status:    workspace.StatusCreating,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+	router := NewRouter(RouterConfig{
+		JWKSProvider: authService,
+		WorkspaceSvc: service,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/workspaces", bytes.NewBufferString(`{"image":"example.com/cortado/workspace:test"}`))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("unexpected create status: got %d want %d", rec.Code, http.StatusAccepted)
+	}
+	if service.createParams.TenantID != "tenant-1" || service.createParams.UserID != "user-1" {
+		t.Fatalf("unexpected create actor: %+v", service.createParams)
+	}
+}
+
 type workspaceServiceStub struct {
 	createErr    error
 	deleteErr    error
@@ -199,4 +235,47 @@ func TestDecodeJSONRejectsUnknownFields(t *testing.T) {
 	if err == nil || errors.Is(err, context.Canceled) {
 		t.Fatalf("expected decode error, got %v", err)
 	}
+}
+
+func mustIssueAccessToken(t *testing.T, tenantID, userID string) (*auth.Service, string) {
+	t.Helper()
+
+	privateKeyPEM, err := auth.GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := auth.NewService(auth.ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &workspaceAuthRepositoryStub{
+			apiKeys: []auth.APIKeyRecord{{TenantID: tenantID, Hash: string(hash)}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new auth service: %v", err)
+	}
+
+	tokens, err := service.CreateSession(context.Background(), "secret-api-key", userID)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	return service, tokens.AccessToken
+}
+
+type workspaceAuthRepositoryStub struct {
+	apiKeys []auth.APIKeyRecord
+}
+
+func (r *workspaceAuthRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord, error) {
+	return append([]auth.APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *workspaceAuthRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {
+	return nil
 }
