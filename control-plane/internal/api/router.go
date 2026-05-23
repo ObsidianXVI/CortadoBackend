@@ -32,7 +32,9 @@ type JWKSProvider interface {
 type WorkspaceFileService interface {
 	DeletePath(ctx context.Context, workspaceID, path string) error
 	ListDir(ctx context.Context, workspaceID, path string) ([]*agentpb.DirectoryEntry, error)
+	MakeDir(ctx context.Context, workspaceID, path string) error
 	ReadFile(ctx context.Context, workspaceID, path string, writer io.Writer) error
+	RenamePath(ctx context.Context, workspaceID, oldPath, newPath string) error
 	WriteFile(ctx context.Context, workspaceID, path string, reader io.Reader) (*agentpb.WriteFileResponse, error)
 }
 
@@ -73,6 +75,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					filesHandler := newFilesHandler(cfg.WorkspaceSvc, cfg.WorkspaceFileSvc)
 					protected.Get("/workspaces/{id}/files", filesHandler.list)
 					protected.Delete("/workspaces/{id}/files", filesHandler.delete)
+					protected.Post("/workspaces/{id}/files/directory", filesHandler.makeDir)
+					protected.Post("/workspaces/{id}/files/rename", filesHandler.rename)
 					protected.Get("/workspaces/{id}/files/content", filesHandler.readContent)
 					protected.Put("/workspaces/{id}/files/content", filesHandler.writeContent)
 				}

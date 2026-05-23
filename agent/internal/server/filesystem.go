@@ -234,6 +234,58 @@ func (s *AgentServer) WriteFile(stream pb.WorkspaceAgentService_WriteFileServer)
 	return nil
 }
 
+func (s *AgentServer) MakeDir(ctx context.Context, req *pb.MakeDirRequest) (*pb.MakeDirResponse, error) {
+	path, err := s.resolveWorkspacePath(req.GetPath(), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.Mkdir(path, 0o755); err != nil {
+		return nil, mapFilesystemError("make dir", err)
+	}
+
+	return &pb.MakeDirResponse{}, nil
+}
+
+func (s *AgentServer) RenamePath(ctx context.Context, req *pb.RenamePathRequest) (*pb.RenamePathResponse, error) {
+	oldPath, err := s.resolveWorkspacePath(req.GetOldPath(), false)
+	if err != nil {
+		return nil, err
+	}
+
+	newPath, err := s.resolveWorkspacePath(req.GetNewPath(), false)
+	if err != nil {
+		return nil, err
+	}
+	if oldPath == newPath {
+		return nil, status.Error(codes.InvalidArgument, "source and destination paths must differ")
+	}
+
+	if _, err := os.Stat(oldPath); err != nil {
+		return nil, mapFilesystemError("stat source path", err)
+	}
+
+	parentInfo, err := os.Stat(filepath.Dir(newPath))
+	if err != nil {
+		return nil, mapFilesystemError("stat destination parent", err)
+	}
+	if !parentInfo.IsDir() {
+		return nil, status.Error(codes.InvalidArgument, "destination parent must be a directory")
+	}
+
+	if _, err := os.Stat(newPath); err == nil {
+		return nil, status.Error(codes.AlreadyExists, "destination path already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, mapFilesystemError("stat destination path", err)
+	}
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return nil, mapFilesystemError("rename path", err)
+	}
+
+	return &pb.RenamePathResponse{}, nil
+}
+
 func (s *AgentServer) DeletePath(ctx context.Context, req *pb.DeletePathRequest) (*pb.DeletePathResponse, error) {
 	path, err := s.resolveWorkspacePath(req.GetPath(), false)
 	if err != nil {
@@ -584,6 +636,8 @@ func mapFilesystemError(action string, err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, fs.ErrExist):
+		return status.Errorf(codes.AlreadyExists, "%s: %v", action, err)
 	case errors.Is(err, os.ErrNotExist):
 		return status.Errorf(codes.NotFound, "%s: %v", action, err)
 	case errors.Is(err, os.ErrPermission):

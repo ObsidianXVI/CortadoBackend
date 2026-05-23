@@ -173,6 +173,25 @@ func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path stri
 	return response, nil
 }
 
+func (s *AgentFileService) MakeDir(ctx context.Context, workspaceID, path string) error {
+	_, err := withAgentFileClient(ctx, s.timeout, s.dialer, s.workspaceResolver, workspaceID, func(callCtx context.Context, client agentpb.WorkspaceAgentServiceClient) (struct{}, error) {
+		_, err := client.MakeDir(callCtx, &agentpb.MakeDirRequest{Path: path})
+		return struct{}{}, err
+	})
+	return err
+}
+
+func (s *AgentFileService) RenamePath(ctx context.Context, workspaceID, oldPath, newPath string) error {
+	_, err := withAgentFileClient(ctx, s.timeout, s.dialer, s.workspaceResolver, workspaceID, func(callCtx context.Context, client agentpb.WorkspaceAgentServiceClient) (struct{}, error) {
+		_, err := client.RenamePath(callCtx, &agentpb.RenamePathRequest{
+			OldPath: oldPath,
+			NewPath: newPath,
+		})
+		return struct{}{}, err
+	})
+	return err
+}
+
 func (s *AgentFileService) DeletePath(ctx context.Context, workspaceID, path string) error {
 	_, err := withAgentFileClient(ctx, s.timeout, s.dialer, s.workspaceResolver, workspaceID, func(callCtx context.Context, client agentpb.WorkspaceAgentServiceClient) (struct{}, error) {
 		_, err := client.DeletePath(callCtx, &agentpb.DeletePathRequest{Path: path})
@@ -242,6 +261,8 @@ func mapAgentFileError(err error) error {
 		switch st.Code() {
 		case codes.InvalidArgument:
 			return fmt.Errorf("%w: %s", ErrInvalid, st.Message())
+		case codes.AlreadyExists:
+			return ErrAlreadyExists
 		case codes.NotFound:
 			return ErrNotFound
 		}

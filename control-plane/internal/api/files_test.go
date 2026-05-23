@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestFileRoutesListReadWriteAndDelete(t *testing.T) {
+func TestFileRoutesListReadWriteMakeDirRenameAndDelete(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "development")
 
 	now := time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC)
@@ -84,6 +84,30 @@ func TestFileRoutesListReadWriteAndDelete(t *testing.T) {
 		t.Fatalf("unexpected write capture: path=%q body=%q", files.writePath, files.writeContent)
 	}
 
+	mkdirReq := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-123/files/directory?path=src/newdir", nil)
+	mkdirReq.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	mkdirRec := httptest.NewRecorder()
+	router.ServeHTTP(mkdirRec, mkdirReq)
+
+	if mkdirRec.Code != http.StatusCreated {
+		t.Fatalf("unexpected mkdir status: got %d want %d", mkdirRec.Code, http.StatusCreated)
+	}
+	if files.mkdirPath != "src/newdir" {
+		t.Fatalf("unexpected mkdir path: %q", files.mkdirPath)
+	}
+
+	renameReq := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-123/files/rename?path=src/main.go&newPath=src/app.go", nil)
+	renameReq.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	renameRec := httptest.NewRecorder()
+	router.ServeHTTP(renameRec, renameReq)
+
+	if renameRec.Code != http.StatusNoContent {
+		t.Fatalf("unexpected rename status: got %d want %d", renameRec.Code, http.StatusNoContent)
+	}
+	if files.renameOldPath != "src/main.go" || files.renameNewPath != "src/app.go" {
+		t.Fatalf("unexpected rename paths: old=%q new=%q", files.renameOldPath, files.renameNewPath)
+	}
+
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/v1/workspaces/ws-123/files?path=src/main.go", nil)
 	deleteReq.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
 	deleteRec := httptest.NewRecorder()
@@ -97,15 +121,49 @@ func TestFileRoutesListReadWriteAndDelete(t *testing.T) {
 	}
 }
 
+func TestFileRoutesMakeDirConflictReturnsConflict(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	now := time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC)
+	router := NewRouter(RouterConfig{
+		WorkspaceSvc: &workspaceServiceStub{
+			getResult: workspace.Workspace{
+				ID:        "ws-123",
+				TenantID:  "dev-tenant",
+				Status:    workspace.StatusRunning,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+		WorkspaceFileSvc: &workspaceFileServiceStub{
+			mkdirErr: workspace.ErrAlreadyExists,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-123/files/directory?path=src/newdir", nil)
+	req.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("unexpected mkdir conflict status: got %d want %d", rec.Code, http.StatusConflict)
+	}
+}
+
 type workspaceFileServiceStub struct {
 	deleteErr     error
 	deletePath    string
 	listEntries   []*agentpb.DirectoryEntry
 	listErr       error
 	listPath      string
+	mkdirErr      error
+	mkdirPath     string
 	readContent   []byte
 	readErr       error
 	readPath      string
+	renameErr     error
+	renameNewPath string
+	renameOldPath string
 	writeContent  []byte
 	writeErr      error
 	writePath     string
@@ -120,6 +178,11 @@ func (s *workspaceFileServiceStub) DeletePath(_ context.Context, _, path string)
 func (s *workspaceFileServiceStub) ListDir(_ context.Context, _, path string) ([]*agentpb.DirectoryEntry, error) {
 	s.listPath = path
 	return s.listEntries, s.listErr
+}
+
+func (s *workspaceFileServiceStub) MakeDir(_ context.Context, _, path string) error {
+	s.mkdirPath = path
+	return s.mkdirErr
 }
 
 func (s *workspaceFileServiceStub) ReadFile(_ context.Context, _, path string, writer io.Writer) error {
@@ -139,4 +202,10 @@ func (s *workspaceFileServiceStub) WriteFile(_ context.Context, _, path string, 
 	}
 	s.writeContent = body
 	return s.writeResponse, s.writeErr
+}
+
+func (s *workspaceFileServiceStub) RenamePath(_ context.Context, _, oldPath, newPath string) error {
+	s.renameOldPath = oldPath
+	s.renameNewPath = newPath
+	return s.renameErr
 }

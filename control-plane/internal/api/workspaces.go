@@ -170,6 +170,8 @@ func writeWorkspaceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, workspace.ErrNotFound):
 		http.Error(w, "workspace not found", http.StatusNotFound)
+	case errors.Is(err, workspace.ErrAlreadyExists):
+		http.Error(w, err.Error(), http.StatusConflict)
 	case errors.Is(err, workspace.ErrConflict):
 		http.Error(w, "workspace conflict", http.StatusConflict)
 	case errors.Is(err, workspace.ErrInvalid), errors.Is(err, workspace.ErrTenantID), errors.Is(err, workspace.ErrWorkspace):

@@ -97,6 +97,35 @@ func (h *filesHandler) writeContent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *filesHandler) makeDir(w http.ResponseWriter, r *http.Request) {
+	workspaceID, path, ok := h.authorizeRequest(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.fileService.MakeDir(r.Context(), workspaceID, path); err != nil {
+		writeWorkspaceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *filesHandler) rename(w http.ResponseWriter, r *http.Request) {
+	workspaceID, oldPath, ok := h.authorizeRequest(w, r)
+	if !ok {
+		return
+	}
+
+	newPath := r.URL.Query().Get("newPath")
+	if err := h.fileService.RenamePath(r.Context(), workspaceID, oldPath, newPath); err != nil {
+		writeWorkspaceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *filesHandler) delete(w http.ResponseWriter, r *http.Request) {
 	workspaceID, path, ok := h.authorizeRequest(w, r)
 	if !ok {

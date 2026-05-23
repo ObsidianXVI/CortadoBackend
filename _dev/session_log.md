@@ -423,7 +423,7 @@
 - A flutter/lib/src/filesystem/vfs_notifier.dart
 - M flutter/lib/src/workspace_manager.dart
 - M flutter/pubspec.yaml
-23/05/26 14:38 [FEAT] (pending) `dev-pro-large` Implemented the core Task 3.2.2 file tree widget by adding an indent-aware `CortadoFileTree`/`FileTreeRow`, wiring lazy directory expansion to the VFS provider, opening the mux file-watch channel so live `FileEvent`s refresh the tree, and verifying the new widget coverage, while leaving context-menu and inline-rename work blocked on missing mkdir/rename backend APIs.
+23/05/26 14:38 [FEAT] (068bea0) `dev-pro-large` Implemented the core Task 3.2.2 file tree widget by adding an indent-aware `CortadoFileTree`/`FileTreeRow`, wiring lazy directory expansion to the VFS provider, opening the mux file-watch channel so live `FileEvent`s refresh the tree, and verifying the new widget coverage, while leaving context-menu and inline-rename work blocked on missing mkdir/rename backend APIs.
 - M CURRENT_TASK.md
 - M DECISIONS_NEEDED.md
 - M _dev/session_log.md
@@ -431,3 +431,13 @@
 - M flutter/lib/cortado.dart
 - A flutter/lib/src/filesystem/cortado_file_tree.dart
 - M flutter/lib/src/mux_frame.dart
+23/05/26 14:47 [FEAT] (pending) `dev-pro-large` Unblocked the remaining Task 3.2.2 file-tree actions by extending the workspace-agent filesystem contract with explicit mkdir and rename RPCs, wiring matching control-plane file endpoints and error mapping for those operations, adding regression coverage in both Go modules, and confirming the proto/Go verification matrix before returning the active task to the still-pending file-tree UI work.
+- M CURRENT_TASK.md
+- M DECISIONS_NEEDED.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M agent/internal/server/filesystem.go
+- M control-plane/internal/api/files.go
+- M control-plane/internal/api/router.go
+- M control-plane/internal/workspace/agent_file_client.go
+- M proto/agent/v1/agent.proto

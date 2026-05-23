@@ -15,6 +15,8 @@ service WorkspaceAgentService {
   rpc ListDir(ListDirRequest) returns (ListDirResponse);
   rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
   rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
+  rpc MakeDir(MakeDirRequest) returns (MakeDirResponse);
+  rpc RenamePath(RenamePathRequest) returns (RenamePathResponse);
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse);
   rpc WatchFiles(WatchFilesRequest) returns (stream WatchFilesResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
@@ -128,6 +130,19 @@ message WriteFileResponse {
   int64 bytes_written = 1;
   bytes checksum = 2;
 }
+
+message MakeDirRequest {
+  string path = 1;
+}
+
+message MakeDirResponse {}
+
+message RenamePathRequest {
+  string old_path = 1;
+  string new_path = 2;
+}
+
+message RenamePathResponse {}
 
 message DeletePathRequest {
   string path = 1;

@@ -10,10 +10,10 @@ IN PROGRESS
 Completed Task 3.2.1 by adding `WorkspaceManager.listDirectory`, introducing the normalized `VfsNode` `freezed` union and lazy-loading `VfsNotifier`, wiring file-event application around the flat path-keyed VFS map, and covering the new state model with Flutter tests after updating the generated-proto runtime dependencies to `grpc ^5.1.0` and `protobuf ^6.0.0`.
 
 ## What was done this session
-Implemented the core Task 3.2.2 file tree slice by adding `CortadoFileTree`/`FileTreeRow`, opening the mux file-watch channel on `0x0200`, driving the visible tree from the VFS provider, wiring directory expansion to lazy loading, and covering the new widget/watch behavior with Flutter tests.
+Implemented the core Task 3.2.2 file tree slice by adding `CortadoFileTree`/`FileTreeRow`, opening the mux file-watch channel on `0x0200`, driving the visible tree from the VFS provider, wiring directory expansion to lazy loading, covering the new widget/watch behavior with Flutter tests, and then unblocking the remaining context-menu work by adding explicit `MakeDir`/`RenamePath` agent RPCs plus matching control-plane HTTP endpoints.
 
 ## Remaining work this session
-Complete the blocked Task 3.2.2 context-menu flow once the workspace file API contract is decided for create-folder/new-file/rename. The current control-plane surface only exposes list/read/write/delete, so inline rename and the full context menu cannot be implemented without inventing backend endpoints.
+Finish the remaining Task 3.2.2 UI work on top of the new mkdir/rename backend contract: wire `New File`, `New Folder`, `Rename`, and `Delete` into the file tree context menu and add the inline rename editor/focus behavior.
 
 ## Definition of done
 - [x] `flutter/lib/src/filesystem/cortado_file_tree.dart` renders an indent-aware list of file tree rows backed by the VFS map
@@ -30,4 +30,4 @@ Task 3.2.3 — CodeMirror 6 editor widget
 See _dev/features/feat-3-2.md for full spec
 
 ## Blocked on / decisions needed
-See `DECISIONS_NEEDED.md` for the open file-API behavior confirmations recorded during Task 3.1.2 and the unresolved Task 3.2.2 create/rename API gap.
+See `DECISIONS_NEEDED.md` for the remaining file-API behavior confirmations recorded during Task 3.1.2.

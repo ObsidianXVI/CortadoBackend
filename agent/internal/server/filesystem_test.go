@@ -207,6 +207,67 @@ func TestAgentServerWriteFileAndDeletePath(t *testing.T) {
 	}
 }
 
+func TestAgentServerMakeDirAndRenamePath(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "rename-me.txt"), []byte("rename me"), 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	client, cleanup := newTestClientWithWorkspaceRoot(t, nil, workspaceRoot)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.MakeDir(ctx, &pb.MakeDirRequest{Path: "nested"}); err != nil {
+		t.Fatalf("make dir: %v", err)
+	}
+	if info, err := os.Stat(filepath.Join(workspaceRoot, "nested")); err != nil {
+		t.Fatalf("stat created dir: %v", err)
+	} else if !info.IsDir() {
+		t.Fatalf("expected directory, got mode %v", info.Mode())
+	}
+
+	if _, err := client.MakeDir(ctx, &pb.MakeDirRequest{Path: "nested"}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("expected already exists, got %v", err)
+	}
+
+	if _, err := client.RenamePath(ctx, &pb.RenamePathRequest{
+		OldPath: "rename-me.txt",
+		NewPath: "nested/renamed.txt",
+	}); err != nil {
+		t.Fatalf("rename path: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(workspaceRoot, "rename-me.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected source file removal, got stat err %v", err)
+	}
+	if content, err := os.ReadFile(filepath.Join(workspaceRoot, "nested", "renamed.txt")); err != nil {
+		t.Fatalf("read renamed file: %v", err)
+	} else if string(content) != "rename me" {
+		t.Fatalf("unexpected renamed file content: %q", content)
+	}
+
+	if _, err := client.RenamePath(ctx, &pb.RenamePathRequest{
+		OldPath: "nested/renamed.txt",
+		NewPath: "nested/renamed.txt",
+	}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected invalid argument for no-op rename, got %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(workspaceRoot, "existing.txt"), []byte("existing"), 0o644); err != nil {
+		t.Fatalf("write destination seed: %v", err)
+	}
+	if _, err := client.RenamePath(ctx, &pb.RenamePathRequest{
+		OldPath: "nested/renamed.txt",
+		NewPath: "existing.txt",
+	}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("expected already exists for destination collision, got %v", err)
+	}
+}
+
 func TestAgentServerWriteFileRejectsChecksumMismatch(t *testing.T) {
 	t.Parallel()
 
