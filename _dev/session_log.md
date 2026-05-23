@@ -413,7 +413,7 @@
 - M control-plane/internal/api/router.go
 - A control-plane/internal/gateway/file_bridge.go
 - A control-plane/internal/workspace/agent_file_client.go
-23/05/26 14:33 [FEAT] (pending) `dev-pro-large` Completed Task 3.2.1 by adding the Flutter-side directory listing client, introducing a normalized `VfsNode`/`VfsNotifier` virtual filesystem model with lazy directory loading and file-event reconciliation, updating the proto runtime dependencies for the generated Dart agent bindings, and advancing the release pointer to Task 3.2.2 after the Flutter verification loop passed.
+23/05/26 14:33 [FEAT] (38afdcd) `dev-pro-large` Completed Task 3.2.1 by adding the Flutter-side directory listing client, introducing a normalized `VfsNode`/`VfsNotifier` virtual filesystem model with lazy directory loading and file-event reconciliation, updating the proto runtime dependencies for the generated Dart agent bindings, and advancing the release pointer to Task 3.2.2 after the Flutter verification loop passed.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
 - M _dev/session_log.md
@@ -423,3 +423,11 @@
 - A flutter/lib/src/filesystem/vfs_notifier.dart
 - M flutter/lib/src/workspace_manager.dart
 - M flutter/pubspec.yaml
+23/05/26 14:38 [FEAT] (pending) `dev-pro-large` Implemented the core Task 3.2.2 file tree widget by adding an indent-aware `CortadoFileTree`/`FileTreeRow`, wiring lazy directory expansion to the VFS provider, opening the mux file-watch channel so live `FileEvent`s refresh the tree, and verifying the new widget coverage, while leaving context-menu and inline-rename work blocked on missing mkdir/rename backend APIs.
+- M CURRENT_TASK.md
+- M DECISIONS_NEEDED.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/filesystem/cortado_file_tree.dart
+- M flutter/lib/src/mux_frame.dart

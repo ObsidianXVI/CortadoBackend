@@ -3,6 +3,7 @@ import 'dart:typed_data';
 const int muxFrameHeaderLength = 7;
 const int muxResizePayloadLength = 8;
 const int muxTerminalChannelId = 0x0001;
+const int muxFileSyncChannelId = 0x0200;
 const int muxMessageTypeData = 0x01;
 const int muxMessageTypeOpen = 0x02;
 const int muxMessageTypeClose = 0x03;
