@@ -201,7 +201,7 @@ func TestConnectRouteReturnsErrorForUnsupportedChannel(t *testing.T) {
 	defer ws.Close()
 
 	raw, err := gateway.EncodeFrame(gateway.Frame{
-		ChannelID:   0x0200,
+		ChannelID:   0x0600,
 		MessageType: gateway.MessageTypeOpen,
 		Payload:     []byte("ignored"),
 	})
@@ -220,8 +220,8 @@ func TestConnectRouteReturnsErrorForUnsupportedChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode error frame: %v", err)
 	}
-	if frame.ChannelID != 0x0200 {
-		t.Fatalf("unexpected error frame channel: got %d want %d", frame.ChannelID, 0x0200)
+	if frame.ChannelID != 0x0600 {
+		t.Fatalf("unexpected error frame channel: got %d want %d", frame.ChannelID, 0x0600)
 	}
 	if frame.MessageType != gateway.MessageTypeError {
 		t.Fatalf("unexpected error frame type: got %d want %d", frame.MessageType, gateway.MessageTypeError)

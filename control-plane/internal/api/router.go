@@ -2,19 +2,22 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	chi "github.com/go-chi/chi/v5"
+	agentpb "github.com/your-org/cortado/agent/gen/agent/v1"
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
 	cpmiddleware "github.com/your-org/cortado/control-plane/internal/middleware"
 )
 
 type RouterConfig struct {
-	ConnectHandler http.Handler
-	JWKSProvider   JWKSProvider
-	SessionSvc     SessionService
-	WorkspaceSvc   WorkspaceService
+	ConnectHandler   http.Handler
+	JWKSProvider     JWKSProvider
+	SessionSvc       SessionService
+	WorkspaceFileSvc WorkspaceFileService
+	WorkspaceSvc     WorkspaceService
 }
 
 type SessionService interface {
@@ -24,6 +27,13 @@ type SessionService interface {
 
 type JWKSProvider interface {
 	JWKS() []byte
+}
+
+type WorkspaceFileService interface {
+	DeletePath(ctx context.Context, workspaceID, path string) error
+	ListDir(ctx context.Context, workspaceID, path string) ([]*agentpb.DirectoryEntry, error)
+	ReadFile(ctx context.Context, workspaceID, path string, writer io.Writer) error
+	WriteFile(ctx context.Context, workspaceID, path string, reader io.Reader) (*agentpb.WriteFileResponse, error)
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {
@@ -59,6 +69,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				protected.Post("/workspaces/{id}/start", handler.start)
 				protected.Post("/workspaces/{id}/stop", handler.stop)
 				protected.Delete("/workspaces/{id}", handler.delete)
+				if cfg.WorkspaceFileSvc != nil {
+					filesHandler := newFilesHandler(cfg.WorkspaceSvc, cfg.WorkspaceFileSvc)
+					protected.Get("/workspaces/{id}/files", filesHandler.list)
+					protected.Delete("/workspaces/{id}/files", filesHandler.delete)
+					protected.Get("/workspaces/{id}/files/content", filesHandler.readContent)
+					protected.Put("/workspaces/{id}/files/content", filesHandler.writeContent)
+				}
 			}
 			protected.Method(http.MethodGet, "/workspaces/{id}/connect", connectHandler)
 		})

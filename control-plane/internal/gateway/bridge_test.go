@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestConnectRouteBridgesTerminalFramesToAgentStream(t *testing.T) {
@@ -149,6 +150,70 @@ func TestConnectRouteBridgesTerminalFramesToAgentStream(t *testing.T) {
 
 	if got := atomic.LoadInt32(&dialCount); got != 1 {
 		t.Fatalf("unexpected dial count: got %d want %d", got, 1)
+	}
+}
+
+func TestConnectRouteBridgesFileWatchEventsToMuxChannel(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	dialer, cleanup := newAgentDialer(t, &stubAgentServer{
+		watchFiles: func(_ *agentpb.WatchFilesRequest, stream agentpb.WorkspaceAgentService_WatchFilesServer) error {
+			if err := stream.Send(&agentpb.WatchFilesResponse{
+				Event: &agentpb.FileEvent{
+					Path:     "src/main.go",
+					Type:     agentpb.FileEventType_FILE_EVENT_TYPE_MODIFIED,
+					Checksum: []byte{0xde, 0xad, 0xbe, 0xef},
+				},
+			}); err != nil {
+				return err
+			}
+			return nil
+		},
+	}, nil)
+	defer cleanup()
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+			GRPCDialer: dialer,
+			WorkspaceResolver: testWorkspaceResolver{
+				dns: "workspace.test.svc.cluster.local",
+			},
+		}),
+	}))
+	defer server.Close()
+
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	defer ws.Close()
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.FileSyncChannelID,
+		MessageType: gateway.MessageTypeOpen,
+	})
+
+	dataFrame := readFrame(t, ws)
+	if dataFrame.ChannelID != gateway.FileSyncChannelID {
+		t.Fatalf("unexpected file channel id: got %d want %d", dataFrame.ChannelID, gateway.FileSyncChannelID)
+	}
+	if dataFrame.MessageType != gateway.MessageTypeData {
+		t.Fatalf("unexpected file frame type: got %d want %d", dataFrame.MessageType, gateway.MessageTypeData)
+	}
+
+	var event agentpb.FileEvent
+	if err := proto.Unmarshal(dataFrame.Payload, &event); err != nil {
+		t.Fatalf("unmarshal file event payload: %v", err)
+	}
+	if event.GetPath() != "src/main.go" || event.GetType() != agentpb.FileEventType_FILE_EVENT_TYPE_MODIFIED {
+		t.Fatalf("unexpected file event: %#v", event)
+	}
+
+	closeFrame := readFrame(t, ws)
+	if closeFrame.ChannelID != gateway.FileSyncChannelID || closeFrame.MessageType != gateway.MessageTypeClose {
+		t.Fatalf("unexpected close frame: %#v", closeFrame)
 	}
 }
 
@@ -491,8 +556,9 @@ func TestConnectRouteDoesNotSendGRPCKeepalivesByDefault(t *testing.T) {
 type stubAgentServer struct {
 	agentpb.UnimplementedWorkspaceAgentServiceServer
 
-	createPty func(context.Context, *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error)
-	streamPty func(agentpb.WorkspaceAgentService_StreamPtyServer) error
+	createPty  func(context.Context, *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error)
+	streamPty  func(agentpb.WorkspaceAgentService_StreamPtyServer) error
+	watchFiles func(*agentpb.WatchFilesRequest, agentpb.WorkspaceAgentService_WatchFilesServer) error
 }
 
 func (s *stubAgentServer) CreatePty(ctx context.Context, req *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error) {
@@ -507,6 +573,13 @@ func (s *stubAgentServer) StreamPty(stream agentpb.WorkspaceAgentService_StreamP
 		return nil
 	}
 	return s.streamPty(stream)
+}
+
+func (s *stubAgentServer) WatchFiles(req *agentpb.WatchFilesRequest, stream agentpb.WorkspaceAgentService_WatchFilesServer) error {
+	if s.watchFiles == nil {
+		return nil
+	}
+	return s.watchFiles(req, stream)
 }
 
 type testWorkspaceResolver struct {

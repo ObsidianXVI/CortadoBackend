@@ -21,8 +21,10 @@ type Session struct {
 }
 
 type TerminalFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
+type FileFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
 
 type ConnectHandlerConfig struct {
+	FileHandler        FileFrameHandler
 	Logger             *log.Logger
 	MuxConnConfig      MuxConnConfig
 	TerminalHandler    TerminalFrameHandler
@@ -66,7 +68,7 @@ func NewConnectHandler(cfg ConnectHandlerConfig) http.Handler {
 			Conn:        conn,
 			WorkspaceID: workspaceID,
 		}
-		if err := readLoop(r.Context(), session, cfg.TerminalHandler); err != nil {
+		if err := readLoop(r.Context(), session, cfg.TerminalHandler, cfg.FileHandler); err != nil {
 			cfg.Logger.Printf("workspace websocket closed for %s: %v", workspaceID, err)
 		}
 	})
@@ -94,6 +96,17 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 		})
 		cfg.TerminalHandler = bridge.HandleFrame
 	}
+	if cfg.FileHandler == nil {
+		resolver := cfg.WorkspaceResolver
+		if resolver == nil {
+			resolver = StaticWorkspaceResolver{Namespace: cfg.WorkspaceNamespace}
+		}
+		cfg.FileHandler = NewFileBridge(FileBridgeConfig{
+			Dialer:            cfg.GRPCDialer,
+			Logger:            cfg.Logger,
+			WorkspaceResolver: resolver,
+		}).HandleFrame
+	}
 
 	if cfg.Upgrader.CheckOrigin == nil {
 		cfg.Upgrader.CheckOrigin = func(*http.Request) bool { return true }
@@ -105,7 +118,7 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 	return cfg
 }
 
-func readLoop(ctx context.Context, session Session, terminalHandler TerminalFrameHandler) error {
+func readLoop(ctx context.Context, session Session, terminalHandler TerminalFrameHandler, fileHandler FileFrameHandler) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,16 +144,23 @@ func readLoop(ctx context.Context, session Session, terminalHandler TerminalFram
 		if err != nil {
 			return fmt.Errorf("decode mux frame: %w", err)
 		}
-		if frame.ChannelID != TerminalChannelID {
-			session.Conn.SendError(frame.ChannelID, "unsupported channel")
-			continue
-		}
 		if frame.MessageType == MessageTypePing {
 			session.Conn.SendFrame(frame)
 			continue
 		}
-		if err := terminalHandler(ctx, session, frame, receivedAt); err != nil {
-			session.Conn.SendError(frame.ChannelID, err.Error())
+
+		var handlerErr error
+		switch frame.ChannelID {
+		case TerminalChannelID:
+			handlerErr = terminalHandler(ctx, session, frame, receivedAt)
+		case FileSyncChannelID:
+			handlerErr = fileHandler(ctx, session, frame, receivedAt)
+		default:
+			session.Conn.SendError(frame.ChannelID, "unsupported channel")
+			continue
+		}
+		if handlerErr != nil {
+			session.Conn.SendError(frame.ChannelID, handlerErr.Error())
 		}
 	}
 }

@@ -16,6 +16,7 @@ const (
 	frameHeaderLen      = 7
 	terminalResizeLen   = 8
 	TerminalChannelID   = 0x0001
+	FileSyncChannelID   = 0x0200
 	defaultPingInterval = 20 * time.Second
 	defaultPongWait     = 60 * time.Second
 	defaultWriteTimeout = 10 * time.Second

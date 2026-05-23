@@ -204,3 +204,6 @@
 - PASS `cd agent && GOTOOLCHAIN=local go mod tidy`
 - PASS `cd agent && GOTOOLCHAIN=local go test ./...`
 - PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+23/05/26 14:19
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

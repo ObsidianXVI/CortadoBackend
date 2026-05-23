@@ -60,6 +60,9 @@ func main() {
 		Namespace: workspaceNamespace,
 		DNSDomain: clusterDNSDomain,
 	}
+	fileService := workspace.NewAgentFileService(workspace.AgentFileServiceConfig{
+		WorkspaceResolver: resolver,
+	})
 	terminalBridge := gateway.NewTerminalBridge(gateway.TerminalBridgeConfig{
 		WorkspaceResolver: resolver,
 	})
@@ -89,10 +92,11 @@ func main() {
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: api.NewRouter(api.RouterConfig{
-			ConnectHandler: connectHandler,
-			JWKSProvider:   authService,
-			SessionSvc:     authService,
-			WorkspaceSvc:   workspaceService,
+			ConnectHandler:   connectHandler,
+			JWKSProvider:     authService,
+			SessionSvc:       authService,
+			WorkspaceFileSvc: fileService,
+			WorkspaceSvc:     workspaceService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
