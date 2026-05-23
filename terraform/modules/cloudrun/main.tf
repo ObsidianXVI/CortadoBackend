@@ -42,6 +42,21 @@ resource "google_cloud_run_v2_service" "control_plane" {
       }
 
       env {
+        name  = "CORTADO_AUTH_API_KEYS_COLLECTION"
+        value = "api_keys"
+      }
+
+      env {
+        name  = "CORTADO_AUTH_CACHE_ADDR"
+        value = var.auth_cache_addr
+      }
+
+      env {
+        name  = "CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"
+        value = "refresh_tokens"
+      }
+
+      env {
         name  = "CORTADO_GKE_CLUSTER_LOCATION"
         value = var.region
       }
@@ -64,6 +79,16 @@ resource "google_cloud_run_v2_service" "control_plane" {
       env {
         name  = "CORTADO_USAGE_EVENTS_TOPIC"
         value = var.usage_events_topic_name
+      }
+
+      env {
+        name = "CORTADO_JWT_PRIVATE_KEY_PEM"
+        value_source {
+          secret_key_ref {
+            secret  = var.jwt_private_key_secret_id
+            version = "latest"
+          }
+        }
       }
     }
 

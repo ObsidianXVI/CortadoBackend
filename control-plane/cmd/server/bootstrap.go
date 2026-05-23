@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
+	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/store"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
 	"golang.org/x/oauth2"
@@ -23,24 +24,17 @@ import (
 
 const cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 
-func newWorkspaceService(ctx context.Context) (*workspace.Service, error) {
-	projectID := gcpProjectID()
-	if projectID == "" {
-		return nil, errors.New("missing GCP project id")
-	}
-
-	firestoreClient, err := firestore.NewClient(ctx, projectID)
+func newFirestoreClient(ctx context.Context, projectID string) (*firestore.Client, error) {
+	client, err := firestore.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("create firestore client: %w", err)
 	}
-	go func() {
-		<-ctx.Done()
-		_ = firestoreClient.Close()
-	}()
+	return client, nil
+}
 
+func newWorkspaceService(ctx context.Context, projectID string, firestoreClient *firestore.Client) (*workspace.Service, error) {
 	kubeClient, err := newKubernetesClient(ctx, projectID)
 	if err != nil {
-		_ = firestoreClient.Close()
 		return nil, fmt.Errorf("create kubernetes client: %w", err)
 	}
 
@@ -66,6 +60,23 @@ func newWorkspaceService(ctx context.Context) (*workspace.Service, error) {
 	}))
 	podManager.Run(ctx)
 
+	return service, nil
+}
+
+func newSessionService(firestoreClient *firestore.Client) (*auth.Service, error) {
+	authStore := store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
+		APIKeysCollection:       os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
+		RefreshTokensCollection: os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
+	})
+
+	service, err := auth.NewService(auth.ServiceConfig{
+		Cache:         auth.NewValidationCacheFromEnv(),
+		PrivateKeyPEM: os.Getenv("CORTADO_JWT_PRIVATE_KEY_PEM"),
+		Repository:    authStore,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create auth service: %w", err)
+	}
 	return service, nil
 }
 

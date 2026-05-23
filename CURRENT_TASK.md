@@ -1,36 +1,32 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.1 → Feature 2.4 (Real JWT Authentication) → Task 2.4.1
+v0.1 → Feature 2.4 (Real JWT Authentication) → Task 2.4.2
 
 ## Status
 IN PROGRESS
 
 ## What was done last session
-Completed Task 2.3.2 by adding workspace-agent usage-event emission with WAL persistence and replay, wiring a `FlushUsageWAL` gRPC path plus control-plane pre-delete flushing, and extending Terraform so workspace agents receive usage topic config and Pub/Sub publisher IAM.
+Completed Task 2.4.1 by adding JWT session issuance and JWKS exposure in the control plane, wiring Firestore-backed API-key and refresh-token persistence, adding Redis-compatible API-key validation caching, and extending Terraform with Secret Manager and Memorystore resources plus Cloud Run runtime injection for the signing key and cache address.
 
 ## What was done this session
-Loaded the Task 2.4.1 spec and advanced the release/task pointers so JWT issuance, JWKS exposure, Secret Manager wiring, and API-key validation can be implemented against the documented acceptance criteria instead of guessed requirements.
+Loaded the Task 2.4.2 spec and advanced the release/task pointers so the JWT-first middleware chain, dev-bypass fallback, and WebSocket token handling can be implemented against the documented acceptance criteria instead of guessed requirements.
 
 ## Remaining work this session
-Add Terraform-managed Secret Manager resources and IAM for the JWT signing key, implement `POST /v1/sessions` with Firestore-backed hashed API-key validation and Redis/Dragonfly caching, issue 8-hour JWTs plus 30-day refresh tokens, expose `GET /.well-known/jwks.json`, and cover the new auth surface with tests and required Go/Terraform verification.
+Replace the dev-only middleware with JWT validation backed by JWKS, preserve the dev-bypass path only in development, accept JWTs from the WebSocket query string for browser upgrades, and cover the new auth chain with tests plus the required Go verification.
 
 ## Definition of done
-- [ ] Terraform creates the per-environment JWT private-key Secret Manager secret and grants the control-plane service account `roles/secretmanager.secretAccessor`
-- [ ] `POST /v1/sessions` accepts `{api_key, user_id}` and validates the hashed API key against Firestore
-- [ ] The session endpoint returns an 8-hour JWT access token and a 30-day opaque UUID refresh token
-- [ ] Issued JWTs include `sub`, `tid`, `exp`, and `jti` claims
-- [ ] `GET /.well-known/jwks.json` exposes the public key for JWT verification
-- [ ] API-key validation uses a 5-minute Redis/Dragonfly cache keyed by a hash of the raw API key to avoid repeated bcrypt work
-- [ ] `cd proto && buf lint` passes
+- [ ] The control plane validates `Authorization: Bearer {jwt}` using JWKS-backed key resolution
+- [ ] The middleware falls back to `X-Cortado-Dev-Token: dev-bypass` only when `CORTADO_ENV=development`
+- [ ] Valid JWTs inject `tenant_id` and `user_id` request context from the `tid` and `sub` claims
+- [ ] Browser WebSocket upgrades can authenticate with `?token={jwt}` on `/v1/workspaces/{id}/connect`
+- [ ] Invalid or missing JWTs return `401 Unauthorized` on protected HTTP and WebSocket entry points
 - [ ] `cd control-plane && CGO_ENABLED=0 go build ./...` passes
 - [ ] `cd control-plane && go test ./...` passes
-- [ ] `terraform validate` passes for `terraform/envs/dev`
-- [ ] `terraform validate` passes for `terraform/envs/prod`
 
 ## Next task after this one
-Task 2.4.2 — JWT validation middleware
-See _dev/docs/release_timeline.md §Feature 2.4 Task 2.4.2 for full spec
+Task 2.4.3 — JWT refresh in Flutter client + tag v0.2
+See _dev/docs/release_timeline.md §Feature 2.4 Task 2.4.3 for full spec
 
 ## Blocked on / decisions needed
 None.

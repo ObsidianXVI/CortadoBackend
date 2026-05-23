@@ -26,12 +26,36 @@ func main() {
 		port = defaultHTTPPort
 	}
 
+	projectID := gcpProjectID()
+	if projectID == "" {
+		log.Fatal("missing GCP project id")
+	}
+
+	firestoreClient, err := newFirestoreClient(ctx, projectID)
+	if err != nil {
+		log.Fatalf("initialize firestore client: %v", err)
+	}
+	defer func() {
+		if closeErr := firestoreClient.Close(); closeErr != nil {
+			log.Printf("close firestore client: %v", closeErr)
+		}
+	}()
+
 	workspaceNamespace := os.Getenv("CORTADO_WORKSPACE_NAMESPACE")
 	clusterDNSDomain := os.Getenv("CORTADO_CLUSTER_DNS_DOMAIN")
-	workspaceService, err := newWorkspaceService(ctx)
+	workspaceService, err := newWorkspaceService(ctx, projectID, firestoreClient)
 	if err != nil {
 		log.Fatalf("initialize workspace service: %v", err)
 	}
+	authService, err := newSessionService(firestoreClient)
+	if err != nil {
+		log.Fatalf("initialize auth service: %v", err)
+	}
+	defer func() {
+		if closeErr := authService.Close(); closeErr != nil {
+			log.Printf("close auth service: %v", closeErr)
+		}
+	}()
 	resolver := gateway.StaticWorkspaceResolver{
 		Namespace: workspaceNamespace,
 		DNSDomain: clusterDNSDomain,
@@ -66,6 +90,8 @@ func main() {
 		Addr: ":" + port,
 		Handler: api.NewRouter(api.RouterConfig{
 			ConnectHandler: connectHandler,
+			JWKSProvider:   authService,
+			SessionSvc:     authService,
 			WorkspaceSvc:   workspaceService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

@@ -172,3 +172,14 @@
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+23/05/26 13:33
+- PASS `cd proto && buf lint`
+- PASS `cd control-plane && gofmt -w cmd/server/main.go cmd/server/bootstrap.go internal/api/router.go internal/api/sessions.go internal/api/jwks.go internal/api/sessions_test.go internal/auth/model.go internal/auth/service.go internal/auth/service_test.go internal/store/firestore_auth_store.go`
+- PASS `cd control-plane && GOTOOLCHAIN=local go mod tidy`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `terraform fmt -recursive terraform`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod validate`

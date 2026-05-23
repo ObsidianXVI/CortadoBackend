@@ -13,8 +13,18 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "auth_cache_addr" {
+  description = "Redis-compatible cache address used for auth API-key validation."
+  type        = string
+}
+
 variable "image_tag" {
   description = "Artifact Registry image tag for the control-plane service."
+  type        = string
+}
+
+variable "jwt_private_key_secret_id" {
+  description = "Secret Manager secret ID containing the JWT private key PEM."
   type        = string
 }
 
