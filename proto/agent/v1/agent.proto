@@ -4,5 +4,47 @@ package agent.v1;
 
 option go_package = "github.com/your-org/cortado/agent/gen/agent/v1";
 
-service WorkspaceAgentService {}
+service WorkspaceAgentService {
+  rpc CreatePty(CreatePtyRequest) returns (CreatePtyResponse);
+  rpc StreamPty(stream StreamPtyRequest) returns (stream StreamPtyResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
 
+message CreatePtyRequest {
+  uint32 cols = 1;
+  uint32 rows = 2;
+  string shell = 3;
+  repeated string env = 4;
+}
+
+message CreatePtyResponse {
+  string pty_id = 1;
+}
+
+message StreamPtyRequest {
+  string pty_id = 1;
+
+  oneof payload {
+    bytes data = 2;
+    WindowSize resize = 3;
+    int32 signal = 4;
+  }
+}
+
+message StreamPtyResponse {
+  oneof payload {
+    bytes data = 1;
+    int32 exit_code = 2;
+  }
+}
+
+message WindowSize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+}
