@@ -1,6 +1,12 @@
 import 'dart:typed_data';
 
 const int muxFrameHeaderLength = 7;
+const int muxTerminalChannelId = 0x0001;
+const int muxMessageTypeData = 0x01;
+const int muxMessageTypeOpen = 0x02;
+const int muxMessageTypeClose = 0x03;
+const int muxMessageTypeError = 0x04;
+const int muxMessageTypePing = 0xFF;
 
 class MuxFrame {
   const MuxFrame(this.channelId, this.messageType, this.payload);

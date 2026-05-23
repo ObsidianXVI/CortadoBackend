@@ -60,23 +60,36 @@ void main() {
 
       await client.connect('ws-123');
 
-      final frameFuture = client.framesForChannel(0x0001).first;
+      final frameFuture = client.framesForChannel(muxTerminalChannelId).first;
       connector.channel.addIncoming(
-        MuxFrame(0x0001, 0x01, Uint8List.fromList(<int>[0x41, 0x42])).encode(),
+        MuxFrame(
+          muxTerminalChannelId,
+          muxMessageTypeData,
+          Uint8List.fromList(<int>[0x41, 0x42]),
+        ).encode(),
       );
 
       final decoded = await frameFuture;
-      expect(decoded.messageType, 0x01);
+      expect(decoded.messageType, muxMessageTypeData);
       expect(decoded.payload, orderedEquals(<int>[0x41, 0x42]));
 
       final outboundFuture = connector.channel.outboundFrames.first;
-      client.sendFrame(0x0001, 0x02, Uint8List.fromList(<int>[0x43]));
+      client.sendFrame(
+        muxTerminalChannelId,
+        muxMessageTypeOpen,
+        Uint8List.fromList(<int>[0x43]),
+      );
 
       final outbound = await outboundFuture;
       expect(
         outbound,
         orderedEquals(
-            MuxFrame(0x0001, 0x02, Uint8List.fromList(<int>[0x43])).encode()),
+          MuxFrame(
+            muxTerminalChannelId,
+            muxMessageTypeOpen,
+            Uint8List.fromList(<int>[0x43]),
+          ).encode(),
+        ),
       );
 
       await client.dispose();
