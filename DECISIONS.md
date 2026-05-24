@@ -48,3 +48,6 @@
 
 - Task 5.1.1 ships semantic tree-sitter chunking for Python, JavaScript, and Go, while Dart remains on the validated fallback window chunker for the first indexer cut.
   Rationale: the first verified grammar set is enough to close the semantic chunker milestone without introducing an unverified Dart grammar build path into the Docker image. The fallback contract is already part of the feature spec, so keeping Dart on that path minimizes moving parts while preserving correct indexing behavior.
+
+- Task 5.1.2 uses Vertex AI as the first embedding provider, with `text-embedding-004` as the default model and a 768-dimensional output.
+  Rationale: the user explicitly asked for the simpler Vertex AI path. Keeping the first embedding pipeline inside the existing GCP stack avoids a second provider credential flow, preserves the feature spec's 768-dimension Qdrant collection target, and keeps the first implementation closer to the rest of Cortado's runtime environment.

@@ -30,6 +30,11 @@ const (
 	defaultVolumeReleaseTimeout            = 30 * time.Second
 	defaultWorkspaceStorageClass           = "cortado-workspace"
 	defaultWorkspaceServiceAccount         = "workspace-sa"
+	defaultQdrantImage                     = "qdrant/qdrant:v1.12.0"
+	defaultQdrantMountPath                 = "/qdrant/storage"
+	defaultQdrantSubPath                   = ".cortado/qdrant"
+	defaultQdrantCPURequest                = "100m"
+	defaultQdrantMemoryRequest             = "256Mi"
 	workspaceIDLabel                       = "cortado/workspace-id"
 )
 
@@ -301,6 +306,18 @@ func (m *PodManager) Create(workspace Workspace) error {
 						},
 					},
 				},
+				{
+					Name:      "qdrant",
+					Image:     defaultQdrantImage,
+					Resources: qdrantResources(),
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "workspace-data",
+							MountPath: defaultQdrantMountPath,
+							SubPath:   defaultQdrantSubPath,
+						},
+					},
+				},
 			},
 			Volumes: []corev1.Volume{
 				{
@@ -330,6 +347,15 @@ func (m *PodManager) Create(workspace Workspace) error {
 	}
 
 	return nil
+}
+
+func qdrantResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse(defaultQdrantCPURequest),
+			corev1.ResourceMemory: resource.MustParse(defaultQdrantMemoryRequest),
+		},
+	}
 }
 
 func (m *PodManager) Stop(workspaceID string) error {

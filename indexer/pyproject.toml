@@ -9,6 +9,8 @@ description = "Codebase indexing job scaffold for Cortado"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "google-auth>=2.0,<3",
+  "requests>=2.0,<3",
   "tree-sitter==0.22.0",
   "tree-sitter-python==0.21.0",
   "tree-sitter-javascript==0.21.4",

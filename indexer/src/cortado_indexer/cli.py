@@ -24,6 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Chunk a specific file. Can be passed multiple times.",
     )
+    parser.add_argument(
+        "--embed",
+        action="store_true",
+        help="Request Vertex AI embeddings for each emitted chunk.",
+    )
     return parser
 
 
@@ -49,6 +54,14 @@ def main(argv: list[str] | None = None) -> int:
 
     for path in files:
         source = path.read_text(encoding="utf-8")
-        for chunk in chunk_file(source, str(path)):
+        chunks = chunk_file(source, str(path))
+        if args.embed:
+            from .embedding import VertexAIEmbedder, embed_chunks_in_batches
+
+            embedder = VertexAIEmbedder.from_env()
+            for chunk in embed_chunks_in_batches(chunks, embedder):
+                print(json.dumps(chunk.to_dict(), sort_keys=True))
+            continue
+        for chunk in chunks:
             print(json.dumps(chunk.to_dict(), sort_keys=True))
     return 0

@@ -33,3 +33,19 @@ spec:
       image: ${workspace_image}
       ports:
         - containerPort: 9090
+      volumeMounts:
+        - name: workspace-data
+          mountPath: /workspace
+    - name: qdrant
+      image: qdrant/qdrant:v1.12.0
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      volumeMounts:
+        - name: workspace-data
+          mountPath: /qdrant/storage
+          subPath: .cortado/qdrant
+  volumes:
+    - name: workspace-data
+      emptyDir: {}

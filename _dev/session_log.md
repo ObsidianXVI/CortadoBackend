@@ -602,3 +602,10 @@
 - M indexer/src/cortado_indexer/chunker.py
 - M indexer/pyproject.toml
 - M indexer/README.md
+24/05/26 03:01 [FEAT] (pending) `dev-pro-large` Completed Task 5.1.2 by selecting Vertex AI for the first embedding path, adding batched embedding support to the Python indexer scaffold, encoding the Qdrant collection/storage contract, and injecting the Qdrant sidecar into workspace pod creation before advancing the tracker to Task 5.1.3.
+- M control-plane/internal/workspace/pod_manager.go
+- M indexer/src/cortado_indexer/cli.py
+- M indexer/src/cortado_indexer/models.py
+- A indexer/src/cortado_indexer/embedding.py
+- A indexer/src/cortado_indexer/qdrant.py
+- M terraform/k8s/workspace-pod-test.yaml

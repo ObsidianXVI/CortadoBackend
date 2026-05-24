@@ -60,6 +60,28 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if got := pod.Spec.Containers[0].Resources.Requests.Memory().Value(); got != 2*1024*1024*1024 {
 		t.Fatalf("unexpected memory request: got %d want %d", got, 2*1024*1024*1024)
 	}
+	if len(pod.Spec.Containers) != 2 {
+		t.Fatalf("unexpected container count: got %d want %d", len(pod.Spec.Containers), 2)
+	}
+	qdrant := pod.Spec.Containers[1]
+	if qdrant.Name != "qdrant" {
+		t.Fatalf("unexpected qdrant container name: %q", qdrant.Name)
+	}
+	if qdrant.Image != defaultQdrantImage {
+		t.Fatalf("unexpected qdrant image: %q", qdrant.Image)
+	}
+	if got := qdrant.Resources.Requests.Cpu().String(); got != defaultQdrantCPURequest {
+		t.Fatalf("unexpected qdrant cpu request: got %q want %q", got, defaultQdrantCPURequest)
+	}
+	if got := qdrant.Resources.Requests.Memory().String(); got != defaultQdrantMemoryRequest {
+		t.Fatalf("unexpected qdrant memory request: got %q want %q", got, defaultQdrantMemoryRequest)
+	}
+	if len(qdrant.VolumeMounts) != 1 {
+		t.Fatalf("unexpected qdrant volume mounts: %#v", qdrant.VolumeMounts)
+	}
+	if qdrant.VolumeMounts[0].MountPath != defaultQdrantMountPath || qdrant.VolumeMounts[0].SubPath != defaultQdrantSubPath {
+		t.Fatalf("unexpected qdrant volume mount: %#v", qdrant.VolumeMounts[0])
+	}
 	if pod.Spec.Volumes[0].PersistentVolumeClaim == nil || pod.Spec.Volumes[0].PersistentVolumeClaim.ClaimName != "ws-123-pvc" {
 		t.Fatalf("unexpected pod pvc volume: %#v", pod.Spec.Volumes[0])
 	}
