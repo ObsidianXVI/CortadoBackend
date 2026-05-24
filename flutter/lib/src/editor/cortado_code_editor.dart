@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ai/cortado_ai_service.dart';
 import '../cortado_client.dart';
 import '../cortado_workspace_provider.dart';
 import '../filesystem/vfs_notifier.dart';
@@ -63,6 +64,20 @@ class CortadoCodeEditorPlatformAdapter {
     unregisterCortadoEditorLspRequestHandler(editorId);
   }
 
+  void registerInlineCompletionRequestHandler({
+    required String editorId,
+    required CortadoEditorInlineCompletionRequestCallback onRequest,
+  }) {
+    registerCortadoEditorInlineCompletionRequestHandler(
+      editorId: editorId,
+      onRequest: onRequest,
+    );
+  }
+
+  void unregisterInlineCompletionRequestHandler(String editorId) {
+    unregisterCortadoEditorInlineCompletionRequestHandler(editorId);
+  }
+
   void resolveLspResult(
     int requestId,
     Object? result,
@@ -83,6 +98,22 @@ class CortadoCodeEditorPlatformAdapter {
 
   void setReadOnly(String editorId, bool readOnly) {
     setCortadoEditorReadOnly(editorId, readOnly);
+  }
+
+  void setInlineCompletion(
+    String editorId, {
+    required int requestId,
+    required String text,
+  }) {
+    setCortadoEditorInlineCompletion(
+      editorId,
+      requestId: requestId,
+      text: text,
+    );
+  }
+
+  void clearInlineCompletion(String editorId) {
+    clearCortadoEditorInlineCompletion(editorId);
   }
 
   String setContent(
@@ -110,6 +141,7 @@ class CortadoCodeEditor extends ConsumerStatefulWidget {
     this.onError,
     this.onTabChanged,
     this.platform = const CortadoCodeEditorPlatformAdapter(),
+    this.aiService,
     this.workspaceId,
     this.workspaceManager,
   }) : assert(maxTabs > 0, 'maxTabs must be greater than zero.');
@@ -123,6 +155,7 @@ class CortadoCodeEditor extends ConsumerStatefulWidget {
   final ValueChanged<OpenTab?>? onTabChanged;
   final String? path;
   final CortadoCodeEditorPlatformAdapter platform;
+  final CortadoAIService? aiService;
   final String? workspaceId;
   final WorkspaceManager? workspaceManager;
 
@@ -145,12 +178,15 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   final Map<String, int> _loadVersions = <String, int>{};
 
   StreamSubscription<agentpb.FileEvent>? _fileEventSubscription;
+  StreamSubscription<String>? _inlineCompletionSubscription;
   StreamSubscription<CortadoLSPDiagnosticsByUri>? _lspDiagnosticsSubscription;
   StreamSubscription<void>? _lspStateSubscription;
+  CortadoAIService? _ownedInlineCompletionService;
   CortadoLSPDiagnosticsByUri _diagnosticsByUri =
       const <String, List<CortadoLSPDiagnostic>>{};
   Map<String, CortadoFileDiagnosticStatus> _diagnosticStatusesByPath =
       const <String, CortadoFileDiagnosticStatus>{};
+  int? _activeInlineCompletionRequestId;
   CortadoLSPClient? _lspClient;
 
   @override
@@ -169,6 +205,11 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       widget.platform.registerLspRequestHandler(
         editorId: _editorId,
         onRequest: (requestJson) => unawaited(_handleLspRequest(requestJson)),
+      );
+      widget.platform.registerInlineCompletionRequestHandler(
+        editorId: _editorId,
+        onRequest: (requestJson) =>
+            unawaited(_handleInlineCompletionRequest(requestJson)),
       );
     }
     _configureLspClient();
@@ -205,15 +246,19 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   @override
   void dispose() {
     _fileEventSubscription?.cancel();
+    _inlineCompletionSubscription?.cancel();
     _lspDiagnosticsSubscription?.cancel();
     _lspStateSubscription?.cancel();
     _publishDiagnosticStatuses(
       const <String, CortadoFileDiagnosticStatus>{},
     );
+    widget.platform.clearInlineCompletion(_editorId);
     widget.platform.setDiagnostics(_editorId, const <Map<String, Object?>>[]);
+    unawaited(_ownedInlineCompletionService?.dispose());
     unawaited(_lspClient?.dispose());
     _removeTabsListener();
     _tabsNotifier.dispose();
+    widget.platform.unregisterInlineCompletionRequestHandler(_editorId);
     widget.platform.unregisterLspRequestHandler(_editorId);
     widget.platform.disposeView(_editorId);
     super.dispose();
@@ -348,6 +393,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     required bool preserveSelection,
     required bool reload,
   }) async {
+    _clearInlineCompletion();
     final normalizedPath = normalizeVfsPath(path);
     final previousActivePath = _tabsNotifier.currentState.activePath;
     if (previousActivePath != null && previousActivePath != normalizedPath) {
@@ -397,6 +443,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   }
 
   Future<void> _closeTab(String path) async {
+    _clearInlineCompletion();
     final normalizedPath = normalizeVfsPath(path);
     final closingTab = _tabsNotifier.tabForPath(normalizedPath);
     final activePath = _tabsNotifier.currentState.activePath;
@@ -490,6 +537,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     required bool preserveSelection,
     bool readOnly = false,
   }) {
+    _clearInlineCompletion();
     widget.platform.setLanguage(_editorId, editorLanguageIdForPath(path));
     widget.platform.setReadOnly(_editorId, readOnly);
     return widget.platform.setContent(
@@ -503,6 +551,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     OpenTab tab, {
     required bool preserveSelection,
   }) {
+    _clearInlineCompletion();
     widget.platform.setLanguage(_editorId, tab.languageId);
     widget.platform.setReadOnly(_editorId, tab.readOnly);
     final hash = widget.platform.setContent(
@@ -558,6 +607,8 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       return;
     }
 
+    _clearInlineCompletion();
+
     switch (event.type) {
       case agentpb.FileEventType.FILE_EVENT_TYPE_MODIFIED:
       case agentpb.FileEventType.FILE_EVENT_TYPE_CREATED:
@@ -587,6 +638,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       widget.workspaceId ?? ref.read(cortadoWorkspaceIdProvider);
 
   void _configureLspClient() {
+    _clearInlineCompletion();
     _lspDiagnosticsSubscription?.cancel();
     _lspDiagnosticsSubscription = null;
     _lspStateSubscription?.cancel();
@@ -724,6 +776,172 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     future.catchError((Object error, StackTrace _) {
       widget.onError?.call(error.toString());
     });
+  }
+
+  Future<void> _handleInlineCompletionRequest(String requestJson) async {
+    final decoded = jsonDecode(requestJson);
+    if (decoded is! Map<String, Object?>) {
+      return;
+    }
+
+    final kind = (decoded['kind'] as String? ?? 'request').trim().toLowerCase();
+    switch (kind) {
+      case 'cancel':
+        await _cancelInlineCompletion(
+          requestId: (decoded['requestId'] as num?)?.toInt(),
+          clearGhost: false,
+        );
+        return;
+      case 'request':
+        await _startInlineCompletion(decoded);
+        return;
+      default:
+        return;
+    }
+  }
+
+  Future<void> _startInlineCompletion(Map<String, Object?> request) async {
+    final requestId = (request['requestId'] as num?)?.toInt();
+    final prefix = request['prefix'];
+    final suffix = request['suffix'];
+    final activeTab = _tabsNotifier.currentState.activeTab;
+    if (requestId == null ||
+        prefix is! String ||
+        suffix is! String ||
+        activeTab == null ||
+        activeTab.readOnly ||
+        !_isWorkspacePath(activeTab.path)) {
+      _clearInlineCompletion();
+      return;
+    }
+
+    await _cancelInlineCompletion(clearGhost: false);
+
+    final ownedService = widget.aiService == null
+        ? CortadoAIService(
+            baseUrl: _manager.baseUrl,
+            authSession: _manager.authSession,
+            devToken: _manager.devToken,
+          )
+        : null;
+    final service = widget.aiService ?? ownedService!;
+    _ownedInlineCompletionService = ownedService;
+    _activeInlineCompletionRequestId = requestId;
+
+    final buffer = StringBuffer();
+    _inlineCompletionSubscription = service
+        .streamCompletion(
+      CortadoCompletionContext(
+        workspaceId: _workspaceId,
+        path: activeTab.path,
+        prefix: prefix,
+        suffix: suffix,
+      ),
+    )
+        .listen(
+      (token) {
+        if (!mounted || _activeInlineCompletionRequestId != requestId) {
+          return;
+        }
+
+        buffer.write(token);
+        final ghostText = _trimInlineCompletionPrefixOverlap(
+          completion: buffer.toString(),
+          prefix: prefix,
+        );
+        if (ghostText.isEmpty) {
+          return;
+        }
+
+        widget.platform.setInlineCompletion(
+          _editorId,
+          requestId: requestId,
+          text: ghostText,
+        );
+      },
+      onError: (Object error, StackTrace _) async {
+        if (_activeInlineCompletionRequestId != requestId) {
+          return;
+        }
+
+        await _cancelInlineCompletion(
+          requestId: requestId,
+          clearGhost: true,
+        );
+        widget.onError?.call(error.toString());
+      },
+      onDone: () {
+        if (_activeInlineCompletionRequestId != requestId) {
+          return;
+        }
+        unawaited(_finishInlineCompletionStream(requestId));
+      },
+      cancelOnError: false,
+    );
+  }
+
+  Future<void> _finishInlineCompletionStream(int requestId) async {
+    if (_activeInlineCompletionRequestId != requestId) {
+      return;
+    }
+
+    _activeInlineCompletionRequestId = null;
+    _inlineCompletionSubscription = null;
+    await _disposeOwnedInlineCompletionService();
+  }
+
+  Future<void> _cancelInlineCompletion({
+    int? requestId,
+    required bool clearGhost,
+  }) async {
+    if (requestId != null &&
+        _activeInlineCompletionRequestId != null &&
+        _activeInlineCompletionRequestId != requestId) {
+      return;
+    }
+
+    _activeInlineCompletionRequestId = null;
+
+    final subscription = _inlineCompletionSubscription;
+    _inlineCompletionSubscription = null;
+    unawaited(subscription?.cancel());
+    await _disposeOwnedInlineCompletionService();
+
+    if (clearGhost) {
+      widget.platform.clearInlineCompletion(_editorId);
+    }
+  }
+
+  void _clearInlineCompletion() {
+    unawaited(
+      _cancelInlineCompletion(
+        clearGhost: true,
+      ),
+    );
+  }
+
+  Future<void> _disposeOwnedInlineCompletionService() async {
+    final service = _ownedInlineCompletionService;
+    _ownedInlineCompletionService = null;
+    await service?.dispose();
+  }
+
+  String _trimInlineCompletionPrefixOverlap({
+    required String completion,
+    required String prefix,
+  }) {
+    if (completion.isEmpty || prefix.isEmpty) {
+      return completion;
+    }
+
+    final maxOverlap =
+        completion.length < prefix.length ? completion.length : prefix.length;
+    for (var overlap = maxOverlap; overlap > 0; overlap -= 1) {
+      if (prefix.endsWith(completion.substring(0, overlap))) {
+        return completion.substring(overlap);
+      }
+    }
+    return completion;
   }
 
   Future<void> _handleLspRequest(String requestJson) async {
@@ -967,6 +1185,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
 
     final existing = _tabsNotifier.tabForPath(normalizedPath);
     if (existing != null && existing.loaded) {
+      _clearInlineCompletion();
       _tabsNotifier.activate(normalizedPath);
       _renderTab(existing, preserveSelection: false);
       return;

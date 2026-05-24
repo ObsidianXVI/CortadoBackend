@@ -1,6 +1,15 @@
-import {Compartment, EditorState, type Extension} from '@codemirror/state';
 import {
+  Compartment,
+  EditorState,
+  StateEffect,
+  StateField,
+  type Extension,
+} from '@codemirror/state';
+import {
+  Decoration,
+  type DecorationSet,
   EditorView,
+  WidgetType,
   crosshairCursor,
   drawSelection,
   dropCursor,
@@ -41,7 +50,11 @@ import {json} from '@codemirror/lang-json';
 import {python} from '@codemirror/lang-python';
 import {go} from '@codemirror/lang-go';
 import {yaml} from '@codemirror/lang-yaml';
-import {shouldDropCompletionResult} from './completion_bridge.js';
+import {
+  applyInlineCompletionText,
+  shouldCancelInlineCompletionForKey,
+  shouldDropCompletionResult,
+} from './completion_bridge.js';
 import DOMPurify from 'dompurify';
 import {marked} from 'marked';
 
@@ -90,6 +103,15 @@ type LSPRequestFn = (params: {
   prefix?: string;
 }) => void;
 
+type InlineCompletionRequestFn = (params: {
+  editorId: string;
+  kind: 'request' | 'cancel';
+  requestId?: number;
+  position?: { line: number; character: number };
+  prefix?: string;
+  suffix?: string;
+}) => void;
+
 interface EditorEntry {
   view: EditorView;
   onChange?: HashChangeCb;
@@ -101,6 +123,10 @@ interface EditorEntry {
   completionCompartment: Compartment;
   // Compartment to (re)configure read-only state.
   readOnlyCompartment: Compartment;
+  inlineCompletionTimer: ReturnType<typeof setTimeout> | null;
+  inlineCompletionRequestId: number | null;
+  inlineCompletionText: string;
+  inlineCompletionPos: number | null;
 }
 
 // Shape accepted from the host (Dart) for diagnostics. Supports either
@@ -116,6 +142,76 @@ type HostDiagnostic = {
   message: string;
   source?: string;
 };
+
+const setGhostTextEffect = StateEffect.define<{pos: number; text: string}>();
+const clearGhostTextEffect = StateEffect.define<void>();
+
+class GhostTextWidget extends WidgetType {
+  constructor(private readonly text: string) {
+    super();
+  }
+
+  eq(other: GhostTextWidget) {
+    return other.text === this.text;
+  }
+
+  toDOM() {
+    const container = document.createElement('span');
+    container.className = 'cm-cortado-ghost-text';
+    container.style.color = 'rgba(128,128,128,0.6)';
+    container.style.pointerEvents = 'none';
+
+    if (this.text.includes('\n')) {
+      const pre = document.createElement('pre');
+      pre.style.display = 'inline';
+      pre.style.margin = '0';
+      pre.style.font = 'inherit';
+      pre.style.whiteSpace = 'pre-wrap';
+      pre.textContent = this.text;
+      container.appendChild(pre);
+      return container;
+    }
+
+    container.textContent = this.text;
+    return container;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const ghostTextField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, transaction) {
+    let next = decorations.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (effect.is(clearGhostTextEffect)) {
+        return Decoration.none;
+      }
+      if (effect.is(setGhostTextEffect)) {
+        const pos = Math.max(0, Math.min(effect.value.pos, transaction.state.doc.length));
+        if (!effect.value.text) {
+          return Decoration.none;
+        }
+        return Decoration.set([
+          Decoration.widget({
+            side: 1,
+            widget: new GhostTextWidget(effect.value.text),
+          }).range(pos),
+        ]);
+      }
+    }
+
+    if (transaction.docChanged || transaction.selection) {
+      next = Decoration.none;
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 function langFrom(nameOrFile?: string): Extension | null {
   if (!nameOrFile) return null;
@@ -223,6 +319,7 @@ const CortadoEditor = {
       doc: value,
       extensions: [
         editorBaseExtensions,
+        ghostTextField,
         keymap.of(saveKeymap),
         langCompartment.of(lang ? [lang] : []),
         readOnlyCompartment.of([
@@ -240,6 +337,9 @@ const CortadoEditor = {
           if (update.selectionSet && entry) {
             entry.cursorVersion++;
           }
+          if (entry && update.selectionSet && !update.docChanged) {
+            this._cancelInlineCompletion(id, true);
+          }
           if (!update.docChanged) {
             return;
           }
@@ -251,6 +351,7 @@ const CortadoEditor = {
           if (entry.onChange) {
             entry.onChange(this._hashText(update.state.doc.toString()));
           }
+          this._scheduleInlineCompletion(id);
         }),
         // Install the completion source; it is a no-op until the host
         // provides window._cortadoLSPRequest (Dart side).
@@ -261,8 +362,54 @@ const CortadoEditor = {
         ),
         // Ctrl+Click go-to-definition (textDocument/definition)
         EditorView.domEventHandlers({
+          keydown: (event, view) => {
+            const entry = this._editors.get(id);
+            if (!entry) return false;
+
+            if (
+              event.key === 'Tab' &&
+              !event.shiftKey &&
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !!entry.inlineCompletionText
+            ) {
+              const pos = view.state.selection.main.head;
+              const nextDoc = applyInlineCompletionText(
+                view.state.doc.toString(),
+                pos,
+                entry.inlineCompletionText,
+              );
+              this._cancelInlineCompletion(id, true);
+              view.dispatch({
+                changes: {
+                  from: 0,
+                  to: view.state.doc.length,
+                  insert: nextDoc,
+                },
+                selection: {anchor: pos + entry.inlineCompletionText.length},
+              });
+              event.preventDefault();
+              return true;
+            }
+
+            if (event.key === 'Escape') {
+              const didCancel = this._cancelInlineCompletion(id, true);
+              if (didCancel) {
+                event.preventDefault();
+                return true;
+              }
+              return false;
+            }
+
+            if (shouldCancelInlineCompletionForKey(event)) {
+              this._cancelInlineCompletion(id, true);
+            }
+            return false;
+          },
           mousedown: (event, view) => {
             const me = event as MouseEvent;
+            this._cancelInlineCompletion(id, true);
             if (me.button !== 0) return false;
             if (!me.ctrlKey) return false;
             const pos = view.posAtCoords({ x: me.clientX, y: me.clientY }, false);
@@ -303,6 +450,10 @@ const CortadoEditor = {
       cursorVersion: 0,
       completionCompartment,
       readOnlyCompartment,
+      inlineCompletionTimer: null,
+      inlineCompletionRequestId: null,
+      inlineCompletionText: '',
+      inlineCompletionPos: null,
     });
 
     // Ensure a global result sink exists once per page.
@@ -312,6 +463,7 @@ const CortadoEditor = {
   setContent(id: string, text: string, preserveSelection = false): string {
     const entry = this._editors.get(id);
     if (!entry) return '';
+    this._cancelInlineCompletion(id, true);
     const view = entry.view;
     const savedSelection = view.state.selection.main;
     entry.suppressChange = true;
@@ -352,6 +504,7 @@ const CortadoEditor = {
   setReadOnly(id: string, readOnly: boolean) {
     const entry = this._editors.get(id);
     if (!entry) return;
+    this._cancelInlineCompletion(id, true);
     entry.view.dispatch({
       effects: entry.readOnlyCompartment.reconfigure([
         EditorState.readOnly.of(readOnly),
@@ -363,8 +516,30 @@ const CortadoEditor = {
   dispose(id: string) {
     const entry = this._editors.get(id);
     if (!entry) return;
+    this._cancelInlineCompletion(id, false);
     entry.view.destroy();
     this._editors.delete(id);
+  },
+
+  setInlineCompletion(id: string, requestId: number, text: string) {
+    const entry = this._editors.get(id);
+    if (!entry || entry.inlineCompletionRequestId !== requestId) return;
+    const pos = entry.inlineCompletionPos;
+    if (pos == null || !text) {
+      this.clearInlineCompletion(id);
+      return;
+    }
+
+    entry.inlineCompletionText = text;
+    entry.view.dispatch({
+      effects: setGhostTextEffect.of({pos, text}),
+    });
+  },
+
+  clearInlineCompletion(id: string) {
+    const entry = this._editors.get(id);
+    if (!entry) return;
+    this._cancelInlineCompletion(id, false);
   },
 
   // Replace diagnostics for an editor. Accepts either absolute offsets or
@@ -419,6 +594,85 @@ const CortadoEditor = {
       .filter((x): x is Diagnostic => !!x);
 
     setDiagnostics(view, cmDiags);
+  },
+
+  _scheduleInlineCompletion(id: string) {
+    const entry = this._editors.get(id);
+    if (!entry) return;
+
+    this._cancelInlineCompletion(id, true);
+
+    if (
+      entry.view.state.facet(EditorState.readOnly) ||
+      !entry.view.state.selection.main.empty
+    ) {
+      return;
+    }
+
+    const reqFn: InlineCompletionRequestFn | undefined = (g as any)
+      ._cortadoInlineCompletionRequest;
+    if (!reqFn) {
+      return;
+    }
+
+    const versionAtSchedule = entry.cursorVersion;
+    entry.inlineCompletionTimer = setTimeout(() => {
+      const current = this._editors.get(id);
+      if (!current) return;
+      current.inlineCompletionTimer = null;
+      if (
+        current.cursorVersion !== versionAtSchedule ||
+        current.view.state.facet(EditorState.readOnly) ||
+        !current.view.state.selection.main.empty
+      ) {
+        return;
+      }
+
+      const pos = current.view.state.selection.main.head;
+      const line = current.view.state.doc.lineAt(pos);
+      const requestId = this._reqCounter++;
+      current.inlineCompletionRequestId = requestId;
+      current.inlineCompletionText = '';
+      current.inlineCompletionPos = pos;
+
+      reqFn({
+        editorId: id,
+        kind: 'request',
+        requestId,
+        position: {line: line.number - 1, character: pos - line.from},
+        prefix: current.view.state.doc.sliceString(0, pos),
+        suffix: current.view.state.doc.sliceString(pos),
+      });
+    }, 150);
+  },
+
+  _cancelInlineCompletion(id: string, notifyHost: boolean) {
+    const entry = this._editors.get(id);
+    if (!entry) return false;
+
+    if (entry.inlineCompletionTimer) {
+      clearTimeout(entry.inlineCompletionTimer);
+      entry.inlineCompletionTimer = null;
+    }
+
+    const requestId = entry.inlineCompletionRequestId;
+    const hadInlineCompletion = requestId != null || !!entry.inlineCompletionText;
+    entry.inlineCompletionRequestId = null;
+    entry.inlineCompletionText = '';
+    entry.inlineCompletionPos = null;
+    entry.view.dispatch({effects: clearGhostTextEffect.of(undefined)});
+
+    if (notifyHost && requestId != null) {
+      const reqFn: InlineCompletionRequestFn | undefined = (g as any)
+        ._cortadoInlineCompletionRequest;
+      reqFn?.({
+        editorId: id,
+        kind: 'cancel',
+        requestId,
+      });
+    }
+
+    return hadInlineCompletion;
   },
 
   // Create a completion source bound to an editor id.

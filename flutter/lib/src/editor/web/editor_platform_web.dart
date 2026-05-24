@@ -7,13 +7,20 @@ import 'package:web/web.dart' as web;
 
 typedef CortadoEditorChangedCallback = void Function(String hash);
 typedef CortadoEditorLspRequestCallback = void Function(String requestJson);
+typedef CortadoEditorInlineCompletionRequestCallback = void Function(
+  String requestJson,
+);
 typedef CortadoEditorSaveCallback = void Function();
 
 final Set<String> _registeredViewTypes = <String>{};
 final Map<String, CortadoEditorLspRequestCallback> _lspRequestHandlers =
     <String, CortadoEditorLspRequestCallback>{};
+final Map<String, CortadoEditorInlineCompletionRequestCallback>
+    _inlineCompletionRequestHandlers =
+    <String, CortadoEditorInlineCompletionRequestCallback>{};
 final Map<int, String> _lspRequestKindsById = <int, String>{};
 bool _didRegisterLspBridge = false;
+bool _didRegisterInlineCompletionBridge = false;
 
 @JS('CortadoEditor.init')
 external void _editorInit(
@@ -46,6 +53,16 @@ external void _editorSetDiagnostics(JSString editorId, JSAny diagnostics);
 @JS('CortadoEditor.setReadOnly')
 external void _editorSetReadOnly(JSString editorId, JSBoolean readOnly);
 
+@JS('CortadoEditor.setInlineCompletion')
+external void _editorSetInlineCompletion(
+  JSString editorId,
+  JSNumber requestId,
+  JSString text,
+);
+
+@JS('CortadoEditor.clearInlineCompletion')
+external void _editorClearInlineCompletion(JSString editorId);
+
 @JS('window._cortadoLSPRequest')
 external set _editorLspRequestHandler(JSFunction? handler);
 
@@ -54,6 +71,9 @@ external set _editorLspHoverRequestHandler(JSFunction? handler);
 
 @JS('window._cortadoLSPDefinitionRequest')
 external set _editorLspDefinitionRequestHandler(JSFunction? handler);
+
+@JS('window._cortadoInlineCompletionRequest')
+external set _editorInlineCompletionRequestHandler(JSFunction? handler);
 
 @JS('window._cortadoLSPResult')
 external void _editorLspResult(JSNumber requestId, JSAny result);
@@ -169,6 +189,43 @@ void unregisterCortadoEditorLspRequestHandler(String editorId) {
   _didRegisterLspBridge = false;
 }
 
+void registerCortadoEditorInlineCompletionRequestHandler({
+  required String editorId,
+  required CortadoEditorInlineCompletionRequestCallback onRequest,
+}) {
+  _inlineCompletionRequestHandlers[editorId] = onRequest;
+  if (_didRegisterInlineCompletionBridge) {
+    return;
+  }
+
+  _editorInlineCompletionRequestHandler = ((JSAny request) {
+    final requestJson = _jsonStringify(request).toDart;
+    final decoded = jsonDecode(requestJson);
+    if (decoded is! Map<String, Object?>) {
+      return;
+    }
+
+    final editorId = decoded['editorId'];
+    if (editorId is! String) {
+      return;
+    }
+
+    _inlineCompletionRequestHandlers[editorId]?.call(requestJson);
+  }).toJS;
+  _didRegisterInlineCompletionBridge = true;
+}
+
+void unregisterCortadoEditorInlineCompletionRequestHandler(String editorId) {
+  _inlineCompletionRequestHandlers.remove(editorId);
+  if (_inlineCompletionRequestHandlers.isNotEmpty ||
+      !_didRegisterInlineCompletionBridge) {
+    return;
+  }
+
+  _editorInlineCompletionRequestHandler = null;
+  _didRegisterInlineCompletionBridge = false;
+}
+
 void resolveCortadoEditorLspResponse(int requestId, Object? result) {
   final jsResult = _jsonParse(jsonEncode(result).toJS);
   final requestKind = _lspRequestKindsById.remove(requestId) ?? 'completion';
@@ -197,6 +254,22 @@ void setCortadoEditorDiagnostics(
 
 void setCortadoEditorReadOnly(String editorId, bool readOnly) {
   _editorSetReadOnly(editorId.toJS, readOnly.toJS);
+}
+
+void setCortadoEditorInlineCompletion(
+  String editorId, {
+  required int requestId,
+  required String text,
+}) {
+  _editorSetInlineCompletion(
+    editorId.toJS,
+    requestId.toJS,
+    text.toJS,
+  );
+}
+
+void clearCortadoEditorInlineCompletion(String editorId) {
+  _editorClearInlineCompletion(editorId.toJS);
 }
 
 void _dispatchLspRequest(

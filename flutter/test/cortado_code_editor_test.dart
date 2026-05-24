@@ -10,6 +10,7 @@ import 'package:cortado/src/gen/agent/v1/agent.pb.dart' as agentpb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   testWidgets('renders a non-web fallback when HtmlElementView is unavailable',
@@ -84,6 +85,143 @@ void main() {
     expect(platform.lastPreserveSelection, isTrue);
 
     await fileEvents.close();
+  });
+
+  testWidgets('streams inline completion tokens into the active editor',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print();',
+      },
+    );
+    final requests = <_RecordedHttpRequest>[];
+    final responseStream = StreamController<List<int>>();
+    final aiService = CortadoAIService(
+      baseUrl: 'http://localhost:8080',
+      httpClient: _RecordingHttpClient((request, bodyBytes) async {
+        requests.add(_RecordedHttpRequest(request, bodyBytes));
+        return http.StreamedResponse(
+          responseStream.stream,
+          200,
+          headers: const <String, String>{
+            'Content-Type': 'text/event-stream',
+          },
+        );
+      }),
+    );
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          aiService: aiService,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitInlineCompletionRequest(
+      <String, Object?>{
+        'kind': 'request',
+        'requestId': 7,
+        'prefix': 'print(',
+        'suffix': ');',
+      },
+    );
+    await tester.pump();
+
+    final request = requests.single.request as http.Request;
+    final payload = jsonDecode(utf8.decode(requests.single.bodyBytes))
+        as Map<String, dynamic>;
+    expect(request.url.path, '/v1/workspaces/ws-123/ai/complete');
+    expect(payload['path'], '/lib/main.dart');
+    expect(payload['prefix'], 'print(');
+    expect(payload['suffix'], ');');
+
+    responseStream.add(
+      Uint8List.fromList(utf8.encode('data: {"token":"hel"}\n\n')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastInlineCompletionRequestId, 7);
+    expect(platform.lastInlineCompletionText, 'hel');
+
+    responseStream.add(
+      Uint8List.fromList(utf8.encode('data: {"token":"lo"}\n\n')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastInlineCompletionText, 'hello');
+
+    await responseStream.close();
+    await aiService.dispose();
+  });
+
+  testWidgets('trims echoed prefix from streamed inline completions',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print();',
+      },
+    );
+    final responseStream = StreamController<List<int>>();
+    final aiService = CortadoAIService(
+      baseUrl: 'http://localhost:8080',
+      httpClient: _RecordingHttpClient((request, bodyBytes) async {
+        return http.StreamedResponse(
+          responseStream.stream,
+          200,
+          headers: const <String, String>{
+            'Content-Type': 'text/event-stream',
+          },
+        );
+      }),
+    );
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          aiService: aiService,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitInlineCompletionRequest(
+      <String, Object?>{
+        'kind': 'request',
+        'requestId': 8,
+        'prefix': 'print(',
+        'suffix': ');',
+      },
+    );
+    await tester.pump();
+
+    responseStream.add(
+      Uint8List.fromList(utf8.encode('data: {"token":"print(value);"}\n\n')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastInlineCompletionText, 'value);');
+
+    await responseStream.close();
+    await aiService.dispose();
   });
 
   testWidgets('shows the LSP startup overlay and wires document lifecycle',
@@ -624,11 +762,17 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   bool lastPreserveSelection = false;
   bool lastReadOnly = false;
   CortadoEditorChangedCallback? _onChanged;
+  CortadoEditorInlineCompletionRequestCallback? _onInlineCompletionRequest;
   CortadoEditorLspRequestCallback? _onLspRequest;
   CortadoEditorSaveCallback? _onSave;
+  String? inlineCompletionEditorId;
   String? lspEditorId;
+  int clearInlineCompletionCallCount = 0;
+  int inlineCompletionSetCallCount = 0;
   List<Map<String, Object?>> lastResolvedItems = <Map<String, Object?>>[];
   List<Map<String, Object?>> lastDiagnostics = <Map<String, Object?>>[];
+  String lastInlineCompletionText = '';
+  int? lastInlineCompletionRequestId;
   Object? lastResolvedResult;
   int? lastResolvedRequestId;
 
@@ -662,6 +806,15 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   }) {
     lspEditorId = editorId;
     _onLspRequest = onRequest;
+  }
+
+  @override
+  void registerInlineCompletionRequestHandler({
+    required String editorId,
+    required CortadoEditorInlineCompletionRequestCallback onRequest,
+  }) {
+    inlineCompletionEditorId = editorId;
+    _onInlineCompletionRequest = onRequest;
   }
 
   @override
@@ -716,6 +869,24 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
     lastReadOnly = readOnly;
   }
 
+  @override
+  void setInlineCompletion(
+    String editorId, {
+    required int requestId,
+    required String text,
+  }) {
+    lastInlineCompletionRequestId = requestId;
+    lastInlineCompletionText = text;
+    inlineCompletionSetCallCount += 1;
+  }
+
+  @override
+  void clearInlineCompletion(String editorId) {
+    lastInlineCompletionRequestId = null;
+    lastInlineCompletionText = '';
+    clearInlineCompletionCallCount += 1;
+  }
+
   void triggerSave() {
     _onSave?.call();
   }
@@ -731,12 +902,58 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
     );
   }
 
+  void emitInlineCompletionRequest(Map<String, Object?> payload) {
+    if ((payload['kind'] as String?) == 'cancel') {
+      lastInlineCompletionRequestId = null;
+      lastInlineCompletionText = '';
+    }
+
+    _onInlineCompletionRequest?.call(
+      jsonEncode(
+        <String, Object?>{
+          'editorId': inlineCompletionEditorId,
+          ...payload,
+        },
+      ),
+    );
+  }
+
   @override
   void unregisterLspRequestHandler(String editorId) {
     if (lspEditorId == editorId) {
       _onLspRequest = null;
       lspEditorId = null;
     }
+  }
+
+  @override
+  void unregisterInlineCompletionRequestHandler(String editorId) {
+    if (inlineCompletionEditorId == editorId) {
+      _onInlineCompletionRequest = null;
+      inlineCompletionEditorId = null;
+    }
+  }
+}
+
+class _RecordedHttpRequest {
+  const _RecordedHttpRequest(this.request, this.bodyBytes);
+
+  final http.BaseRequest request;
+  final List<int> bodyBytes;
+}
+
+class _RecordingHttpClient extends http.BaseClient {
+  _RecordingHttpClient(this._handler);
+
+  final Future<http.StreamedResponse> Function(
+    http.BaseRequest request,
+    List<int> bodyBytes,
+  ) _handler;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final bodyBytes = await http.ByteStream(request.finalize()).toBytes();
+    return _handler(request, bodyBytes);
   }
 }
 

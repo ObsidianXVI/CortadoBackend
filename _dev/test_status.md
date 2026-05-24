@@ -320,3 +320,8 @@
 - PASS `cd flutter && flutter test test/cortado_ai_service_test.dart`
 - PASS `cd flutter && flutter analyze`
 - PASS `cd flutter && flutter test`
+24/05/26 03:38
+- PASS `cd demo_app/web && npm test`
+- PASS `cd demo_app/web && npm run build`
+- PASS `cd flutter && flutter test test/cortado_code_editor_test.dart`
+- PASS `cd flutter && flutter analyze`

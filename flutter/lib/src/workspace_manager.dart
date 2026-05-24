@@ -29,6 +29,8 @@ class WorkspaceManager {
   final Duration transitionalPollInterval;
   final Duration runningPollInterval;
 
+  String get devToken => _devToken;
+
   Future<Workspace> create({
     required String image,
     WorkspaceResources? resources,

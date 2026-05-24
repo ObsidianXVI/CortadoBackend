@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 
-import {shouldDropCompletionResult} from './completion_bridge.js';
+import {
+  applyInlineCompletionText,
+  shouldCancelInlineCompletionForKey,
+  shouldDropCompletionResult,
+} from './completion_bridge.js';
 
 function entry({cursorVersion, pos}) {
   return {
@@ -56,4 +60,50 @@ assert.equal(
     },
   ),
   false,
+);
+
+assert.equal(
+  shouldCancelInlineCompletionForKey({
+    key: 'a',
+    defaultPrevented: false,
+    isComposing: false,
+  }),
+  true,
+);
+
+assert.equal(
+  shouldCancelInlineCompletionForKey({
+    key: 'Escape',
+    defaultPrevented: false,
+    isComposing: false,
+  }),
+  true,
+);
+
+assert.equal(
+  shouldCancelInlineCompletionForKey({
+    key: 'Tab',
+    defaultPrevented: false,
+    isComposing: false,
+  }),
+  false,
+);
+
+assert.equal(
+  shouldCancelInlineCompletionForKey({
+    key: 'Shift',
+    defaultPrevented: false,
+    isComposing: false,
+  }),
+  false,
+);
+
+assert.equal(
+  applyInlineCompletionText('void main()', 4, ' async'),
+  'void async main()',
+);
+
+assert.equal(
+  applyInlineCompletionText('print()', 6, 'value'),
+  'print(value)',
 );
