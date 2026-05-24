@@ -244,6 +244,9 @@
 - PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
 - PASS `cd flutter && flutter test test/cortado_code_editor_test.dart`
 - PASS `cd flutter && flutter analyze`
+24/05/26 02:00
+- PASS `bash -n scripts/rewrite_git_authorship.sh`
+- PASS `scripts/rewrite_git_authorship.sh` (dry run only; no refs rewritten)
 24/05/26 01:15
 - PASS `cd flutter && flutter test test/cortado_lsp_client_test.dart test/cortado_code_editor_test.dart`
 - PASS `cd flutter && flutter analyze`

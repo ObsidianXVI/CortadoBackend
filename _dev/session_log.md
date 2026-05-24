@@ -574,3 +574,5 @@
 - M flutter/lib/src/editor/editor_models.dart
 - M flutter/lib/src/editor/tabs_notifier.dart
 - M flutter/lib/src/editor/web/editor_platform_web.dart
+24/05/26 02:00 [FIX] (pending) `dev-pro-large` Added a guarded Git history rewrite utility that rewrites old `Cortado Dev` authorship to the current global Git identity across all refs while preserving author/committer dates, plus a dry-run verification so the repo can be reauthored safely before a manual force-push.
+- A scripts/rewrite_git_authorship.sh
