@@ -45,3 +45,6 @@
 
 - Dart SDK go-to-definition targets stay on the current read-only tab path without relaxing the workspace-root file API to read `/usr/local/dart-sdk/...` sources.
   Rationale: the user explicitly chose the lowest-change path. Keeping SDK definition tabs read-only without widening the file read surface avoids a new absolute-path exception in the agent/control-plane stack and stays closest to the existing blueprint and codebase behavior.
+
+- Task 5.1.1 ships semantic tree-sitter chunking for Python, JavaScript, and Go, while Dart remains on the validated fallback window chunker for the first indexer cut.
+  Rationale: the first verified grammar set is enough to close the semantic chunker milestone without introducing an unverified Dart grammar build path into the Docker image. The fallback contract is already part of the feature spec, so keeping Dart on that path minimizes moving parts while preserving correct indexing behavior.

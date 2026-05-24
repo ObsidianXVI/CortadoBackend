@@ -9,6 +9,7 @@ flutter/pubspec.lock
 **/build/
 **/__pycache__/
 *.pyc
+*.egg-info/
 node_modules/
 .terraform/
 *.tfstate

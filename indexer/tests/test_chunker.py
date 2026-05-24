@@ -16,6 +16,7 @@ from cortado_indexer.chunker import (
     FALLBACK_WINDOW_SIZE,
     chunk_file,
     detect_language,
+    parser_for_language,
 )
 
 
@@ -45,6 +46,124 @@ class FallbackChunkerTest(unittest.TestCase):
 
     def test_empty_files_produce_no_chunks(self) -> None:
         self.assertEqual(chunk_file("", "/workspace/lib/main.dart"), [])
+
+
+def _semantic_parser_available(language: str) -> bool:
+    return parser_for_language(language) is not None
+
+
+class SemanticPythonChunkerTest(unittest.TestCase):
+    @unittest.skipUnless(
+        _semantic_parser_available("python"),
+        "python tree-sitter grammar is not installed",
+    )
+    def test_extracts_class_method_and_function_chunks(self) -> None:
+        chunks = chunk_file(
+            textwrap.dedent(
+                """\
+                class Foo:
+                    def method(self):
+                        return 1
+
+                def top():
+                    return 2
+                """
+            ),
+            "/workspace/pkg/example.py",
+        )
+
+        self.assertEqual(
+            [(chunk.metadata.name, chunk.metadata.symbol_type) for chunk in chunks],
+            [
+                ("Foo", "class"),
+                ("Foo.method", "method"),
+                ("top", "function"),
+            ],
+        )
+        self.assertTrue(all(chunk.metadata.chunker == "semantic" for chunk in chunks))
+        self.assertEqual((chunks[0].metadata.start_line, chunks[0].metadata.end_line), (1, 3))
+        self.assertEqual((chunks[1].metadata.start_line, chunks[1].metadata.end_line), (2, 3))
+        self.assertEqual((chunks[2].metadata.start_line, chunks[2].metadata.end_line), (5, 6))
+
+
+class SemanticJavaScriptChunkerTest(unittest.TestCase):
+    @unittest.skipUnless(
+        _semantic_parser_available("javascript"),
+        "javascript tree-sitter grammar is not installed",
+    )
+    def test_extracts_class_function_and_arrow_chunks(self) -> None:
+        chunks = chunk_file(
+            textwrap.dedent(
+                """\
+                class Foo {
+                  method() {
+                    return 1;
+                  }
+                }
+
+                function top() {
+                  return 2;
+                }
+
+                const arrow = () => {
+                  return 3;
+                };
+                """
+            ),
+            "/workspace/web/example.ts",
+        )
+
+        self.assertEqual(
+            [(chunk.metadata.name, chunk.metadata.symbol_type) for chunk in chunks],
+            [
+                ("Foo", "class"),
+                ("Foo.method", "method"),
+                ("top", "function"),
+                ("arrow", "function"),
+            ],
+        )
+        self.assertTrue(all(chunk.metadata.chunker == "semantic" for chunk in chunks))
+        self.assertEqual((chunks[0].metadata.start_line, chunks[0].metadata.end_line), (1, 5))
+        self.assertEqual((chunks[1].metadata.start_line, chunks[1].metadata.end_line), (2, 4))
+        self.assertEqual((chunks[2].metadata.start_line, chunks[2].metadata.end_line), (7, 9))
+        self.assertEqual((chunks[3].metadata.start_line, chunks[3].metadata.end_line), (11, 13))
+
+
+class SemanticGoChunkerTest(unittest.TestCase):
+    @unittest.skipUnless(
+        _semantic_parser_available("go"),
+        "go tree-sitter grammar is not installed",
+    )
+    def test_extracts_type_method_and_function_chunks(self) -> None:
+        chunks = chunk_file(
+            textwrap.dedent(
+                """\
+                package sample
+
+                type Foo struct{}
+
+                func (f *Foo) Method() {
+                    return
+                }
+
+                func Top() {}
+                """
+            ),
+            "/workspace/cmd/example.go",
+        )
+
+        self.assertEqual(
+            [(chunk.metadata.name, chunk.metadata.symbol_type) for chunk in chunks],
+            [
+                ("Foo", "type"),
+                ("Foo.Method", "method"),
+                ("Top", "function"),
+            ],
+        )
+        self.assertTrue(all(chunk.metadata.chunker == "semantic" for chunk in chunks))
+        self.assertEqual((chunks[0].metadata.start_line, chunks[0].metadata.end_line), (3, 3))
+        self.assertEqual((chunks[1].metadata.start_line, chunks[1].metadata.end_line), (5, 7))
+        self.assertEqual((chunks[2].metadata.start_line, chunks[2].metadata.end_line), (9, 9))
 
 
 class CliTest(unittest.TestCase):

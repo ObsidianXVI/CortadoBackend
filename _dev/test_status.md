@@ -251,6 +251,11 @@
 - PASS `cd indexer && PYTHONPATH=src python3 -m unittest discover -s tests`
 - PASS `cd indexer && PYTHONPATH=src python3 -m cortado_indexer --help`
 - PASS `docker build -t cortado-indexer:test indexer`
+24/05/26 02:23
+- PASS `cd indexer && PYTHONPATH=src python3 -m unittest discover -s tests`
+- PASS `cd indexer && PYTHONPATH=src python3 -m cortado_indexer --help`
+- PASS `docker build -t cortado-indexer:test indexer`
+- PASS `docker run --rm -v "$PWD/indexer:/app" -w /app python:3.11-slim bash -lc "pip install --quiet . && python -m unittest discover -s tests"`
 24/05/26 01:15
 - PASS `cd flutter && flutter test test/cortado_lsp_client_test.dart test/cortado_code_editor_test.dart`
 - PASS `cd flutter && flutter analyze`

@@ -598,3 +598,7 @@
 - D indexer/src/cortado_indexer/__pycache__/cli.cpython-314.pyc
 - D indexer/src/cortado_indexer/__pycache__/models.cpython-314.pyc
 - D indexer/tests/__pycache__/test_chunker.cpython-314.pyc
+24/05/26 02:23 [FEAT] (pending) `dev-pro-large` Completed Task 5.1.1 by adding parser-backed semantic chunk extraction for Python, JavaScript, and Go, pinning the verified grammar wheels in the indexer package, preserving a clean fallback path when tree-sitter is unavailable locally, and advancing the release tracker to Task 5.1.2 after host and container verification.
+- M indexer/src/cortado_indexer/chunker.py
+- M indexer/pyproject.toml
+- M indexer/README.md
