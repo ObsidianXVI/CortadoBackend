@@ -60,3 +60,6 @@
 
 - Unresolved local-sync `ConflictNotice` messages on channel `0x0600` belong on the local daemon WebSocket bridge (`ws://127.0.0.1:9731`), not the control-plane workspace mux.
   Rationale: file-sync conflicts are a local-daemon concern and should surface through the same localhost bridge that Task 6.1.5 exposes to the Flutter package. Keeping conflict notices on the daemon bridge avoids mixing local-sync UI events into the workspace terminal/LSP mux and keeps the responsibility boundary aligned with the local daemon feature.
+
+- Task 7.1.2 validates requested workspace ports through the agent `ListPorts` RPC, then proxies HTTP and WebSocket traffic directly to the workspace headless-Service DNS target instead of adding a separate agent HTTP port-proxy endpoint.
+  Rationale: the agent already exposes the authoritative port list, while the control plane already knows how to resolve workspace service DNS names inside the cluster network. Reusing those two surfaces keeps the preview gateway smaller, avoids inventing a second proxy hop inside the agent, and stays compatible with the existing Cloud Run to GKE private-routing model.

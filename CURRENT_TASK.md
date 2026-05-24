@@ -1,31 +1,31 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.7 → Feature 7.1 (Port Forward Gateway) → Task 7.1.2
+v0.7 → Feature 7.1 (Port Forward Gateway) → Task 7.1.3
 
 ## Status
 IN PROGRESS
 
 ## What was done last session
-Completed Task 5.2.3 by wiring `CortadoAIService` into `CortadoCodeEditor`, adding CodeMirror ghost-text decorations plus inline completion debounce/cancel key handling in the web bridge, exposing inline completion interop through the editor platform adapters, trimming echoed prefix overlap before ghost rendering, and covering the integration with Flutter widget tests plus JS-side helper tests/build verification.
+Completed Task 7.1.2 by adding the dedicated `cortado-portforward` Cloud Run gateway binary and Dockerfile, validating workspace ownership plus detected port exposure before forwarding, splitting plain HTTP reverse-proxy handling from raw WebSocket hijack/tunnel handling, wiring a workspace agent `ListPorts` client into the control plane, and extending the Terraform Cloud Run module plus both env stacks with the port-forward service deployment path and URI outputs.
 
 ## What was done this session
-Completed Task 7.1.1 by extending the agent proto with `ListPorts` and `WatchPorts`, adding a procfs-backed port monitor that parses `/proc/net/tcp` and `/proc/net/tcp6`, filtering out reserved and privileged ports, wiring the new list/watch RPCs into the agent server with polling-based add/remove diffs, and covering the slice with parser tests plus bufconn agent server tests.
+Verified the new gateway slice with control-plane tests/builds and Terraform validation for both `dev` and `prod`, then advanced the tracker to the Flutter preview integration work.
 
 ## Remaining work this session
-Task 7.1.2:
-- add the dedicated port-forward HTTP and WebSocket gateway service
-- proxy validated workspace traffic onto detected workspace ports
-- wire the gateway deployment/runtime path into Terraform and the Cloud Run/GKE topology
+Task 7.1.3:
+- add a Flutter "Run Preview" flow that drives `flutter build web`
+- detect the preview server port through the port-watch surface and expose an "Open Preview" action
+- embed the preview inside an `IFrame` using the port-forward gateway URL and any gateway headers needed for framing
 
 ## Definition of done
-- [ ] dedicated gateway service can proxy HTTP traffic to workspace ports after validating workspace/port requests
-- [ ] WebSocket upgrade traffic is tunneled separately from plain HTTP forwarding
-- [ ] Terraform/runtime wiring exists for the port-forward service deployment path
-- [ ] relevant control-plane or gateway tests/build pass for the new slice
+- [ ] Flutter package can trigger a preview build/start flow for a workspace
+- [ ] preview readiness is derived from the workspace port watch/list surface
+- [ ] embedded preview uses the port-forward gateway URL shape expected by the backend
+- [ ] relevant Flutter tests/analyze pass for the preview slice
 
 ## Next task after this one
-v0.7 → Feature 7.1 → Task 7.1.3 — Flutter web preview
+Hold after Feature 7.1 completes; do not advance to v0.8 without explicit instruction.
 See _dev/features/feat-7-1.md for the active Feature 7.1 spec
 
 ## Blocked on / decisions needed

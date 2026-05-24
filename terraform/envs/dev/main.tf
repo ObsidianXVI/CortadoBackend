@@ -111,6 +111,7 @@ module "cloudrun" {
   env                                   = var.env
   image_tag                             = var.control_plane_image_tag
   indexer_updater_image_tag             = var.indexer_updater_image_tag
+  portforward_image_tag                 = var.portforward_image_tag
   indexer_updater_service_account_email = module.iam.indexer_updater_service_account_email
   jwt_private_key_secret_id             = module.secrets.jwt_private_key_secret_id
   labels                                = local.common_labels

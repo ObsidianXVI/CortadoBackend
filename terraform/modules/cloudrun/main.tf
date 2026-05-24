@@ -13,6 +13,13 @@ locals {
     var.repository_id,
     var.indexer_updater_image_tag,
   )
+  portforward_image_url = format(
+    "%s-docker.pkg.dev/%s/%s/cortado-portforward:%s",
+    var.region,
+    var.project_id,
+    var.repository_id,
+    var.portforward_image_tag,
+  )
   indexer_updater_qdrant_url_template = format(
     "http://{workspace_id}.%s.svc.%s:6333",
     var.workspace_namespace,
@@ -153,6 +160,89 @@ resource "google_cloud_run_v2_service" "control_plane" {
 resource "google_cloud_run_v2_service_iam_member" "public" {
   location = google_cloud_run_v2_service.control_plane.location
   name     = google_cloud_run_v2_service.control_plane.name
+  project  = var.project_id
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service" "portforward" {
+  name                = "cortado-portforward-${var.env}"
+  location            = var.region
+  deletion_protection = false
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  labels              = var.labels
+
+  template {
+    labels          = var.labels
+    service_account = var.service_account_email
+
+    containers {
+      image = local.portforward_image_url
+
+      ports {
+        container_port = 8080
+      }
+
+      env {
+        name  = "CORTADO_AUTH_API_KEYS_COLLECTION"
+        value = "api_keys"
+      }
+
+      env {
+        name  = "CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"
+        value = "refresh_tokens"
+      }
+
+      env {
+        name  = "CORTADO_CLUSTER_DNS_DOMAIN"
+        value = var.cluster_dns_domain
+      }
+
+      env {
+        name  = "CORTADO_ENV"
+        value = var.env == "dev" ? "development" : "production"
+      }
+
+      env {
+        name  = "CORTADO_FIRESTORE_COLLECTION"
+        value = "workspaces"
+      }
+
+      env {
+        name = "CORTADO_JWT_PRIVATE_KEY_PEM"
+        value_source {
+          secret_key_ref {
+            secret  = var.jwt_private_key_secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name  = "CORTADO_WORKSPACE_NAMESPACE"
+        value = var.workspace_namespace
+      }
+
+      env {
+        name  = "GCP_PROJECT"
+        value = var.project_id
+      }
+    }
+
+    vpc_access {
+      egress = "PRIVATE_RANGES_ONLY"
+
+      network_interfaces {
+        network    = var.network_name
+        subnetwork = var.subnetwork_name
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "portforward_public" {
+  location = google_cloud_run_v2_service.portforward.location
+  name     = google_cloud_run_v2_service.portforward.name
   project  = var.project_id
   role     = "roles/run.invoker"
   member   = "allUsers"

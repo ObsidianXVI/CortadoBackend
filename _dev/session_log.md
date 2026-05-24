@@ -751,3 +751,16 @@
 - A daemon/internal/app/mux.go
 - M daemon/internal/app/server.go
 - M daemon/internal/filesync/engine.go
+24/05/26 05:03 [FEAT] (pending) `dev-pro-large` Completed Task 7.1.2 by adding a dedicated `cortado-portforward` Cloud Run gateway binary and Terraform deployment path, validating workspace ownership and agent-reported port exposure before forwarding, splitting HTTP reverse proxying from raw WebSocket hijack/tunnel handling, and advancing the tracker to the Flutter preview task with the routing model documented against the feature spec.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/features/feat-7-1.md
+- A control-plane/cmd/portforward/main.go
+- A control-plane/Dockerfile.portforward
+- A control-plane/internal/portforward/handler.go
+- A control-plane/internal/portforward/router.go
+- A control-plane/internal/workspace/agent_port_client.go
+- M terraform/envs/dev/main.tf
+- M terraform/envs/prod/main.tf
+- M terraform/modules/cloudrun/main.tf

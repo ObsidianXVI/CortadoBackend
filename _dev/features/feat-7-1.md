@@ -19,7 +19,7 @@
   }
   ```
 - URL pattern: `https://portforward.cortado.dev/{workspaceId}/{port}/{path...}`.
-- Validates JWT (same middleware as control plane), resolves pod DNS, proxies via workspace agent's port-proxy endpoint.
+- Validates JWT (same middleware as control plane), verifies the requested port through the workspace agent, resolves workspace service DNS, and proxies directly to the detected workspace port.
 - WebSocket proxy: use `http.Hijack()` to get the raw TCP connection for WS tunneling.
 - Wildcard TLS cert for `*.portforward.cortado.dev` via cert-manager + Let's Encrypt (Terraform `null_resource` to install cert-manager, then a `Certificate` CRD if using GKE Ingress).
 

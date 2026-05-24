@@ -238,6 +238,13 @@
 24/05/26 00:02
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+24/05/26 05:03
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`
 24/05/26 04:37
 - PASS `cd daemon && go test ./...`
 - PASS `cd daemon && CGO_ENABLED=0 go build ./...`

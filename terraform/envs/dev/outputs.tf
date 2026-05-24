@@ -43,6 +43,11 @@ output "indexer_updater_service_uri" {
   value       = module.cloudrun.indexer_updater_service_uri
 }
 
+output "portforward_service_uri" {
+  description = "Public URI of the portforward Cloud Run service for the dev environment."
+  value       = module.cloudrun.portforward_service_uri
+}
+
 output "workspace_agent_service_account_email" {
   description = "Workspace agent service account email for the dev environment."
   value       = module.iam.workspace_agent_service_account_email

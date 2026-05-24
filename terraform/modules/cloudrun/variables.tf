@@ -33,6 +33,11 @@ variable "indexer_updater_image_tag" {
   type        = string
 }
 
+variable "portforward_image_tag" {
+  description = "Artifact Registry image tag for the portforward service."
+  type        = string
+}
+
 variable "indexer_updater_service_account_email" {
   description = "Service account email the indexer-updater Cloud Run service runs as."
   type        = string
