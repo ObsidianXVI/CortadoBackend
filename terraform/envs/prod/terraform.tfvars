@@ -1,6 +1,7 @@
 cluster_dns_domain         = "cortado-prod.internal"
 control_plane_image_tag    = "pending"
 env                        = "prod"
+indexer_updater_image_tag  = "pending"
 network_name               = "default"
 project_id                 = "cortado-ide"
 region                     = "us-central1"

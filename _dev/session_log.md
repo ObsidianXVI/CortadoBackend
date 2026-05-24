@@ -609,3 +609,26 @@
 - A indexer/src/cortado_indexer/embedding.py
 - A indexer/src/cortado_indexer/qdrant.py
 - M terraform/k8s/workspace-pod-test.yaml
+24/05/26 03:06 [FEAT] (pending) `dev-pro-large` Completed Task 5.1.3 by adding reusable Qdrant collection/upsert/delete helpers, a scaffolded Cloud Run updater ingestion path with 5-second per-workspace batching and injectable incremental processing, workspace-relative chunk metadata for root indexing, and Terraform wiring for the new updater service account plus file-change Pub/Sub resources before advancing the tracker to Task 5.2.1.
+- M indexer/src/cortado_indexer/cli.py
+- M indexer/src/cortado_indexer/qdrant.py
+- A indexer/src/cortado_indexer/updater.py
+- A indexer/src/cortado_indexer/updater_server.py
+- M indexer/README.md
+- M terraform/modules/cloudrun/main.tf
+- M terraform/modules/cloudrun/variables.tf
+- M terraform/modules/cloudrun/outputs.tf
+- M terraform/modules/iam/main.tf
+- M terraform/modules/iam/outputs.tf
+- A terraform/modules/file_changes/main.tf
+- A terraform/modules/file_changes/variables.tf
+- A terraform/modules/file_changes/outputs.tf
+- A terraform/modules/file_changes/versions.tf
+- M terraform/envs/dev/main.tf
+- M terraform/envs/dev/outputs.tf
+- M terraform/envs/dev/terraform.tfvars
+- M terraform/envs/dev/variables.tf
+- M terraform/envs/prod/main.tf
+- M terraform/envs/prod/outputs.tf
+- M terraform/envs/prod/terraform.tfvars
+- M terraform/envs/prod/variables.tf

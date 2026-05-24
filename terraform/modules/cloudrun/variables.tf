@@ -23,6 +23,16 @@ variable "image_tag" {
   type        = string
 }
 
+variable "indexer_updater_image_tag" {
+  description = "Artifact Registry image tag for the indexer-updater service."
+  type        = string
+}
+
+variable "indexer_updater_service_account_email" {
+  description = "Service account email the indexer-updater Cloud Run service runs as."
+  type        = string
+}
+
 variable "jwt_private_key_secret_id" {
   description = "Secret Manager secret ID containing the JWT private key PEM."
   type        = string

@@ -8,6 +8,11 @@ variable "control_plane_image_tag" {
   type        = string
 }
 
+variable "indexer_updater_image_tag" {
+  description = "Artifact Registry image tag for the indexer-updater service."
+  type        = string
+}
+
 variable "cluster_dns_domain" {
   description = "Additive VPC scope DNS domain used for headless Service discovery from Cloud Run."
   type        = string

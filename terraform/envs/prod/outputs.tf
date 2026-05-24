@@ -23,6 +23,26 @@ output "control_plane_service_account_email" {
   value       = module.iam.control_plane_service_account_email
 }
 
+output "file_changes_subscription_name" {
+  description = "Pub/Sub subscription name for workspace file changes in the prod environment."
+  value       = module.file_changes.indexer_updater_subscription_name
+}
+
+output "file_changes_topic_name" {
+  description = "Pub/Sub topic name for workspace file changes in the prod environment."
+  value       = module.file_changes.file_changes_topic_name
+}
+
+output "indexer_updater_service_account_email" {
+  description = "Indexer-updater service account email for the prod environment."
+  value       = module.iam.indexer_updater_service_account_email
+}
+
+output "indexer_updater_service_uri" {
+  description = "Public URI of the indexer-updater Cloud Run service for the prod environment."
+  value       = module.cloudrun.indexer_updater_service_uri
+}
+
 output "workspace_agent_service_account_email" {
   description = "Workspace agent service account email for the prod environment."
   value       = module.iam.workspace_agent_service_account_email

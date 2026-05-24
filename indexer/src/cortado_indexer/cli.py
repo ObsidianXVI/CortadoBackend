@@ -41,20 +41,30 @@ def iter_source_files(root: Path) -> list[Path]:
     )
 
 
+def build_targets(root: Path | None, files: list[Path]) -> list[tuple[Path, str]]:
+    targets = [(path, str(path)) for path in files]
+    if root is None:
+        return targets
+
+    root = root.resolve()
+    targets.extend(
+        (path, path.resolve().relative_to(root).as_posix()) for path in iter_source_files(root)
+    )
+    return targets
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    files = list(args.file)
-    if args.root is not None:
-        files.extend(iter_source_files(args.root))
+    targets = build_targets(args.root, list(args.file))
 
-    if not files:
+    if not targets:
         parser.error("pass --root or at least one --file")
 
-    for path in files:
+    for path, logical_path in targets:
         source = path.read_text(encoding="utf-8")
-        chunks = chunk_file(source, str(path))
+        chunks = chunk_file(source, logical_path)
         if args.embed:
             from .embedding import VertexAIEmbedder, embed_chunks_in_batches
 

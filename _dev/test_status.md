@@ -299,3 +299,12 @@
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 - PASS `cd flutter && flutter test test/workspace_manager_test.dart test/cortado_code_editor_test.dart test/cortado_file_tree_test.dart`
 - PASS `cd flutter && flutter analyze`
+24/05/26 03:06
+- PASS `cd indexer && python3 -m unittest discover -s tests`
+- PASS `docker build -t cortado-indexer:test indexer`
+- PASS `docker run --rm --entrypoint python cortado-indexer:test -c "import cortado_indexer.updater_server, cortado_indexer.updater, cortado_indexer.qdrant; print('ok')"`
+- PASS `terraform fmt -recursive terraform`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`

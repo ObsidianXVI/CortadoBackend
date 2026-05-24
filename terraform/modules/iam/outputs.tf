@@ -32,3 +32,18 @@ output "control_plane_project_roles" {
   description = "Project IAM roles granted to the control-plane service account."
   value       = [for binding in google_project_iam_member.control_plane_project_roles : binding.role]
 }
+
+output "indexer_updater_service_account_email" {
+  description = "Email address of the indexer-updater service account."
+  value       = google_service_account.indexer_updater.email
+}
+
+output "indexer_updater_service_account_member" {
+  description = "IAM member string for the indexer-updater service account."
+  value       = "serviceAccount:${google_service_account.indexer_updater.email}"
+}
+
+output "indexer_updater_service_account_name" {
+  description = "Fully-qualified name of the indexer-updater service account."
+  value       = google_service_account.indexer_updater.name
+}

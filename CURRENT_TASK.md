@@ -1,34 +1,34 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.5 → Feature 5.1 (Codebase Indexing Pipeline) → Task 5.1.3
+v0.5 → Feature 5.2 (Inline AI Completion) → Task 5.2.1
 
 ## Status
 IN PROGRESS
 
 ## What was done last session
-Completed Task 5.1.1 by wiring parser-backed semantic chunk extraction for Python, JavaScript, and Go, pinning the corresponding grammar wheels in `indexer/pyproject.toml`, and keeping Dart on the existing fallback chunker path for the first shipping cut.
+Completed Task 5.1.3 by adding a reusable Qdrant HTTP client for collection creation, point upserts, and file-path deletes; scaffolding the `cortado-indexer-updater` HTTP ingestion surface with a per-workspace 5-second batcher and injectable incremental processor; normalizing root-indexed chunk metadata to workspace-relative paths; and wiring the new updater Cloud Run service account plus `cortado-file-changes` Pub/Sub topic/subscription through Terraform for both environments.
 
 ## What was done this session
-Completed Task 5.1.2 by selecting Vertex AI as the first embedding provider, adding a batched `text-embedding-004` embedding client to the Python indexer scaffold, extending the CLI with `--embed`, recording the `ws-{workspaceID}` collection naming contract, and injecting the Qdrant sidecar plus persistent subpath mount into workspace pod creation and the workspace test manifest. The Python side verifies both as a source checkout and as an installed package, and the control-plane workspace pod package continues to build and test cleanly after the sidecar change.
+Started Task 5.2.1 by reviewing the inline-completion spec, confirming the next control-plane surface is `POST /v1/workspaces/{id}/ai/complete`, and identifying the three immediate implementation seams: Secret Manager-backed AI provider credentials, a control-plane context builder that combines prefix/suffix with Qdrant retrieval, and SSE token streaming back to the Flutter client.
 
 ## Remaining work this session
-Start Task 5.1.3:
-- add the first reusable Qdrant HTTP client code for collection creation, upsert, and delete-by-file-path operations
-- scaffold the `cortado-file-changes` Pub/Sub topic/subscription resources and the updater service surface
-- define the debounce batching path for per-workspace file change events before wiring control-plane triggers
+Task 5.2.1:
+- add the control-plane `POST /v1/workspaces/{id}/ai/complete` endpoint and request/response model
+- build the completion context assembler with prefix/suffix extraction plus top-3 Qdrant retrieval hooks
+- add Secret Manager and runtime config plumbing so the AI provider key stays server-side only
+- stream provider tokens back as SSE without buffering the full completion first
 
 ## Definition of done
-- [x] Vertex AI is selected as the initial embedding provider path
-- [x] the Python indexer can emit Vertex-backed embeddings in batch mode
-- [x] the workspace pod spec includes the Qdrant sidecar and persistent storage subpath mount
-- [x] the `ws-{workspaceID}` collection naming and 768-dimension contract are recorded in code/docs
-- [x] indexer and control-plane verification passed for the task changes
-- [x] any new infrastructure or service decisions are recorded if needed
+- [ ] the control plane exposes `POST /v1/workspaces/{id}/ai/complete`
+- [ ] completion requests assemble prefix/suffix context plus top-3 Qdrant matches
+- [ ] the provider call streams tokens through the control plane as SSE
+- [ ] the AI API key remains scoped to Secret Manager / control-plane runtime only
+- [ ] control-plane tests and relevant infrastructure/config verification pass for the task changes
 
 ## Next task after this one
-Task 5.1.3 — Incremental index updates via Pub/Sub
-See _dev/features/feat-5-1.md for the active Feature 5.1 spec
+Task 5.2.2 — Streaming completion in Dart
+See _dev/features/feat-5-2.md for the active Feature 5.2 spec
 
 ## Blocked on / decisions needed
 None currently recorded.
