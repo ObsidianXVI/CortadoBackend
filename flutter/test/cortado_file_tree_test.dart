@@ -3,9 +3,11 @@ import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:cortado/cortado.dart';
+import 'package:cortado/src/editor/editor_diagnostics.dart';
 import 'package:cortado/src/gen/agent/v1/agent.pbenum.dart' as agentpbenum;
 import 'package:cortado/src/gen/agent/v1/agent.pb.dart' as agentpb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -364,6 +366,72 @@ void main() {
 
       expect(manager.deleteRequests, const <String>['ws-123:/README.md']);
       expect(find.text('README.md'), findsNothing);
+    });
+
+    testWidgets('renders file diagnostic dots from workspace diagnostics state',
+        (tester) async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 23, 22),
+                permissions: 493,
+              ),
+            ],
+          ],
+          '/lib': <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 32,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 23, 22, 5),
+                permissions: 420,
+              ),
+            ],
+          ],
+        },
+      );
+      final client = _FakeCortadoClient();
+
+      await tester.pumpWidget(
+        _wrapTree(
+          client: client,
+          manager: manager,
+          child: CortadoFileTree(client: client),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('lib'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CortadoFileTree)),
+      );
+      container.read(cortadoWorkspaceDiagnosticStatusProvider.notifier).state =
+          <String, CortadoFileDiagnosticStatus>{
+        '/lib/main.dart': CortadoFileDiagnosticStatus.warning,
+      };
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('file-tree-diagnostic-dot:/lib/main.dart')),
+        findsOneWidget,
+      );
+
+      container.read(cortadoWorkspaceDiagnosticStatusProvider.notifier).state =
+          const <String, CortadoFileDiagnosticStatus>{};
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('file-tree-diagnostic-dot:/lib/main.dart')),
+        findsNothing,
+      );
     });
   });
 }

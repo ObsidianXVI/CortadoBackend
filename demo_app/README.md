@@ -66,3 +66,22 @@ Feature 1.4.
   _cortadoLSPRequest({ editorId: string, requestId: number, position: { line: number; character: number }, lineText?: string, prefix?: string })
 - Dart returns via: _cortadoLSPResult(requestId: number, items: Completion[])
   where Completion is a CodeMirror 6 completion entry.
+#### Diagnostics bridge (Task 4.2.3)
+
+- Replace diagnostics for an editor via:
+
+      window.CortadoEditor.setDiagnostics(editorId, [
+        // Either absolute offsets…
+        { from: 10, to: 15, severity: 'error', message: 'Example', source: 'lsp' },
+        // …or LSP-style ranges (0-based lines/characters)
+        {
+          range: { start: { line: 3, character: 5 }, end: { line: 3, character: 12 } },
+          severity: 2, // 1..4 -> error, warning, info, hint
+          message: 'Oops',
+          source: 'lsp',
+        },
+      ]);
+
+- Implementation uses CodeMirror setDiagnostics and lintGutter(); calling with
+  an empty array clears previous diagnostics. This API replaces diagnostics
+  rather than appending.

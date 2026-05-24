@@ -10,6 +10,7 @@ import '../filesystem/vfs_notifier.dart';
 import '../gen/agent/v1/agent.pb.dart' as agentpb;
 import '../mux_frame.dart';
 import '../workspace_manager.dart';
+import 'editor_diagnostics.dart';
 import 'cortado_lsp_client.dart';
 import 'editor_models.dart';
 import 'editor_platform.dart';
@@ -69,6 +70,13 @@ class CortadoCodeEditorPlatformAdapter {
     resolveCortadoEditorLspResult(requestId, items);
   }
 
+  void setDiagnostics(
+    String editorId,
+    List<Map<String, Object?>> diagnostics,
+  ) {
+    setCortadoEditorDiagnostics(editorId, diagnostics);
+  }
+
   void setLanguage(String editorId, String languageId) {
     setCortadoEditorLanguage(editorId, languageId);
   }
@@ -124,18 +132,27 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   late final String _editorId = 'cortado-editor-${_instanceCount++}';
   late final String _viewType = 'cortado-editor-view-$_editorId';
   late final TabsNotifier _tabsNotifier = TabsNotifier(maxTabs: widget.maxTabs);
+  late final StateController<Map<String, CortadoFileDiagnosticStatus>>
+      _diagnosticStatusController;
   late final void Function() _removeTabsListener =
       _tabsNotifier.addListener(_handleTabsChanged, fireImmediately: false);
 
   final Map<String, int> _loadVersions = <String, int>{};
 
   StreamSubscription<agentpb.FileEvent>? _fileEventSubscription;
+  StreamSubscription<CortadoLSPDiagnosticsByUri>? _lspDiagnosticsSubscription;
   StreamSubscription<void>? _lspStateSubscription;
+  CortadoLSPDiagnosticsByUri _diagnosticsByUri =
+      const <String, List<CortadoLSPDiagnostic>>{};
+  Map<String, CortadoFileDiagnosticStatus> _diagnosticStatusesByPath =
+      const <String, CortadoFileDiagnosticStatus>{};
   CortadoLSPClient? _lspClient;
 
   @override
   void initState() {
     super.initState();
+    _diagnosticStatusController =
+        ref.read(cortadoWorkspaceDiagnosticStatusProvider.notifier);
     if (widget.platform.supportsPlatformView) {
       widget.platform.registerViewFactory(
         viewType: _viewType,
@@ -183,7 +200,12 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   @override
   void dispose() {
     _fileEventSubscription?.cancel();
+    _lspDiagnosticsSubscription?.cancel();
     _lspStateSubscription?.cancel();
+    _publishDiagnosticStatuses(
+      const <String, CortadoFileDiagnosticStatus>{},
+    );
+    widget.platform.setDiagnostics(_editorId, const <Map<String, Object?>>[]);
     unawaited(_lspClient?.dispose());
     _removeTabsListener();
     _tabsNotifier.dispose();
@@ -213,6 +235,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
           children: <Widget>[
             _EditorTabStrip(
               activePath: state.activePath,
+              diagnosticStatusesByPath: _diagnosticStatusesByPath,
               tabs: state.tabs,
               onClose: _closeTab,
               onSelect: _activateTab,
@@ -262,6 +285,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     if (!mounted) {
       return;
     }
+    _syncPlatformDiagnostics();
     setState(() {});
     widget.onTabChanged?.call(next.activeTab);
   }
@@ -538,8 +562,15 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       widget.workspaceId ?? ref.read(cortadoWorkspaceIdProvider);
 
   void _configureLspClient() {
+    _lspDiagnosticsSubscription?.cancel();
+    _lspDiagnosticsSubscription = null;
     _lspStateSubscription?.cancel();
     _lspStateSubscription = null;
+    _diagnosticsByUri = const <String, List<CortadoLSPDiagnostic>>{};
+    _publishDiagnosticStatuses(
+      const <String, CortadoFileDiagnosticStatus>{},
+    );
+    widget.platform.setDiagnostics(_editorId, const <Map<String, Object?>>[]);
     unawaited(_lspClient?.dispose());
     _lspClient = null;
 
@@ -562,6 +593,8 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
         setState(() {});
       }
     });
+    _lspDiagnosticsSubscription =
+        lspClient.diagnosticsStream.listen(_handleDiagnosticsChanged);
 
     _resyncOpenTabsWithLsp(lspClient);
   }
@@ -590,6 +623,38 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
 
   bool _shouldUseLspForTab(OpenTab tab) =>
       tab.languageId == widget.lspLanguage && _lspClient != null;
+
+  void _handleDiagnosticsChanged(CortadoLSPDiagnosticsByUri diagnosticsByUri) {
+    _diagnosticsByUri = diagnosticsByUri;
+    _publishDiagnosticStatuses(
+      summarizeWorkspaceDiagnosticStatuses(diagnosticsByUri),
+    );
+    _syncPlatformDiagnostics();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _publishDiagnosticStatuses(
+    Map<String, CortadoFileDiagnosticStatus> statuses,
+  ) {
+    _diagnosticStatusesByPath = statuses;
+    _diagnosticStatusController.state = statuses;
+  }
+
+  void _syncPlatformDiagnostics() {
+    final activeTab = _tabsNotifier.currentState.activeTab;
+    if (activeTab == null || !_shouldUseLspForTab(activeTab)) {
+      widget.platform.setDiagnostics(_editorId, const <Map<String, Object?>>[]);
+      return;
+    }
+
+    widget.platform.setDiagnostics(
+      _editorId,
+      _diagnosticsByUri[workspaceDocumentUriForPath(activeTab.path)] ??
+          const <Map<String, Object?>>[],
+    );
+  }
 
   void _syncLoadedTabWithLsp(
     OpenTab tab,
@@ -681,7 +746,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       'textDocument/completion',
       params: <String, Object?>{
         'textDocument': <String, Object?>{
-          'uri': _workspaceDocumentUri(activeTab.path),
+          'uri': workspaceDocumentUriForPath(activeTab.path),
         },
         'position': <String, Object?>{
           'line': line,
@@ -777,22 +842,19 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       _ => null,
     };
   }
-
-  String _workspaceDocumentUri(String path) => Uri(
-        scheme: 'file',
-        path: '/workspace${normalizeVfsPath(path)}',
-      ).toString();
 }
 
 class _EditorTabStrip extends StatelessWidget {
   const _EditorTabStrip({
     required this.activePath,
+    required this.diagnosticStatusesByPath,
     required this.tabs,
     required this.onClose,
     required this.onSelect,
   });
 
   final String? activePath;
+  final Map<String, CortadoFileDiagnosticStatus> diagnosticStatusesByPath;
   final List<OpenTab> tabs;
   final Future<void> Function(String path) onClose;
   final Future<void> Function(String path) onSelect;
@@ -813,6 +875,8 @@ class _EditorTabStrip extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final tab = tabs[index];
+          final diagnosticStatus = diagnosticStatusesByPath[tab.path] ??
+              CortadoFileDiagnosticStatus.none;
           final selected = tab.path == activePath;
           return InkWell(
             borderRadius: BorderRadius.circular(10),
@@ -833,6 +897,14 @@ class _EditorTabStrip extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  if (diagnosticStatus != CortadoFileDiagnosticStatus.none)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _DiagnosticStatusDot(
+                        key: ValueKey('editor-diagnostic-dot:${tab.path}'),
+                        status: diagnosticStatus,
+                      ),
+                    ),
                   if (tab.isDirty)
                     const Padding(
                       padding: EdgeInsets.only(right: 8),
@@ -880,6 +952,32 @@ class _DirtyDot extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: SizedBox(width: 8, height: 8),
+    );
+  }
+}
+
+class _DiagnosticStatusDot extends StatelessWidget {
+  const _DiagnosticStatusDot({
+    required this.status,
+    super.key,
+  });
+
+  final CortadoFileDiagnosticStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      CortadoFileDiagnosticStatus.error => const Color(0xFFEF4444),
+      CortadoFileDiagnosticStatus.warning => const Color(0xFFF59E0B),
+      CortadoFileDiagnosticStatus.none => Colors.transparent,
+    };
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      child: const SizedBox(width: 8, height: 8),
     );
   }
 }

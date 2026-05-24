@@ -555,3 +555,13 @@
 24/05/26 01:24 [FIX] (pending) `dev-pro-large` Captured the remaining VM bootstrap script fixes by making the initial setup script self-reexec under Bash and hardening the VM startup script environment/login/version-check flow so the local Codex bootstrap and tool checks behave consistently for SSH users.
 - M scripts/initial_setup.sh
 - M scripts/vm_startup_script.sh
+24/05/26 01:32 [FEAT] (pending) `dev-pro-large` Completed Task 4.2.3 by pushing LSP diagnostics through the shared editor/file-tree state, adding a CodeMirror lint bridge API for replacing diagnostics, surfacing warning/error dots for open files, and extending focused Flutter plus web-side verification before advancing the tracker to Task 4.2.4.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M demo_app/web/editor-src/cortado_editor.ts
+- M demo_app/web/cortado_editor.js
+- A flutter/lib/src/editor/editor_diagnostics.dart
+- M flutter/lib/src/editor/cortado_code_editor.dart
+- M flutter/lib/src/editor/editor_platform_stub.dart
+- M flutter/lib/src/editor/web/editor_platform_web.dart
+- M flutter/lib/src/filesystem/cortado_file_tree.dart

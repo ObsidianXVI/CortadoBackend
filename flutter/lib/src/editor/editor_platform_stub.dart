@@ -46,3 +46,8 @@ void resolveCortadoEditorLspResult(
   int requestId,
   List<Map<String, Object?>> items,
 ) {}
+
+void setCortadoEditorDiagnostics(
+  String editorId,
+  List<Map<String, Object?>> diagnostics,
+) {}

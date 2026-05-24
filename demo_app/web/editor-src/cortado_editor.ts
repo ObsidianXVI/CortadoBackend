@@ -28,7 +28,12 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from '@codemirror/language';
-import {lintKeymap} from '@codemirror/lint';
+import {
+  lintKeymap,
+  lintGutter,
+  setDiagnostics,
+  type Diagnostic,
+} from '@codemirror/lint';
 import {highlightSelectionMatches, searchKeymap} from '@codemirror/search';
 import {javascript} from '@codemirror/lang-javascript';
 import {json} from '@codemirror/lang-json';
@@ -47,6 +52,8 @@ const editorBaseExtensions: Extension[] = [
   highlightSpecialChars(),
   history(),
   foldGutter(),
+  // Show lint markers in the gutter and enable underline/highlight styles.
+  lintGutter(),
   drawSelection(),
   dropCursor(),
   EditorState.allowMultipleSelections.of(true),
@@ -90,6 +97,20 @@ interface EditorEntry {
   // Compartment to (re)configure completion source.
   completionCompartment: Compartment;
 }
+
+// Shape accepted from the host (Dart) for diagnostics. Supports either
+// absolute character offsets (from/to) or LSP-style ranges.
+type HostDiagnostic = {
+  from?: number;
+  to?: number;
+  range?: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  severity?: 'error' | 'warning' | 'info' | 'hint' | 1 | 2 | 3 | 4;
+  message: string;
+  source?: string;
+};
 
 function langFrom(nameOrFile?: string): Extension | null {
   if (!nameOrFile) return null;
@@ -270,6 +291,60 @@ const CortadoEditor = {
     if (!entry) return;
     entry.view.destroy();
     this._editors.delete(id);
+  },
+
+  // Replace diagnostics for an editor. Accepts either absolute offsets or
+  // LSP-style line/character ranges. Passing an empty array clears diagnostics.
+  setDiagnostics(id: string, diagnostics: HostDiagnostic[] | null | undefined) {
+    const entry = this._editors.get(id);
+    if (!entry) return;
+    const view = entry.view;
+    const docLen = view.state.doc.length;
+
+    const offsetAt = (lineZeroBased: number, ch: number): number => {
+      // Clamp inputs conservatively; CodeMirror lines are 1-based.
+      const line = Math.max(0, lineZeroBased | 0);
+      const lineObj = view.state.doc.line(Math.min(line + 1, view.state.doc.lines));
+      const col = Math.max(0, ch | 0);
+      return Math.min(lineObj.from + col, docLen);
+    };
+
+    const mapSeverity = (
+      sev: HostDiagnostic['severity'],
+    ): Diagnostic['severity'] | undefined => {
+      if (sev === 1 || sev === 'error') return 'error';
+      if (sev === 2 || sev === 'warning') return 'warning';
+      if (sev === 3 || sev === 'info') return 'info';
+      if (sev === 4 || sev === 'hint') return 'hint';
+      return undefined;
+    };
+
+    const toCM = (d: HostDiagnostic): Diagnostic | null => {
+      let from = typeof d.from === 'number' ? d.from : undefined;
+      let to = typeof d.to === 'number' ? d.to : undefined;
+      if ((from == null || to == null) && d.range) {
+        from = offsetAt(d.range.start.line, d.range.start.character);
+        to = offsetAt(d.range.end.line, d.range.end.character);
+      }
+      if (from == null || to == null) return null;
+      // Normalize/clamp.
+      from = Math.max(0, Math.min(from | 0, docLen));
+      to = Math.max(from, Math.min(to | 0, docLen));
+      if (!d.message) return null;
+      return {
+        from,
+        to,
+        message: d.message,
+        severity: mapSeverity(d.severity) ?? 'error',
+        source: d.source,
+      };
+    };
+
+    const cmDiags: Diagnostic[] = (diagnostics ?? [])
+      .map(toCM)
+      .filter((x): x is Diagnostic => !!x);
+
+    setDiagnostics(view, cmDiags);
   },
 
   // Create a completion source bound to an editor id.

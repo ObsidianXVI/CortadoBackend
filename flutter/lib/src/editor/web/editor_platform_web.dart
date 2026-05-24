@@ -39,6 +39,9 @@ external void _editorSetLanguage(JSString editorId, JSString languageId);
 @JS('CortadoEditor.dispose')
 external void _editorDispose(JSString editorId);
 
+@JS('CortadoEditor.setDiagnostics')
+external void _editorSetDiagnostics(JSString editorId, JSAny diagnostics);
+
 @JS('window._cortadoLSPRequest')
 external set _editorLspRequestHandler(JSFunction? handler);
 
@@ -158,5 +161,15 @@ void resolveCortadoEditorLspResult(
   _editorLspResult(
     requestId.toJS,
     _jsonParse(jsonEncode(items).toJS),
+  );
+}
+
+void setCortadoEditorDiagnostics(
+  String editorId,
+  List<Map<String, Object?>> diagnostics,
+) {
+  _editorSetDiagnostics(
+    editorId.toJS,
+    _jsonParse(jsonEncode(diagnostics).toJS),
   );
 }

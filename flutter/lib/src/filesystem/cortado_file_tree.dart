@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../cortado_client.dart';
 import '../cortado_workspace_provider.dart';
+import '../editor/editor_diagnostics.dart';
 import '../gen/agent/v1/agent.pb.dart' as agentpb;
 import '../mux_frame.dart';
 import '../workspace_manager.dart';
@@ -99,6 +100,8 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   Widget build(BuildContext context) {
     final nodes =
         ref.watch(cortadoVfsProvider).value ?? const <String, VfsNode>{};
+    final diagnosticStatuses =
+        ref.watch(cortadoWorkspaceDiagnosticStatusProvider);
     final visibleNodes = _visibleNodes(
       nodes,
       rootPath: normalizeVfsPath(widget.rootPath),
@@ -134,6 +137,25 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
                 isDirectory: node is VfsDir,
                 label: _labelForNode(node),
                 labelWidget: _buildLabelWidget(node),
+                trailing: node is VfsDir
+                    ? null
+                    : switch (diagnosticStatuses[node.path] ??
+                        CortadoFileDiagnosticStatus.none) {
+                        CortadoFileDiagnosticStatus.error => _FileDiagnosticDot(
+                            key: ValueKey(
+                              'file-tree-diagnostic-dot:${node.path}',
+                            ),
+                            color: Color(0xFFEF4444),
+                          ),
+                        CortadoFileDiagnosticStatus.warning =>
+                          _FileDiagnosticDot(
+                            key: ValueKey(
+                              'file-tree-diagnostic-dot:${node.path}',
+                            ),
+                            color: Color(0xFFF59E0B),
+                          ),
+                        CortadoFileDiagnosticStatus.none => null,
+                      },
                 selected: selectedPath == node.path,
                 onLongPressStart: (details) =>
                     _showContextMenu(node, details.globalPosition),
@@ -686,6 +708,29 @@ class FileTreeRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FileDiagnosticDot extends StatelessWidget {
+  const _FileDiagnosticDot({
+    required this.color,
+    super.key,
+  });
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+        child: const SizedBox(width: 8, height: 8),
       ),
     );
   }

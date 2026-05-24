@@ -86,7 +86,8 @@ void main() {
       await lspClient.dispose();
     });
 
-    test('publishes diagnostics updates to listeners', () async {
+    test('replaces diagnostics for the same document on publishDiagnostics',
+        () async {
       final client = _FakeMuxClient();
       final lspClient = CortadoLSPClient(client: client);
       final diagnosticsUpdates = <CortadoLSPDiagnosticsByUri>[];
@@ -125,13 +126,31 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      expect(diagnosticsUpdates, hasLength(1));
+      client.emitJson(
+        channelId: muxLspChannelStartId,
+        payload: <String, Object?>{
+          'jsonrpc': '2.0',
+          'method': 'textDocument/publishDiagnostics',
+          'params': <String, Object?>{
+            'uri': 'file:///workspace/lib/main.dart',
+            'diagnostics': <Object?>[
+              <String, Object?>{
+                'message': 'Unused import.',
+                'severity': 2,
+              },
+            ],
+          },
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(diagnosticsUpdates, hasLength(2));
       expect(
-        diagnosticsUpdates.single['file:///workspace/lib/main.dart'],
+        diagnosticsUpdates.last['file:///workspace/lib/main.dart'],
         <Map<String, Object?>>[
           <String, Object?>{
-            'message': 'Missing semicolon.',
-            'severity': 1,
+            'message': 'Unused import.',
+            'severity': 2,
           },
         ],
       );

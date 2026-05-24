@@ -3,23 +3,23 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cortado/cortado.dart';
+import 'package:cortado/src/editor/editor_diagnostics.dart';
 import 'package:cortado/src/editor/editor_platform.dart';
 import 'package:cortado/src/gen/agent/v1/agent.pbenum.dart' as agentpbenum;
 import 'package:cortado/src/gen/agent/v1/agent.pb.dart' as agentpb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('renders a non-web fallback when HtmlElementView is unavailable',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: SizedBox.expand(
-          child: CortadoCodeEditor(
-            platform: _TestEditorPlatform(supportsPlatformView: false),
-            workspaceId: 'ws-123',
-            workspaceManager: _TestWorkspaceManager(),
-          ),
+      _wrapEditor(
+        CortadoCodeEditor(
+          platform: _TestEditorPlatform(supportsPlatformView: false),
+          workspaceId: 'ws-123',
+          workspaceManager: _TestWorkspaceManager(),
         ),
       ),
     );
@@ -42,15 +42,13 @@ void main() {
     final fileEvents = StreamController<agentpb.FileEvent>.broadcast();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: SizedBox.expand(
-          child: CortadoCodeEditor(
-            fileEvents: fileEvents.stream,
-            path: '/lib/main.dart',
-            platform: platform,
-            workspaceId: 'ws-123',
-            workspaceManager: manager,
-          ),
+      _wrapEditor(
+        CortadoCodeEditor(
+          fileEvents: fileEvents.stream,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
         ),
       ),
     );
@@ -99,15 +97,13 @@ void main() {
     final client = _TestMuxClient();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: SizedBox.expand(
-          child: CortadoCodeEditor(
-            client: client,
-            path: '/lib/main.dart',
-            platform: platform,
-            workspaceId: 'ws-123',
-            workspaceManager: manager,
-          ),
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
         ),
       ),
     );
@@ -165,15 +161,13 @@ void main() {
     final client = _TestMuxClient();
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: SizedBox.expand(
-          child: CortadoCodeEditor(
-            client: client,
-            path: '/lib/main.dart',
-            platform: platform,
-            workspaceId: 'ws-123',
-            workspaceManager: manager,
-          ),
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
         ),
       ),
     );
@@ -239,6 +233,149 @@ void main() {
       ],
     );
   });
+
+  testWidgets(
+      'publishes diagnostics to the active editor and workspace status state',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print("hello");',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'method': 'textDocument/publishDiagnostics',
+        'params': <String, Object?>{
+          'uri': 'file:///workspace/lib/main.dart',
+          'diagnostics': <Object?>[
+            <String, Object?>{
+              'message': 'Missing semicolon.',
+              'severity': 1,
+              'range': <String, Object?>{
+                'start': <String, Object?>{
+                  'line': 0,
+                  'character': 0,
+                },
+                'end': <String, Object?>{
+                  'line': 0,
+                  'character': 5,
+                },
+              },
+            },
+          ],
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastDiagnostics, hasLength(1));
+    expect(platform.lastDiagnostics.single['message'], 'Missing semicolon.');
+    expect(
+      find.byKey(const ValueKey('editor-diagnostic-dot:/lib/main.dart')),
+      findsOneWidget,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CortadoCodeEditor)),
+    );
+    expect(
+      container.read(cortadoWorkspaceDiagnosticStatusProvider),
+      <String, CortadoFileDiagnosticStatus>{
+        '/lib/main.dart': CortadoFileDiagnosticStatus.error,
+      },
+    );
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'method': 'textDocument/publishDiagnostics',
+        'params': <String, Object?>{
+          'uri': 'file:///workspace/lib/main.dart',
+          'diagnostics': <Object?>[
+            <String, Object?>{
+              'message': 'Unused import.',
+              'severity': 2,
+            },
+          ],
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastDiagnostics, hasLength(1));
+    expect(platform.lastDiagnostics.single['message'], 'Unused import.');
+    expect(
+      container.read(cortadoWorkspaceDiagnosticStatusProvider),
+      <String, CortadoFileDiagnosticStatus>{
+        '/lib/main.dart': CortadoFileDiagnosticStatus.warning,
+      },
+    );
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'method': 'textDocument/publishDiagnostics',
+        'params': <String, Object?>{
+          'uri': 'file:///workspace/lib/main.dart',
+          'diagnostics': const <Object?>[],
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastDiagnostics, isEmpty);
+    expect(
+      container.read(cortadoWorkspaceDiagnosticStatusProvider),
+      const <String, CortadoFileDiagnosticStatus>{},
+    );
+    expect(
+      find.byKey(const ValueKey('editor-diagnostic-dot:/lib/main.dart')),
+      findsNothing,
+    );
+  });
+}
+
+Widget _wrapEditor(Widget child) {
+  return ProviderScope(
+    child: MaterialApp(
+      home: SizedBox.expand(child: child),
+    ),
+  );
 }
 
 Map<String, Object?> _decodeFrameJson(MuxFrame frame) =>
@@ -261,6 +398,7 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   CortadoEditorSaveCallback? _onSave;
   String? lspEditorId;
   List<Map<String, Object?>> lastResolvedItems = <Map<String, Object?>>[];
+  List<Map<String, Object?>> lastDiagnostics = <Map<String, Object?>>[];
   int? lastResolvedRequestId;
 
   @override
@@ -303,6 +441,15 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
     lastResolvedRequestId = requestId;
     lastResolvedItems =
         items.map(Map<String, Object?>.from).toList(growable: false);
+  }
+
+  @override
+  void setDiagnostics(
+    String editorId,
+    List<Map<String, Object?>> diagnostics,
+  ) {
+    lastDiagnostics =
+        diagnostics.map(Map<String, Object?>.from).toList(growable: false);
   }
 
   @override
