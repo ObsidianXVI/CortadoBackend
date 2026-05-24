@@ -244,6 +244,12 @@
 - PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+24/05/26 05:00
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `cd agent && go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `cd flutter && flutter analyze`
 24/05/26 01:45
 - PASS `cd demo_app/web && npm test`
 - PASS `cd demo_app/web && npm run build`

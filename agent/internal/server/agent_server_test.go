@@ -14,6 +14,7 @@ import (
 
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
 	lspmanager "github.com/your-org/cortado/agent/internal/lsp"
+	portmonitor "github.com/your-org/cortado/agent/internal/ports"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -231,6 +232,87 @@ func TestAgentServerFlushUsageWAL(t *testing.T) {
 	}
 }
 
+func TestAgentServerListPorts(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{
+		PortMonitor: &portMonitorStub{
+			ports: [][]portmonitor.Port{
+				{
+					{Host: "127.0.0.1", Network: "tcp4", Port: 3000},
+					{Host: "::1", Network: "tcp6", Port: 8080},
+				},
+			},
+			pollInterval: 5 * time.Millisecond,
+		},
+		WorkspaceRoot: t.TempDir(),
+	})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	response, err := client.ListPorts(ctx, &pb.ListPortsRequest{})
+	if err != nil {
+		t.Fatalf("list ports: %v", err)
+	}
+	if len(response.GetPorts()) != 2 {
+		t.Fatalf("unexpected port count: got %d want 2", len(response.GetPorts()))
+	}
+	if response.GetPorts()[0].GetPort() != 3000 || response.GetPorts()[1].GetPort() != 8080 {
+		t.Fatalf("unexpected ports: %#v", response.GetPorts())
+	}
+}
+
+func TestAgentServerWatchPorts(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{
+		PortMonitor: &portMonitorStub{
+			ports: [][]portmonitor.Port{
+				{
+					{Host: "127.0.0.1", Network: "tcp4", Port: 3000},
+				},
+				{
+					{Host: "127.0.0.1", Network: "tcp4", Port: 3000},
+					{Host: "127.0.0.1", Network: "tcp4", Port: 8080},
+				},
+				{
+					{Host: "127.0.0.1", Network: "tcp4", Port: 8080},
+				},
+			},
+			pollInterval: 10 * time.Millisecond,
+		},
+		PortPollInterval: 10 * time.Millisecond,
+		WorkspaceRoot:    t.TempDir(),
+	})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	stream, err := client.WatchPorts(ctx, &pb.WatchPortsRequest{})
+	if err != nil {
+		t.Fatalf("watch ports: %v", err)
+	}
+
+	first, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv first port event: %v", err)
+	}
+	if first.GetType() != pb.PortEventType_PORT_EVENT_TYPE_ADDED || first.GetPort().GetPort() != 8080 {
+		t.Fatalf("unexpected first port event: %#v", first)
+	}
+
+	second, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv second port event: %v", err)
+	}
+	if second.GetType() != pb.PortEventType_PORT_EVENT_TYPE_REMOVED || second.GetPort().GetPort() != 3000 {
+		t.Fatalf("unexpected second port event: %#v", second)
+	}
+}
+
 func TestAgentServerCreateSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -368,6 +450,31 @@ func newTestClientWithConfig(t *testing.T, tracker usageTracker, cfg AgentServer
 type usageTrackerStub struct {
 	flushCalls int
 	started    []string
+}
+
+type portMonitorStub struct {
+	calls        int
+	pollInterval time.Duration
+	ports        [][]portmonitor.Port
+}
+
+func (s *portMonitorStub) List() ([]portmonitor.Port, error) {
+	if len(s.ports) == 0 {
+		return nil, nil
+	}
+	index := s.calls
+	if index >= len(s.ports) {
+		index = len(s.ports) - 1
+	}
+	s.calls++
+	return append([]portmonitor.Port(nil), s.ports[index]...), nil
+}
+
+func (s *portMonitorStub) PollInterval() time.Duration {
+	if s.pollInterval > 0 {
+		return s.pollInterval
+	}
+	return 5 * time.Second
 }
 
 type snapshotCommandCall struct {

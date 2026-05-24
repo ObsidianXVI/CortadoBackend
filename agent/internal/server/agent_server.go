@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
 	lspmanager "github.com/your-org/cortado/agent/internal/lsp"
+	portmonitor "github.com/your-org/cortado/agent/internal/ports"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,6 +29,8 @@ type AgentServer struct {
 	lspMu            sync.RWMutex
 	lspLanguage      string
 	ptyMgr           *ptymanager.Manager
+	portMonitor      portMonitor
+	portPollInterval time.Duration
 	snapshotBucket   string
 	snapshotPassword string
 	usageTracker     usageTracker
@@ -38,6 +41,8 @@ type AgentServer struct {
 type AgentServerConfig struct {
 	CommandRunner    snapshotCommandRunner
 	LSPManager       *lspmanager.Manager
+	PortMonitor      portMonitor
+	PortPollInterval time.Duration
 	SnapshotBucket   string
 	SnapshotPassword string
 	WorkspaceID      string
@@ -48,6 +53,11 @@ type usageTracker interface {
 	EndSession(sessionID string)
 	Flush(ctx context.Context) error
 	StartSession(sessionID string)
+}
+
+type portMonitor interface {
+	List() ([]portmonitor.Port, error)
+	PollInterval() time.Duration
 }
 
 func NewAgentServer(ptyMgr *ptymanager.Manager, tracker usageTracker) *AgentServer {
@@ -73,11 +83,19 @@ func NewAgentServerWithConfig(ptyMgr *ptymanager.Manager, tracker usageTracker, 
 			WorkspaceRoot: cfg.WorkspaceRoot,
 		})
 	}
+	if cfg.PortMonitor == nil {
+		cfg.PortMonitor = portmonitor.NewMonitor(portmonitor.Config{})
+	}
+	if cfg.PortPollInterval <= 0 {
+		cfg.PortPollInterval = cfg.PortMonitor.PollInterval()
+	}
 
 	return &AgentServer{
 		commandRunner:    cfg.CommandRunner,
 		lspMgr:           cfg.LSPManager,
 		ptyMgr:           ptyMgr,
+		portMonitor:      cfg.PortMonitor,
+		portPollInterval: cfg.PortPollInterval,
 		snapshotBucket:   strings.TrimSpace(cfg.SnapshotBucket),
 		snapshotPassword: cfg.SnapshotPassword,
 		usageTracker:     tracker,

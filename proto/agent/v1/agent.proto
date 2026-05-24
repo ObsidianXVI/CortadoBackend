@@ -22,6 +22,8 @@ service WorkspaceAgentService {
   rpc RenamePath(RenamePathRequest) returns (RenamePathResponse);
   rpc DeletePath(DeletePathRequest) returns (DeletePathResponse);
   rpc WatchFiles(WatchFilesRequest) returns (stream WatchFilesResponse);
+  rpc ListPorts(ListPortsRequest) returns (ListPortsResponse);
+  rpc WatchPorts(WatchPortsRequest) returns (stream PortEvent);
   rpc Health(HealthRequest) returns (HealthResponse);
 }
 
@@ -174,6 +176,31 @@ message WatchFilesRequest {}
 
 message WatchFilesResponse {
   FileEvent event = 1;
+}
+
+message ListPortsRequest {}
+
+message ListPortsResponse {
+  repeated PortInfo ports = 1;
+}
+
+message WatchPortsRequest {}
+
+enum PortEventType {
+  PORT_EVENT_TYPE_UNSPECIFIED = 0;
+  PORT_EVENT_TYPE_ADDED = 1;
+  PORT_EVENT_TYPE_REMOVED = 2;
+}
+
+message PortInfo {
+  uint32 port = 1;
+  string host = 2;
+  string network = 3;
+}
+
+message PortEvent {
+  PortEventType type = 1;
+  PortInfo port = 2;
 }
 
 enum FileEventType {

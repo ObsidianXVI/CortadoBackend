@@ -244,6 +244,15 @@
 - A flutter/test/cortado_local_daemon_bridge_test.dart
 - M flutter/test/cortado_file_tree_test.dart
 - M flutter/test/vfs_notifier_test.dart
+24/05/26 05:00 [FEAT] `dev-pro-large` Completed Task 7.1.1 by extending the agent gRPC contract with port list/watch RPCs, adding a procfs-backed listener parser for `/proc/net/tcp*` with reserved-port filtering, wiring polling-based port event streaming into the agent server, and verifying the slice with parser tests, bufconn gRPC coverage, proto generation, and agent build checks.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M agent/internal/server/agent_server.go
+- A agent/internal/server/ports.go
+- A agent/internal/ports/monitor.go
+- M proto/agent/v1/agent.proto
 23/05/26 13:00 [FEAT] (2e457a3) `dev-pro-large` Completed Task 2.3.1 by introducing a shared Terraform billing-events module that provisions the usage-events Pub/Sub topic, DLQ topic, billing dataset/table, BigQuery export subscription, and Pub/Sub service-agent dataset IAM for both environments, then advanced the release pointer to Task 2.3.2 after validating both env roots.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
