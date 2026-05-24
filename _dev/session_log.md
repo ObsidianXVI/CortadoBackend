@@ -552,3 +552,6 @@
 - M flutter/lib/src/editor/cortado_code_editor.dart
 - M flutter/lib/src/editor/editor_platform_stub.dart
 - M flutter/lib/src/editor/web/editor_platform_web.dart
+24/05/26 01:24 [FIX] (pending) `dev-pro-large` Captured the remaining VM bootstrap script fixes by making the initial setup script self-reexec under Bash and hardening the VM startup script environment/login/version-check flow so the local Codex bootstrap and tool checks behave consistently for SSH users.
+- M scripts/initial_setup.sh
+- M scripts/vm_startup_script.sh

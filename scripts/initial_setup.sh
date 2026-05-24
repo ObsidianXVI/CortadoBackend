@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
+
 # =============================================================================
 # initial_setup.sh — Cortado Dev VM Bootstrap
 # Run once after first SSH into the VM.

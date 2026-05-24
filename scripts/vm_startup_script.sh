@@ -216,6 +216,9 @@ DART_BIN="${DART_BIN}"
 EXPECTED_FLUTTER_VERSION="${FLUTTER_VERSION}"
 EXPECTED_DART_VERSION="${DART_VERSION}"
 
+export HOME="${SSH_HOME}"
+export USER="${SSH_USER}"
+export LOGNAME="${SSH_USER}"
 export PATH="${SSH_HOME}/tools/flutter/bin:${SSH_HOME}/go/bin:${SSH_HOME}/bin:/usr/local/go/bin:${PATH}"
 
 if [[ -f "\${ENV_FILE}" ]]; then
@@ -223,11 +226,13 @@ if [[ -f "\${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "\${ENV_FILE}"
   set +o allexport
-  printenv OPENAI_API_KEY | codex login --with-api-key
+  if ! codex login status >/dev/null 2>&1 && [[ -n "\${OPENAI_API_KEY:-}" ]]; then
+    printf '%s\n' "\${OPENAI_API_KEY}" | codex login --with-api-key
+  fi
 fi
 
 if [[ -x "\${FLUTTER_BIN}" ]]; then
-  FLUTTER_INSTALLED_VERSION="$("\${FLUTTER_BIN}" --version 2>/dev/null | head -1 | awk '{print \$2}')"
+  FLUTTER_INSTALLED_VERSION="\$("\${FLUTTER_BIN}" --version 2>/dev/null | head -1 | awk '{print \$2}' || true)"
   if [[ "\${FLUTTER_INSTALLED_VERSION}" != "\${EXPECTED_FLUTTER_VERSION}" ]]; then
     echo "[WARN] Expected Flutter \${EXPECTED_FLUTTER_VERSION}, found \${FLUTTER_INSTALLED_VERSION:-missing} at \${FLUTTER_BIN}." >&2
   fi
@@ -236,7 +241,7 @@ else
 fi
 
 if [[ -x "\${DART_BIN}" ]]; then
-  DART_INSTALLED_VERSION="$("\${DART_BIN}" --version 2>&1 | sed -E 's/^Dart SDK version: ([0-9.]+).*/\1/' | head -1)"
+  DART_INSTALLED_VERSION="\$("\${DART_BIN}" --version 2>&1 | sed -E 's/^Dart SDK version: ([0-9.]+).*/\1/' | head -1 || true)"
   if [[ "\${DART_INSTALLED_VERSION}" != "\${EXPECTED_DART_VERSION}" ]]; then
     echo "[WARN] Expected Dart \${EXPECTED_DART_VERSION}, found \${DART_INSTALLED_VERSION:-missing} at \${DART_BIN}." >&2
   fi
