@@ -764,3 +764,10 @@
 - M terraform/envs/dev/main.tf
 - M terraform/envs/prod/main.tf
 - M terraform/modules/cloudrun/main.tf
+24/05/26 05:30 [DOCS] (pending) `dev-pro-large` Added a runnable dev smoke-test kit for the new portforward gateway, including a step-by-step runbook plus shell helpers to deploy the dev portforward image, create and manage a workspace through the control-plane API, persist reusable smoke-test env files, and probe the Cloud Run preview URL after starting a workspace-local HTTP server from the existing demo-app terminal harness.
+- M _dev/test_status.md
+- A docs/dev-portforward-smoke.md
+- A scripts/dev_portforward_deploy.sh
+- A scripts/dev_portforward_probe.sh
+- A scripts/dev_workspace.sh
+- A scripts/lib/cortado_dev_smoke.sh

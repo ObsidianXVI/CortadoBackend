@@ -245,6 +245,11 @@
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false`
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+24/05/26 05:30
+- PASS `bash -n scripts/dev_portforward_deploy.sh scripts/dev_workspace.sh scripts/dev_portforward_probe.sh scripts/lib/cortado_dev_smoke.sh`
+- PASS `./scripts/dev_portforward_deploy.sh --help`
+- PASS `./scripts/dev_workspace.sh --help`
+- PASS `./scripts/dev_portforward_probe.sh --help`
 24/05/26 04:37
 - PASS `cd daemon && go test ./...`
 - PASS `cd daemon && CGO_ENABLED=0 go build ./...`
