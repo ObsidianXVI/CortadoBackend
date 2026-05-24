@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package filesync.v1;
+
+option go_package = "github.com/your-org/cortado/agent/gen/filesync/v1;filesyncv1";
+
+service FileSyncService {
+  rpc Sync(stream SyncMessage) returns (stream SyncMessage);
+}
+
+message SyncMessage {
+  oneof payload {
+    FileOp file_op = 1;
+    Ack ack = 2;
+    StateVector state_vector = 3;
+    SyncPlan sync_plan = 4;
+  }
+}
+
+message FileOp {
+  string op_id = 1;
+  string path = 2;
+  string old_path = 3;
+  OpType op_type = 4;
+  bytes content = 5;
+  bytes patch = 6;
+  int64 local_clock = 7;
+  bytes checksum = 8;
+}
+
+enum OpType {
+  OP_TYPE_UNSPECIFIED = 0;
+  OP_TYPE_CREATE = 1;
+  OP_TYPE_MODIFY = 2;
+  OP_TYPE_DELETE = 3;
+  OP_TYPE_RENAME = 4;
+}
+
+message Ack {
+  string op_id = 1;
+}
+
+message StateVector {
+  string workspace_id = 1;
+  map<string, string> checksums = 2;
+}
+
+message SyncPlan {
+  repeated SyncPlanEntry entries = 1;
+}
+
+message SyncPlanEntry {
+  string path = 1;
+  SyncDirection direction = 2;
+}
+
+enum SyncDirection {
+  SYNC_DIRECTION_UNSPECIFIED = 0;
+  SYNC_DIRECTION_LOCAL_TO_CLOUD = 1;
+  SYNC_DIRECTION_CLOUD_TO_LOCAL = 2;
+}

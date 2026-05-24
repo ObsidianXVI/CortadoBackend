@@ -10,9 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	filesyncpb "github.com/your-org/cortado/agent/gen/filesync/v1"
 	"github.com/your-org/cortado/control-plane/internal/api"
+	filesyncsvc "github.com/your-org/cortado/control-plane/internal/filesync"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
+	"google.golang.org/grpc"
 )
 
 const defaultHTTPPort = "8080"
@@ -93,16 +96,27 @@ func main() {
 		Service:     workspaceService,
 	}).Run(ctx)
 
+	fileSyncService, err := filesyncsvc.NewService(filesyncsvc.ServiceConfig{
+		WorkspaceFiles: fileService,
+	})
+	if err != nil {
+		log.Fatalf("initialize file sync service: %v", err)
+	}
+	grpcServer := grpc.NewServer()
+	filesyncpb.RegisterFileSyncServiceServer(grpcServer, fileSyncService)
+
+	httpHandler := api.NewRouter(api.RouterConfig{
+		AICompletionSvc:  aiService,
+		ConnectHandler:   connectHandler,
+		JWKSProvider:     authService,
+		SessionSvc:       authService,
+		WorkspaceFileSvc: fileService,
+		WorkspaceSvc:     workspaceService,
+	})
+
 	server := &http.Server{
-		Addr: ":" + port,
-		Handler: api.NewRouter(api.RouterConfig{
-			AICompletionSvc:  aiService,
-			ConnectHandler:   connectHandler,
-			JWKSProvider:     authService,
-			SessionSvc:       authService,
-			WorkspaceFileSvc: fileService,
-			WorkspaceSvc:     workspaceService,
-		}),
+		Addr:              ":" + port,
+		Handler:           filesyncsvc.NewHTTPMux(grpcServer, httpHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -115,6 +129,7 @@ func main() {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("shutdown http server: %v", err)
 		}
+		grpcServer.Stop()
 	}()
 
 	log.Printf("control-plane listening on :%s", port)

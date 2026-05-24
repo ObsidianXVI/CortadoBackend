@@ -331,3 +331,9 @@
 - PASS `cd daemon && CGO_ENABLED=0 go build ./...`
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+24/05/26 03:59
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`

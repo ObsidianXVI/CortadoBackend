@@ -693,3 +693,11 @@
 - A scripts/install_cortado_daemon.sh
 - A terraform/envs/prod/daemon_install.tf
 - M terraform/envs/prod/outputs.tf
+24/05/26 03:59 [FEAT] (pending) `dev-pro-large` Completed Task 6.1.3 by defining the dedicated FileSync stream proto, generating shared bindings, mounting an h2c gRPC sync service in the control plane, relaying flat-map initial state-vector sync plus inbound/outbound workspace file operations, and advancing the tracker to conflict detection while recording the remaining daemon transport auth/TLS decision.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS_NEEDED.md
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/filesync/http.go
+- A control-plane/internal/filesync/service.go
+- A proto/filesync/v1/filesync.proto
