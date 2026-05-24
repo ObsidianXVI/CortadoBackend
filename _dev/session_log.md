@@ -673,3 +673,23 @@
 - M flutter/lib/src/editor/web/editor_platform_web.dart
 - M flutter/lib/src/workspace_manager.dart
 - M flutter/test/cortado_code_editor_test.dart
+24/05/26 03:49 [FEAT] (pending) `dev-pro-large` Completed Tasks 6.1.1 and 6.1.2 by introducing the standalone daemon Go module with a loopback-only local WebSocket proxy, SQLite state bootstrap using `modernc.org/sqlite`, shipped platform service assets plus a Terraform-managed public installer script path, then layering in a recursive `fsnotify` watcher with debounce, checksum-backed SQLite dedupe, default exclude rules, and Linux inotify pressure warnings before advancing the tracker to the FileSync proto/relay work.
+- A daemon/cmd/daemon/main.go
+- A daemon/doc.go
+- A daemon/go.mod
+- A daemon/go.sum
+- A daemon/internal/app/server.go
+- A daemon/internal/config/config.go
+- A daemon/internal/state/store.go
+- A daemon/internal/version/version.go
+- A daemon/internal/watch/manager.go
+- A daemon/packaging/launchd/com.cortado.daemon.plist
+- A daemon/packaging/systemd/cortado-daemon.service
+- A daemon/packaging/windows/install-service.ps1
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- A scripts/install_cortado_daemon.sh
+- A terraform/envs/prod/daemon_install.tf
+- M terraform/envs/prod/outputs.tf

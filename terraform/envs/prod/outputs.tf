@@ -8,6 +8,11 @@ output "billing_dataset_id" {
   value       = module.billing_events.billing_dataset_id
 }
 
+output "daemon_install_script_url" {
+  description = "Public URL for the hosted daemon install script."
+  value       = "https://storage.googleapis.com/${google_storage_bucket.daemon_install.name}/${google_storage_bucket_object.daemon_install_script.name}"
+}
+
 output "cluster_name" {
   description = "Name of the GKE cluster for the prod environment."
   value       = module.gke.cluster_name

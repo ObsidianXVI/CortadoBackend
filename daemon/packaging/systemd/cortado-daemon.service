@@ -1,0 +1,13 @@
+[Unit]
+Description=Cortado Local Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cortado-daemon
+Restart=on-failure
+RestartSec=2
+Environment=CORTADO_DAEMON_LISTEN_ADDR=127.0.0.1:9731
+
+[Install]
+WantedBy=default.target

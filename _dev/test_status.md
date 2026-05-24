@@ -325,3 +325,9 @@
 - PASS `cd demo_app/web && npm run build`
 - PASS `cd flutter && flutter test test/cortado_code_editor_test.dart`
 - PASS `cd flutter && flutter analyze`
+24/05/26 03:49
+- PASS `bash -n scripts/install_cortado_daemon.sh`
+- PASS `cd daemon && go test ./...`
+- PASS `cd daemon && CGO_ENABLED=0 go build ./...`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`
