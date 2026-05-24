@@ -1,3 +1,3 @@
 # Current Release
 
-Next task: v0.4 → Feature 4.2 complete — next release task to be selected.
+Next task: v0.5 → Feature 5.1 → Task 5.1.1 — Tree-sitter chunker (pending, not started).

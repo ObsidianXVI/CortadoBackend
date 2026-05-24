@@ -42,3 +42,6 @@
 
 - Workspace snapshot access may widen beyond `roles/storage.objectCreator`, but the effective permissions must stay scoped so each workspace agent can only access its own snapshot data.
   Rationale: restic's normal GCS backend flow needs object create/read/list/delete capabilities, but widening the bucket role is only acceptable when the final IAM or ACL model still prevents cross-workspace snapshot access.
+
+- Dart SDK go-to-definition targets stay on the current read-only tab path without relaxing the workspace-root file API to read `/usr/local/dart-sdk/...` sources.
+  Rationale: the user explicitly chose the lowest-change path. Keeping SDK definition tabs read-only without widening the file read surface avoids a new absolute-path exception in the agent/control-plane stack and stays closest to the existing blueprint and codebase behavior.

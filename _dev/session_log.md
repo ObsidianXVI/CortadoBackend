@@ -576,3 +576,8 @@
 - M flutter/lib/src/editor/web/editor_platform_web.dart
 24/05/26 02:00 [FIX] (pending) `dev-pro-large` Added a guarded Git history rewrite utility that rewrites old `Cortado Dev` authorship to the current global Git identity across all refs while preserving author/committer dates, plus a dry-run verification so the repo can be reauthored safely before a manual force-push.
 - A scripts/rewrite_git_authorship.sh
+24/05/26 02:08 [FIX] (pending) `dev-pro-large` Resolved the remaining post-Task-4.2.4 architecture question by keeping Dart SDK definition tabs on the existing read-only placeholder path, recorded the decision in `DECISIONS.md`, cleared `DECISIONS_NEEDED.md`, and advanced the tracker to the next release task in v0.5.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M DECISIONS_NEEDED.md
