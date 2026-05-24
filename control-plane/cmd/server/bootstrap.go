@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"cloud.google.com/go/firestore"
+	"github.com/your-org/cortado/control-plane/internal/ai"
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/store"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
@@ -83,6 +85,39 @@ func newSessionService(firestoreClient *firestore.Client) (*auth.Service, error)
 		return nil, fmt.Errorf("create auth service: %w", err)
 	}
 	return service, nil
+}
+
+func newAIService(projectID string, resolver ai.WorkspaceResolver) (*ai.Service, error) {
+	embedder, err := ai.NewVertexEmbedder(ai.VertexEmbedderConfig{
+		Dimensions: envInt("CORTADO_VERTEX_DIMENSIONS", aiDefaultVertexDimensions()),
+		Location:   envOrDefault("CORTADO_VERTEX_LOCATION", "us-central1"),
+		Model:      envOrDefault("CORTADO_VERTEX_MODEL", "text-embedding-004"),
+		ProjectID:  envOrDefault("CORTADO_VERTEX_PROJECT_ID", projectID),
+		TaskType:   envOrDefault("CORTADO_VERTEX_QUERY_TASK_TYPE", "RETRIEVAL_QUERY"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create vertex embedder: %w", err)
+	}
+
+	provider := ai.NewGeminiProvider(ai.GeminiProviderConfig{
+		APIKey:          os.Getenv("CORTADO_AI_API_KEY"),
+		MaxOutputTokens: envInt("CORTADO_AI_MAX_OUTPUT_TOKENS", 256),
+		Model:           envOrDefault("CORTADO_AI_MODEL", "gemini-2.5-flash"),
+		Temperature:     envFloat("CORTADO_AI_TEMPERATURE", 0.2),
+	})
+
+	return ai.NewService(ai.ServiceConfig{
+		MaxPrefixBytes: envInt("CORTADO_AI_PREFIX_BYTES", 4*1024),
+		MaxSuffixBytes: envInt("CORTADO_AI_SUFFIX_BYTES", 1*1024),
+		MaxResults:     envInt("CORTADO_AI_RETRIEVAL_LIMIT", 3),
+		Provider:       provider,
+		QueryEmbedder:  embedder,
+		QueryLines:     envInt("CORTADO_AI_QUERY_LINE_COUNT", 5),
+		Retriever: ai.NewQdrantClient(ai.QdrantClientConfig{
+			Port:              envInt("CORTADO_QDRANT_PORT", 6333),
+			WorkspaceResolver: resolver,
+		}),
+	}), nil
 }
 
 func newKubernetesClient(ctx context.Context, projectID string) (kubernetes.Interface, error) {
@@ -177,6 +212,41 @@ func gcpProjectID() string {
 		}
 	}
 	return ""
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func envFloat(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || parsed < 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func aiDefaultVertexDimensions() int {
+	return 768
 }
 
 func gkeConfigFromCluster(ctx context.Context, projectID, location, clusterName string) (*rest.Config, error) {

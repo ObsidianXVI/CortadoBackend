@@ -308,3 +308,15 @@
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false`
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+24/05/26 03:18
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `terraform fmt -recursive terraform`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod validate`
+- PASS `cd flutter && dart format lib/cortado.dart lib/src/ai/cortado_ai_service.dart test/cortado_ai_service_test.dart`
+- PASS `cd flutter && flutter test test/cortado_ai_service_test.dart`
+- PASS `cd flutter && flutter analyze`
+- PASS `cd flutter && flutter test`

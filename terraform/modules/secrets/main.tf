@@ -29,3 +29,19 @@ resource "google_secret_manager_secret_iam_member" "control_plane_snapshot_reade
   role      = "roles/secretmanager.secretAccessor"
   member    = var.control_plane_service_account_member
 }
+
+resource "google_secret_manager_secret" "ai_api_key" {
+  project   = var.project_id
+  secret_id = "cortado-ai-api-key-${var.env}"
+  labels    = var.labels
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "control_plane_ai_reader" {
+  secret_id = google_secret_manager_secret.ai_api_key.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = var.control_plane_service_account_member
+}

@@ -59,6 +59,21 @@ resource "google_cloud_run_v2_service" "control_plane" {
       }
 
       env {
+        name = "CORTADO_AI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.ai_api_key_secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name  = "CORTADO_AI_MODEL"
+        value = "gemini-2.5-flash"
+      }
+
+      env {
         name  = "CORTADO_AUTH_CACHE_ADDR"
         value = var.auth_cache_addr
       }
@@ -101,6 +116,11 @@ resource "google_cloud_run_v2_service" "control_plane" {
       env {
         name  = "CORTADO_WORKSPACE_NAMESPACE"
         value = var.workspace_namespace
+      }
+
+      env {
+        name  = "CORTADO_VERTEX_PROJECT_ID"
+        value = var.project_id
       }
 
       env {

@@ -7,17 +7,23 @@ import (
 
 	chi "github.com/go-chi/chi/v5"
 	agentpb "github.com/your-org/cortado/agent/gen/agent/v1"
+	"github.com/your-org/cortado/control-plane/internal/ai"
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
 	cpmiddleware "github.com/your-org/cortado/control-plane/internal/middleware"
 )
 
 type RouterConfig struct {
+	AICompletionSvc  AICompletionService
 	ConnectHandler   http.Handler
 	JWKSProvider     JWKSProvider
 	SessionSvc       SessionService
 	WorkspaceFileSvc WorkspaceFileService
 	WorkspaceSvc     WorkspaceService
+}
+
+type AICompletionService interface {
+	StreamCompletion(ctx context.Context, params ai.CompletionParams, emit func(string) error) error
 }
 
 type SessionService interface {
@@ -79,6 +85,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					protected.Post("/workspaces/{id}/files/rename", filesHandler.rename)
 					protected.Get("/workspaces/{id}/files/content", filesHandler.readContent)
 					protected.Put("/workspaces/{id}/files/content", filesHandler.writeContent)
+				}
+				if cfg.AICompletionSvc != nil {
+					aiHandler := newAIHandler(cfg.WorkspaceSvc, cfg.AICompletionSvc)
+					protected.Post("/workspaces/{id}/ai/complete", aiHandler.complete)
 				}
 			}
 			protected.Method(http.MethodGet, "/workspaces/{id}/connect", connectHandler)

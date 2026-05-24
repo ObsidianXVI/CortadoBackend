@@ -104,6 +104,7 @@ module "redis" {
 module "cloudrun" {
   source = "../../modules/cloudrun"
 
+  ai_api_key_secret_id                  = module.secrets.ai_api_key_secret_id
   auth_cache_addr                       = module.redis.address
   cluster_dns_domain                    = var.cluster_dns_domain
   cluster_name                          = module.gke.cluster_name

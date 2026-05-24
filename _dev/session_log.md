@@ -632,3 +632,24 @@
 - M terraform/envs/prod/outputs.tf
 - M terraform/envs/prod/terraform.tfvars
 - M terraform/envs/prod/variables.tf
+24/05/26 03:18 [FEAT] (pending) `dev-pro-large` Completed Tasks 5.2.1 and 5.2.2 by adding the control-plane inline completion endpoint with SSE token proxying, prefix/suffix trimming, Vertex-backed retrieval into per-workspace Qdrant, and Secret Manager-backed provider config; then shipping a Dart `CortadoAIService` that streams SSE tokens with bearer/dev auth support before advancing the tracker to Task 5.2.3.
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/ai/context.go
+- A control-plane/internal/ai/gemini.go
+- A control-plane/internal/ai/qdrant.go
+- A control-plane/internal/ai/service.go
+- A control-plane/internal/ai/service_test.go
+- A control-plane/internal/ai/vertex_embedder.go
+- A control-plane/internal/api/ai.go
+- A control-plane/internal/api/ai_test.go
+- M control-plane/internal/api/router.go
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/ai/cortado_ai_service.dart
+- A flutter/test/cortado_ai_service_test.dart
+- M terraform/envs/dev/main.tf
+- M terraform/envs/prod/main.tf
+- M terraform/modules/cloudrun/main.tf
+- M terraform/modules/cloudrun/variables.tf
+- M terraform/modules/secrets/main.tf
+- M terraform/modules/secrets/outputs.tf

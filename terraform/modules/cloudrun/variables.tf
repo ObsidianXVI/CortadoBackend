@@ -18,6 +18,11 @@ variable "auth_cache_addr" {
   type        = string
 }
 
+variable "ai_api_key_secret_id" {
+  description = "Secret Manager secret ID containing the inline completion provider API key."
+  type        = string
+}
+
 variable "image_tag" {
   description = "Artifact Registry image tag for the control-plane service."
   type        = string

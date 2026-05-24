@@ -7,3 +7,8 @@ output "snapshot_password_secret_id" {
   description = "Secret ID for the workspace snapshot password."
   value       = google_secret_manager_secret.snapshot_password.secret_id
 }
+
+output "ai_api_key_secret_id" {
+  description = "Secret ID for the inline completion provider API key."
+  value       = google_secret_manager_secret.ai_api_key.secret_id
+}

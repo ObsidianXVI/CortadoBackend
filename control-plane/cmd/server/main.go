@@ -60,6 +60,10 @@ func main() {
 		Namespace: workspaceNamespace,
 		DNSDomain: clusterDNSDomain,
 	}
+	aiService, err := newAIService(projectID, resolver)
+	if err != nil {
+		log.Fatalf("initialize ai service: %v", err)
+	}
 	fileService := workspace.NewAgentFileService(workspace.AgentFileServiceConfig{
 		WorkspaceResolver: resolver,
 	})
@@ -92,6 +96,7 @@ func main() {
 	server := &http.Server{
 		Addr: ":" + port,
 		Handler: api.NewRouter(api.RouterConfig{
+			AICompletionSvc:  aiService,
 			ConnectHandler:   connectHandler,
 			JWKSProvider:     authService,
 			SessionSvc:       authService,
