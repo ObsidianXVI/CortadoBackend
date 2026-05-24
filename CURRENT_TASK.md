@@ -4,7 +4,7 @@
 v0.5 → Feature 5.1 (Codebase Indexing Pipeline) → Task 5.1.2
 
 ## Status
-IN PROGRESS
+AWAITING INPUT
 
 ## What was done last session
 Pulled v0.5 Features 5.1, 5.2, and 5.3 out of the release timeline into dedicated `_dev/features/` specs and scaffolded the new `indexer/` Python job with a chunker module, CLI, Dockerfile, and unit tests.
@@ -33,4 +33,7 @@ Task 5.1.2 — Embedding pipeline + Qdrant sidecar
 See _dev/features/feat-5-1.md for the active Feature 5.1 spec
 
 ## Blocked on / decisions needed
-None currently recorded.
+Task 5.1.2 needs an embedding provider choice:
+- `text-embedding-004` on Vertex AI
+- `voyage-code-3` on Voyage AI
+If there is no product reason to prefer Voyage, defaulting to Vertex AI is the lower-friction path because the stack already runs on GCP.
