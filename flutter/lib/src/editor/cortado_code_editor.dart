@@ -4,10 +4,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../cortado_client.dart';
 import '../cortado_workspace_provider.dart';
 import '../filesystem/vfs_notifier.dart';
 import '../gen/agent/v1/agent.pb.dart' as agentpb;
+import '../mux_frame.dart';
 import '../workspace_manager.dart';
+import 'cortado_lsp_client.dart';
 import 'editor_models.dart';
 import 'editor_platform.dart';
 import 'tabs_notifier.dart';
@@ -65,8 +68,11 @@ class CortadoCodeEditorPlatformAdapter {
 class CortadoCodeEditor extends ConsumerStatefulWidget {
   const CortadoCodeEditor({
     super.key,
+    this.client,
     this.path,
     this.fileEvents,
+    this.lspChannelId = muxLspChannelStartId,
+    this.lspLanguage = 'dart',
     this.maxTabs = 15,
     this.onError,
     this.onTabChanged,
@@ -75,7 +81,10 @@ class CortadoCodeEditor extends ConsumerStatefulWidget {
     this.workspaceManager,
   }) : assert(maxTabs > 0, 'maxTabs must be greater than zero.');
 
+  final CortadoClient? client;
   final Stream<agentpb.FileEvent>? fileEvents;
+  final int lspChannelId;
+  final String lspLanguage;
   final int maxTabs;
   final ValueChanged<String>? onError;
   final ValueChanged<OpenTab?>? onTabChanged;
@@ -100,6 +109,8 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   final Map<String, int> _loadVersions = <String, int>{};
 
   StreamSubscription<agentpb.FileEvent>? _fileEventSubscription;
+  StreamSubscription<void>? _lspStateSubscription;
+  CortadoLSPClient? _lspClient;
 
   @override
   void initState() {
@@ -113,6 +124,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
         onSave: _handleSaveShortcut,
       );
     }
+    _configureLspClient();
     _subscribeToFileEvents();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -125,6 +137,11 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   @override
   void didUpdateWidget(CortadoCodeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.client != widget.client ||
+        oldWidget.lspChannelId != widget.lspChannelId ||
+        oldWidget.lspLanguage != widget.lspLanguage) {
+      _configureLspClient();
+    }
     if (oldWidget.fileEvents != widget.fileEvents) {
       _subscribeToFileEvents();
     }
@@ -141,6 +158,8 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   @override
   void dispose() {
     _fileEventSubscription?.cancel();
+    _lspStateSubscription?.cancel();
+    unawaited(_lspClient?.dispose());
     _removeTabsListener();
     _tabsNotifier.dispose();
     widget.platform.disposeView(_editorId);
@@ -156,50 +175,59 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     final state = _tabsNotifier.currentState;
     final activeTab = state.activeTab;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1220),
-        border: Border.all(color: const Color(0x1F94A3B8)),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: <Widget>[
-          _EditorTabStrip(
-            activePath: state.activePath,
-            tabs: state.tabs,
-            onClose: _closeTab,
-            onSelect: _activateTab,
-          ),
-          Expanded(
-            child: Stack(
-              children: <Widget>[
-                Positioned.fill(child: widget.platform.buildView(_viewType)),
-                if (activeTab == null)
-                  const Positioned.fill(child: _EditorEmptyState())
-                else if (activeTab.isLoading)
-                  Positioned.fill(
-                    child: _EditorOverlay(
-                      message: 'Loading ${activeTab.title}...',
-                    ),
-                  )
-                else if (activeTab.errorMessage case final String message?)
-                  Positioned.fill(
-                    child: _EditorOverlay(
-                      actionLabel: 'Retry',
-                      message: message,
-                      onAction: () => unawaited(_loadTab(activeTab.path)),
-                    ),
-                  )
-                else if (activeTab.isSaving)
-                  const Positioned(
-                    right: 16,
-                    top: 12,
-                    child: _SavingBadge(),
-                  ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220),
+          border: Border.all(color: const Color(0x1F94A3B8)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: <Widget>[
+            _EditorTabStrip(
+              activePath: state.activePath,
+              tabs: state.tabs,
+              onClose: _closeTab,
+              onSelect: _activateTab,
             ),
-          ),
-        ],
+            Expanded(
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(child: widget.platform.buildView(_viewType)),
+                  if (activeTab == null)
+                    const Positioned.fill(child: _EditorEmptyState())
+                  else if (activeTab.isLoading)
+                    Positioned.fill(
+                      child: _EditorOverlay(
+                        message: 'Loading ${activeTab.title}...',
+                      ),
+                    )
+                  else if (activeTab.errorMessage case final String message?)
+                    Positioned.fill(
+                      child: _EditorOverlay(
+                        actionLabel: 'Retry',
+                        message: message,
+                        onAction: () => unawaited(_loadTab(activeTab.path)),
+                      ),
+                    )
+                  else if (_shouldShowLspOverlay(activeTab))
+                    const Positioned.fill(
+                      child: _EditorOverlay(
+                        message: 'Language server starting...',
+                      ),
+                    )
+                  else if (activeTab.isSaving)
+                    const Positioned(
+                      right: 16,
+                      top: 12,
+                      child: _SavingBadge(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -218,6 +246,22 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       return;
     }
     _tabsNotifier.markHash(activePath, hash);
+
+    final activeTab = _tabsNotifier.tabForPath(activePath);
+    final lspClient = _lspClient;
+    if (activeTab == null ||
+        lspClient == null ||
+        !_shouldUseLspForTab(activeTab) ||
+        !lspClient.isDocumentOpen(activePath)) {
+      return;
+    }
+
+    _runLspAction(
+      lspClient.didChangeTextDocument(
+        path: activePath,
+        text: widget.platform.getContent(_editorId),
+      ),
+    );
   }
 
   void _handleSaveShortcut() {
@@ -286,6 +330,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
 
   Future<void> _closeTab(String path) async {
     final normalizedPath = normalizeVfsPath(path);
+    final closingTab = _tabsNotifier.tabForPath(normalizedPath);
     final activePath = _tabsNotifier.currentState.activePath;
     if (activePath == normalizedPath) {
       _tabsNotifier.updateContent(
@@ -295,6 +340,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     }
 
     _tabsNotifier.close(normalizedPath);
+    _closeLspDocumentIfNeeded(closingTab);
     final nextActiveTab = _tabsNotifier.currentState.activeTab;
     if (nextActiveTab != null) {
       _renderTab(nextActiveTab, preserveSelection: false);
@@ -309,6 +355,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     bool preserveSelection = false,
   }) async {
     final normalizedPath = normalizeVfsPath(path);
+    final wasOpenInLsp = _lspClient?.isDocumentOpen(normalizedPath) ?? false;
     _tabsNotifier.markLoading(normalizedPath);
 
     final loadVersion = (_loadVersions[normalizedPath] ?? 0) + 1;
@@ -346,6 +393,15 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
             preserveSelection: preserveSelection,
           );
         }
+      }
+
+      final loadedTab = _tabsNotifier.tabForPath(normalizedPath);
+      if (loadedTab != null) {
+        _syncLoadedTabWithLsp(
+          loadedTab,
+          content,
+          wasAlreadyOpen: wasOpenInLsp,
+        );
       }
     } catch (error) {
       if (!mounted || _loadVersions[normalizedPath] != loadVersion) {
@@ -454,6 +510,102 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
 
   String get _workspaceId =>
       widget.workspaceId ?? ref.read(cortadoWorkspaceIdProvider);
+
+  void _configureLspClient() {
+    _lspStateSubscription?.cancel();
+    _lspStateSubscription = null;
+    unawaited(_lspClient?.dispose());
+    _lspClient = null;
+
+    final client = widget.client;
+    if (client == null) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    final lspClient = CortadoLSPClient(
+      client: client,
+      channelId: widget.lspChannelId,
+      language: widget.lspLanguage,
+    );
+    _lspClient = lspClient;
+    _lspStateSubscription = lspClient.stateChanges.listen((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
+    _resyncOpenTabsWithLsp(lspClient);
+  }
+
+  void _resyncOpenTabsWithLsp(CortadoLSPClient client) {
+    for (final tab in _tabsNotifier.currentState.tabs) {
+      if (!tab.loaded || !_shouldUseLspForTab(tab)) {
+        continue;
+      }
+      _runLspAction(
+        client.didOpenTextDocument(
+          path: tab.path,
+          languageId: tab.languageId,
+          text: tab.content,
+        ),
+      );
+    }
+  }
+
+  bool _shouldShowLspOverlay(OpenTab? activeTab) {
+    if (activeTab == null || !_shouldUseLspForTab(activeTab)) {
+      return false;
+    }
+    return _lspClient?.isInitializing ?? false;
+  }
+
+  bool _shouldUseLspForTab(OpenTab tab) =>
+      tab.languageId == widget.lspLanguage && _lspClient != null;
+
+  void _syncLoadedTabWithLsp(
+    OpenTab tab,
+    String content, {
+    required bool wasAlreadyOpen,
+  }) {
+    final lspClient = _lspClient;
+    if (lspClient == null || !_shouldUseLspForTab(tab)) {
+      return;
+    }
+
+    _runLspAction(
+      wasAlreadyOpen
+          ? lspClient.didChangeTextDocument(
+              path: tab.path,
+              text: content,
+            )
+          : lspClient.didOpenTextDocument(
+              path: tab.path,
+              languageId: tab.languageId,
+              text: content,
+            ),
+    );
+  }
+
+  void _closeLspDocumentIfNeeded(OpenTab? tab) {
+    final lspClient = _lspClient;
+    if (tab == null ||
+        lspClient == null ||
+        !_shouldUseLspForTab(tab) ||
+        !lspClient.isDocumentOpen(tab.path)) {
+      return;
+    }
+
+    _runLspAction(lspClient.didCloseTextDocument(path: tab.path));
+  }
+
+  void _runLspAction(Future<void> future) {
+    future.catchError((Object error, StackTrace _) {
+      widget.onError?.call(error.toString());
+    });
+  }
 }
 
 class _EditorTabStrip extends StatelessWidget {

@@ -536,3 +536,10 @@
 - M flutter/lib/src/workspace_manager.dart
 - M proto/agent/v1/agent.proto
 - M proto/buf.yaml
+24/05/26 01:15 [FEAT] (pending) `dev-pro-large` Completed Task 4.2.1 by adding a Dart-side `CortadoLSPClient` over the mux LSP channel, wiring editor document open/change/close traffic and the startup overlay into the new client, surfacing `publishDiagnostics`, and verifying the behavior with focused and full Flutter test runs plus a clean analyzer pass before advancing the tracker to Task 4.2.2.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- A flutter/lib/src/editor/cortado_lsp_client.dart
+- M flutter/lib/src/editor/cortado_code_editor.dart
+- M flutter/lib/src/mux_frame.dart
+- M flutter/lib/cortado.dart

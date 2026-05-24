@@ -238,6 +238,10 @@
 24/05/26 00:02
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+24/05/26 01:15
+- PASS `cd flutter && flutter test test/cortado_lsp_client_test.dart test/cortado_code_editor_test.dart`
+- PASS `cd flutter && flutter analyze`
+- PASS `cd flutter && flutter test`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 24/05/26 00:11
 - PASS `cd proto && buf lint`

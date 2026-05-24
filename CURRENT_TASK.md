@@ -1,39 +1,36 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.4 → Feature 4.2 (Editor LSP Integration) → Task 4.2.1
+v0.4 → Feature 4.2 (Editor LSP Integration) → Task 4.2.2
 
 ## Status
 PENDING
 
 ## What was done last session
-Completed Feature 4.1 by landing the LSP proto contract and optional Dart SDK workspace-image layer, implementing the agent-side LSP manager with CRLF-safe Content-Length framing and restart coverage, wiring LSP mux channels through the control-plane gateway, and cleaning up the answered 23/05 file-API/editor decisions by defaulting writes to auto-create parent directories with an explicit strict opt-out while recording the resolved decisions.
+Completed Task 4.2.1 by landing the Dart-side `CortadoLSPClient`, wiring JSON-RPC initialization and document lifecycle traffic over mux LSP channels, surfacing `publishDiagnostics`, showing the editor startup overlay while the language server initializes, and covering the behavior with focused Flutter tests plus a clean `flutter analyze`.
 
 ## What was done this session
-Feature 4.1.1–4.1.3 and the 23/05 cleanup follow-up are complete and verified.
+Task 4.2.1 is complete and verified locally.
 
 ## Remaining work this session
-Implement the Dart-side LSP client:
-- add a `CortadoLSPClient` over the mux LSP channel
-- implement `initialize`, `initialized`, `textDocument/didOpen`, `textDocument/didChange`, and `textDocument/didClose`
-- use full-document sync mode for edits
-- subscribe to `textDocument/publishDiagnostics`
-- show and dismiss the "Language server starting..." state around `initialized`
-- queue requests until the server finishes initialization
+Implement CodeMirror completions on top of the new LSP client:
+- register a JS interop bridge so CodeMirror can ask Dart for completions
+- forward `textDocument/completion` through `CortadoLSPClient`
+- map LSP `CompletionItem[]` responses into CodeMirror completion entries
+- debounce completion requests by 150ms after the last keystroke
+- discard stale completion responses when the cursor moves before the result arrives
 
 ## Definition of done
-- [ ] `CortadoLSPClient` manages JSON-RPC 2.0 request/response state over an LSP mux channel
-- [ ] `initialize` and `initialized` are sent in order when the channel opens
-- [ ] `didOpen`, `didChange`, and `didClose` notifications are wired for editor lifecycle events
-- [ ] file changes use full-document sync payloads
-- [ ] `publishDiagnostics` notifications are surfaced to Dart listeners
-- [ ] requests issued before initialization are queued and flushed afterward
-- [ ] the loading indicator is shown until initialization completes
-- [ ] relevant Flutter tests cover initialization, request queueing, and diagnostics delivery
+- [ ] JS interop exposes a completion request entrypoint from CodeMirror into Dart
+- [ ] Dart forwards completion requests through `CortadoLSPClient`
+- [ ] LSP completion responses are mapped into CodeMirror completion entries
+- [ ] completion requests debounce for 150ms after typing stops
+- [ ] stale completion responses are dropped if the cursor position no longer matches
+- [ ] relevant Flutter/web tests cover completion bridging and stale-result filtering
 - [ ] `cd flutter && flutter analyze` passes
 
 ## Next task after this one
-Feature 4.2 → Task 4.2.2 — Completions in CodeMirror
+Feature 4.2 → Task 4.2.3 — Diagnostics (publishDiagnostics)
 See _dev/features/feat-4-2.md for full spec
 
 ## Blocked on / decisions needed

@@ -87,7 +87,78 @@ void main() {
 
     await fileEvents.close();
   });
+
+  testWidgets('shows the LSP startup overlay and wires document lifecycle',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print("hello");',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: CortadoCodeEditor(
+            client: client,
+            path: '/lib/main.dart',
+            platform: platform,
+            workspaceId: 'ws-123',
+            workspaceManager: manager,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Language server starting...'), findsOneWidget);
+    expect(_decodeFrameJson(client.sentFrames[1])['method'], 'initialize');
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Language server starting...'), findsNothing);
+    expect(_decodeFrameJson(client.sentFrames[2])['method'], 'initialized');
+    expect(_decodeFrameJson(client.sentFrames[3])['method'],
+        'textDocument/didOpen');
+
+    platform.currentContent = 'print("updated");';
+    platform.emitChanged();
+    await tester.pump();
+
+    expect(
+      _decodeFrameJson(client.sentFrames.last)['method'],
+      'textDocument/didChange',
+    );
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump();
+
+    expect(
+      _decodeFrameJson(client.sentFrames.last)['method'],
+      'textDocument/didClose',
+    );
+  });
 }
+
+Map<String, Object?> _decodeFrameJson(MuxFrame frame) =>
+    Map<String, Object?>.from(
+      jsonDecode(utf8.decode(frame.payload)) as Map<Object?, Object?>,
+    );
 
 class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   _TestEditorPlatform({
@@ -192,4 +263,35 @@ class _WriteCall {
 
   final String content;
   final String path;
+}
+
+class _TestMuxClient extends CortadoClient {
+  _TestMuxClient()
+      : _frames = StreamController<MuxFrame>.broadcast(),
+        super(baseUrl: 'http://localhost:8080', useBrowserWebSocket: false);
+
+  final StreamController<MuxFrame> _frames;
+  final List<MuxFrame> sentFrames = <MuxFrame>[];
+
+  @override
+  Stream<MuxFrame> get frames => _frames.stream;
+
+  @override
+  Stream<MuxFrame> framesForChannel(int channelId) =>
+      _frames.stream.where((frame) => frame.channelId == channelId);
+
+  @override
+  void sendFrame(int channelId, int messageType, Uint8List payload) {
+    sentFrames.add(MuxFrame(channelId, messageType, payload));
+  }
+
+  void emitJson(Map<String, Object?> payload) {
+    _frames.add(
+      MuxFrame(
+        muxLspChannelStartId,
+        muxMessageTypeData,
+        Uint8List.fromList(utf8.encode(jsonEncode(payload))),
+      ),
+    );
+  }
 }

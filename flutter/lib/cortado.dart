@@ -4,6 +4,7 @@ export 'src/cortado_auth_session.dart';
 export 'src/cortado_client.dart';
 export 'src/cortado_workspace_provider.dart';
 export 'src/editor/cortado_code_editor.dart';
+export 'src/editor/cortado_lsp_client.dart';
 export 'src/editor/editor_models.dart';
 export 'src/editor/tabs_notifier.dart';
 export 'src/filesystem/cortado_file_tree.dart';
