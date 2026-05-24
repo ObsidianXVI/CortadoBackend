@@ -565,3 +565,12 @@
 - M flutter/lib/src/editor/editor_platform_stub.dart
 - M flutter/lib/src/editor/web/editor_platform_web.dart
 - M flutter/lib/src/filesystem/cortado_file_tree.dart
+24/05/26 01:45 [FEAT] (pending) `dev-pro-large` Completed Task 4.2.4 by routing hover and definition requests through the Flutter LSP bridge, adding sanitized CodeMirror hover tooltips and Ctrl+click navigation, introducing read-only editor state for SDK definition tabs, and verifying the editor flow with focused Flutter tests plus rebuilt web-side bundle checks.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M demo_app/web/editor-src/cortado_editor.ts
+- M demo_app/web/cortado_editor.js
+- M flutter/lib/src/editor/cortado_code_editor.dart
+- M flutter/lib/src/editor/editor_models.dart
+- M flutter/lib/src/editor/tabs_notifier.dart
+- M flutter/lib/src/editor/web/editor_platform_web.dart

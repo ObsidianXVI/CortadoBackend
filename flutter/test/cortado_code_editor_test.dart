@@ -234,6 +234,235 @@ void main() {
     );
   });
 
+  testWidgets('bridges hover requests through the LSP client',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print("hello");',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitLspRequest(
+      <String, Object?>{
+        'requestId': 2,
+        'kind': 'hover',
+        'position': <String, Object?>{
+          'line': 0,
+          'character': 5,
+        },
+      },
+    );
+    await tester.pump();
+
+    final hoverRequest = _decodeFrameJson(client.sentFrames.last);
+    expect(hoverRequest['method'], 'textDocument/hover');
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': hoverRequest['id'],
+        'result': <String, Object?>{
+          'contents': <String, Object?>{
+            'kind': 'markdown',
+            'value': '**print** docs',
+          },
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastResolvedRequestId, 2);
+    expect(
+      platform.lastResolvedResult,
+      <String, Object?>{'markdown': '**print** docs'},
+    );
+  });
+
+  testWidgets('opens workspace definition targets in editor tabs',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'void main() => helper();',
+        '/lib/helper.dart': 'void helper() {}',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitLspRequest(
+      <String, Object?>{
+        'requestId': 3,
+        'kind': 'definition',
+        'position': <String, Object?>{
+          'line': 0,
+          'character': 15,
+        },
+      },
+    );
+    await tester.pump();
+
+    final definitionRequest = _decodeFrameJson(client.sentFrames.last);
+    expect(definitionRequest['method'], 'textDocument/definition');
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': definitionRequest['id'],
+        'result': <String, Object?>{
+          'uri': 'file:///workspace/lib/helper.dart',
+          'range': <String, Object?>{
+            'start': <String, Object?>{
+              'line': 0,
+              'character': 0,
+            },
+          },
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.currentContent, 'void helper() {}');
+    expect(platform.lastReadOnly, isFalse);
+  });
+
+  testWidgets('opens SDK definition targets as read-only tabs',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'void main() => print("hello");',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      _wrapEditor(
+        CortadoCodeEditor(
+          client: client,
+          path: '/lib/main.dart',
+          platform: platform,
+          workspaceId: 'ws-123',
+          workspaceManager: manager,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitLspRequest(
+      <String, Object?>{
+        'requestId': 4,
+        'kind': 'definition',
+        'position': <String, Object?>{
+          'line': 0,
+          'character': 15,
+        },
+      },
+    );
+    await tester.pump();
+
+    final definitionRequest = _decodeFrameJson(client.sentFrames.last);
+    expect(definitionRequest['method'], 'textDocument/definition');
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': definitionRequest['id'],
+        'result': <String, Object?>{
+          'uri': 'file:///usr/local/dart-sdk/lib/core/print.dart',
+          'range': <String, Object?>{
+            'start': <String, Object?>{
+              'line': 0,
+              'character': 0,
+            },
+          },
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastReadOnly, isTrue);
+    expect(
+      platform.currentContent,
+      contains('Read-only SDK definition target.'),
+    );
+  });
+
   testWidgets(
       'publishes diagnostics to the active editor and workspace status state',
       (WidgetTester tester) async {
@@ -393,12 +622,14 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   String currentContent = '';
   String currentLanguageId = 'plain';
   bool lastPreserveSelection = false;
+  bool lastReadOnly = false;
   CortadoEditorChangedCallback? _onChanged;
   CortadoEditorLspRequestCallback? _onLspRequest;
   CortadoEditorSaveCallback? _onSave;
   String? lspEditorId;
   List<Map<String, Object?>> lastResolvedItems = <Map<String, Object?>>[];
   List<Map<String, Object?>> lastDiagnostics = <Map<String, Object?>>[];
+  Object? lastResolvedResult;
   int? lastResolvedRequestId;
 
   @override
@@ -436,11 +667,23 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   @override
   void resolveLspResult(
     int requestId,
-    List<Map<String, Object?>> items,
+    Object? result,
   ) {
     lastResolvedRequestId = requestId;
-    lastResolvedItems =
-        items.map(Map<String, Object?>.from).toList(growable: false);
+    lastResolvedResult = result;
+    lastResolvedItems = switch (result) {
+      final List<Object?> items => items
+          .whereType<Map<Object?, Object?>>()
+          .map(
+            (item) => Map<String, Object?>.from(
+              item.map(
+                (key, value) => MapEntry(key.toString(), value),
+              ),
+            ),
+          )
+          .toList(growable: false),
+      _ => <Map<String, Object?>>[],
+    };
   }
 
   @override
@@ -466,6 +709,11 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   @override
   void setLanguage(String editorId, String languageId) {
     currentLanguageId = languageId;
+  }
+
+  @override
+  void setReadOnly(String editorId, bool readOnly) {
+    lastReadOnly = readOnly;
   }
 
   void triggerSave() {

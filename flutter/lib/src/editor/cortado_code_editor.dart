@@ -65,9 +65,9 @@ class CortadoCodeEditorPlatformAdapter {
 
   void resolveLspResult(
     int requestId,
-    List<Map<String, Object?>> items,
+    Object? result,
   ) {
-    resolveCortadoEditorLspResult(requestId, items);
+    resolveCortadoEditorLspResponse(requestId, result);
   }
 
   void setDiagnostics(
@@ -79,6 +79,10 @@ class CortadoCodeEditorPlatformAdapter {
 
   void setLanguage(String editorId, String languageId) {
     setCortadoEditorLanguage(editorId, languageId);
+  }
+
+  void setReadOnly(String editorId, bool readOnly) {
+    setCortadoEditorReadOnly(editorId, readOnly);
   }
 
   String setContent(
@@ -128,6 +132,7 @@ class CortadoCodeEditor extends ConsumerStatefulWidget {
 
 class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   static int _instanceCount = 0;
+  static const String _dartSdkRoot = '/usr/local/dart-sdk';
 
   late final String _editorId = 'cortado-editor-${_instanceCount++}';
   late final String _viewType = 'cortado-editor-view-$_editorId';
@@ -352,7 +357,11 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       );
     }
 
-    _tabsNotifier.open(normalizedPath);
+    final readOnly = _isReadOnlyExternalPath(normalizedPath);
+    _tabsNotifier.open(
+      normalizedPath,
+      readOnly: readOnly,
+    );
     final tab = _tabsNotifier.tabForPath(normalizedPath);
     if (tab == null) {
       return;
@@ -361,6 +370,15 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     if (!reload && tab.loaded) {
       _tabsNotifier.activate(normalizedPath);
       _renderTab(tab, preserveSelection: false);
+      return;
+    }
+
+    if (tab.readOnly && tab.loaded) {
+      _tabsNotifier.activate(normalizedPath);
+      _renderTab(
+        tab,
+        preserveSelection: preserveSelection,
+      );
       return;
     }
 
@@ -396,6 +414,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       _renderTab(nextActiveTab, preserveSelection: false);
     } else {
       widget.platform.setLanguage(_editorId, 'plain');
+      widget.platform.setReadOnly(_editorId, false);
       widget.platform.setContent(_editorId, '', preserveSelection: false);
     }
   }
@@ -405,6 +424,9 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     bool preserveSelection = false,
   }) async {
     final normalizedPath = normalizeVfsPath(path);
+    if (!_isWorkspacePath(normalizedPath)) {
+      return;
+    }
     final wasOpenInLsp = _lspClient?.isDocumentOpen(normalizedPath) ?? false;
     _tabsNotifier.markLoading(normalizedPath);
 
@@ -466,8 +488,10 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     String path,
     String content, {
     required bool preserveSelection,
+    bool readOnly = false,
   }) {
     widget.platform.setLanguage(_editorId, editorLanguageIdForPath(path));
+    widget.platform.setReadOnly(_editorId, readOnly);
     return widget.platform.setContent(
       _editorId,
       content,
@@ -480,6 +504,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     required bool preserveSelection,
   }) {
     widget.platform.setLanguage(_editorId, tab.languageId);
+    widget.platform.setReadOnly(_editorId, tab.readOnly);
     final hash = widget.platform.setContent(
       _editorId,
       tab.content,
@@ -490,7 +515,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
 
   Future<void> _saveActiveTab() async {
     final activeTab = _tabsNotifier.currentState.activeTab;
-    if (activeTab == null || activeTab.isLoading) {
+    if (activeTab == null || activeTab.isLoading || activeTab.readOnly) {
       return;
     }
 
@@ -622,7 +647,10 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   }
 
   bool _shouldUseLspForTab(OpenTab tab) =>
-      tab.languageId == widget.lspLanguage && _lspClient != null;
+      !tab.readOnly &&
+      _isWorkspacePath(tab.path) &&
+      tab.languageId == widget.lspLanguage &&
+      _lspClient != null;
 
   void _handleDiagnosticsChanged(CortadoLSPDiagnosticsByUri diagnosticsByUri) {
     _diagnosticsByUri = diagnosticsByUri;
@@ -709,13 +737,29 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       return;
     }
 
+    final requestKind = _lspRequestKind(decoded);
     try {
-      final items = await _completionItemsForRequest(decoded);
-      widget.platform.resolveLspResult(requestId, items);
+      final result = switch (requestKind) {
+        _CortadoEditorLspRequestKind.hover => await _hoverResultForRequest(
+            decoded,
+          ),
+        _CortadoEditorLspRequestKind.definition =>
+          await _definitionResultForRequest(decoded),
+        _CortadoEditorLspRequestKind.completion =>
+          await _completionItemsForRequest(decoded),
+      };
+      widget.platform.resolveLspResult(requestId, result);
     } catch (error) {
       widget.onError?.call(error.toString());
-      widget.platform
-          .resolveLspResult(requestId, const <Map<String, Object?>>[]);
+      widget.platform.resolveLspResult(
+        requestId,
+        switch (requestKind) {
+          _CortadoEditorLspRequestKind.hover => null,
+          _CortadoEditorLspRequestKind.definition => null,
+          _CortadoEditorLspRequestKind.completion =>
+            const <Map<String, Object?>>[],
+        },
+      );
     }
   }
 
@@ -724,21 +768,11 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
   ) async {
     final activeTab = _tabsNotifier.currentState.activeTab;
     final lspClient = _lspClient;
-    final position = request['position'];
-    final line = switch (position) {
-      final Map<Object?, Object?> payload => (payload['line'] as num?)?.toInt(),
-      _ => (request['line'] as num?)?.toInt(),
-    };
-    final character = switch (position) {
-      final Map<Object?, Object?> payload =>
-        (payload['character'] as num?)?.toInt(),
-      _ => (request['character'] as num?)?.toInt(),
-    };
+    final position = _requestPosition(request);
     if (activeTab == null ||
         lspClient == null ||
         !_shouldUseLspForTab(activeTab) ||
-        line == null ||
-        character == null) {
+        position == null) {
       return const <Map<String, Object?>>[];
     }
 
@@ -749,12 +783,87 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
           'uri': workspaceDocumentUriForPath(activeTab.path),
         },
         'position': <String, Object?>{
-          'line': line,
-          'character': character,
+          'line': position.line,
+          'character': position.character,
         },
       },
     );
     return _mapCompletionItems(response);
+  }
+
+  Future<Map<String, Object?>?> _hoverResultForRequest(
+    Map<String, Object?> request,
+  ) async {
+    final activeTab = _tabsNotifier.currentState.activeTab;
+    final lspClient = _lspClient;
+    final position = _requestPosition(request);
+    if (activeTab == null ||
+        lspClient == null ||
+        !_shouldUseLspForTab(activeTab) ||
+        position == null) {
+      return null;
+    }
+
+    final response = await lspClient.sendRequest(
+      'textDocument/hover',
+      params: <String, Object?>{
+        'textDocument': <String, Object?>{
+          'uri': workspaceDocumentUriForPath(activeTab.path),
+        },
+        'position': <String, Object?>{
+          'line': position.line,
+          'character': position.character,
+        },
+      },
+    );
+    return _hoverPayloadFromResponse(response);
+  }
+
+  Future<Map<String, Object?>?> _definitionResultForRequest(
+    Map<String, Object?> request,
+  ) async {
+    final activeTab = _tabsNotifier.currentState.activeTab;
+    final lspClient = _lspClient;
+    final position = _requestPosition(request);
+    if (activeTab == null ||
+        lspClient == null ||
+        !_shouldUseLspForTab(activeTab) ||
+        position == null) {
+      return null;
+    }
+
+    final response = await lspClient.sendRequest(
+      'textDocument/definition',
+      params: <String, Object?>{
+        'textDocument': <String, Object?>{
+          'uri': workspaceDocumentUriForPath(activeTab.path),
+        },
+        'position': <String, Object?>{
+          'line': position.line,
+          'character': position.character,
+        },
+      },
+    );
+    final target = _definitionTargetFromResponse(response);
+    if (target == null) {
+      return null;
+    }
+    final selection = _definitionSelectionFromResponse(response);
+
+    if (target.isWorkspacePath) {
+      await _activatePath(
+        target.path,
+        preserveSelection: false,
+        reload: false,
+      );
+      return _definitionResultPayload(selection);
+    }
+
+    await _openReadOnlyExternalTab(
+      target.path,
+      content: _readOnlyExternalContent(target.path),
+    );
+    return _definitionResultPayload(selection);
   }
 
   List<Map<String, Object?>> _mapCompletionItems(Object? response) {
@@ -842,6 +951,253 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       _ => null,
     };
   }
+
+  Future<void> _openReadOnlyExternalTab(
+    String path, {
+    required String content,
+  }) async {
+    final normalizedPath = normalizeVfsPath(path);
+    final previousActivePath = _tabsNotifier.currentState.activePath;
+    if (previousActivePath != null && previousActivePath != normalizedPath) {
+      _tabsNotifier.updateContent(
+        previousActivePath,
+        widget.platform.getContent(_editorId),
+      );
+    }
+
+    final existing = _tabsNotifier.tabForPath(normalizedPath);
+    if (existing != null && existing.loaded) {
+      _tabsNotifier.activate(normalizedPath);
+      _renderTab(existing, preserveSelection: false);
+      return;
+    }
+
+    _tabsNotifier.open(
+      normalizedPath,
+      readOnly: true,
+    );
+    final hash = _tabsNotifier.currentState.activePath == normalizedPath
+        ? _renderLoadedContent(
+            normalizedPath,
+            content,
+            preserveSelection: false,
+            readOnly: true,
+          )
+        : hashEditorContent(content);
+    _tabsNotifier.setLoaded(
+      normalizedPath,
+      content: content,
+      hash: hash,
+      readOnly: true,
+    );
+    final tab = _tabsNotifier.tabForPath(normalizedPath);
+    if (tab != null) {
+      _renderTab(tab, preserveSelection: false);
+    }
+  }
+
+  _EditorRequestPosition? _requestPosition(Map<String, Object?> request) {
+    final position = request['position'];
+    final line = switch (position) {
+      final Map<Object?, Object?> payload => (payload['line'] as num?)?.toInt(),
+      _ => (request['line'] as num?)?.toInt(),
+    };
+    final character = switch (position) {
+      final Map<Object?, Object?> payload =>
+        (payload['character'] as num?)?.toInt(),
+      _ => (request['character'] as num?)?.toInt(),
+    };
+    if (line == null || character == null) {
+      return null;
+    }
+    return _EditorRequestPosition(line: line, character: character);
+  }
+
+  _CortadoEditorLspRequestKind _lspRequestKind(Map<String, Object?> request) {
+    final rawKind =
+        request['kind'] ?? request['type'] ?? request['method'] ?? 'completion';
+    final normalizedKind = rawKind.toString().trim().toLowerCase();
+    return switch (normalizedKind) {
+      'hover' || 'textdocument/hover' => _CortadoEditorLspRequestKind.hover,
+      'definition' ||
+      'goto-definition' ||
+      'gotodefinition' ||
+      'textdocument/definition' =>
+        _CortadoEditorLspRequestKind.definition,
+      _ => _CortadoEditorLspRequestKind.completion,
+    };
+  }
+
+  Map<String, Object?>? _hoverPayloadFromResponse(Object? response) {
+    if (response is! Map<Object?, Object?>) {
+      return null;
+    }
+    final markdown = _hoverContentsToMarkdown(response['contents']);
+    if (markdown != null) {
+      return <String, Object?>{'markdown': markdown};
+    }
+    return null;
+  }
+
+  String? _hoverContentsToMarkdown(Object? contents) {
+    switch (contents) {
+      case null:
+        return null;
+      case final String text when text.trim().isNotEmpty:
+        return text.trim();
+      case final List<Object?> entries:
+        final segments = entries
+            .map(_hoverContentsToMarkdown)
+            .whereType<String>()
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList(growable: false);
+        return segments.isEmpty ? null : segments.join('\n\n');
+      case final Map<Object?, Object?> payload:
+        return _hoverMarkupFromMap(payload);
+      default:
+        return null;
+    }
+  }
+
+  String? _hoverMarkupFromMap(Map<Object?, Object?> payload) {
+    final kind = payload['kind'];
+    final value = payload['value'];
+    if (kind is String && value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+
+    final language = payload['language'];
+    if (language is String && language.isNotEmpty && value is String) {
+      return '```$language\n${value.trim()}\n```';
+    }
+    return null;
+  }
+
+  _DefinitionTarget? _definitionTargetFromResponse(Object? response) {
+    final payload = switch (response) {
+      final List<Object?> entries when entries.isNotEmpty => entries.first,
+      final Map<Object?, Object?> map => map,
+      _ => null,
+    };
+    if (payload is! Map<Object?, Object?>) {
+      return null;
+    }
+
+    final uri = payload['targetUri'] ?? payload['uri'];
+    if (uri is! String || uri.trim().isEmpty) {
+      return null;
+    }
+    final workspacePath = workspacePathFromDocumentUri(uri);
+    if (workspacePath != null) {
+      return _DefinitionTarget(path: workspacePath, isWorkspacePath: true);
+    }
+
+    final parsedUri = Uri.tryParse(uri);
+    if (parsedUri == null || parsedUri.scheme != 'file') {
+      return null;
+    }
+    return _DefinitionTarget(
+      path: normalizeVfsPath(parsedUri.path),
+      isWorkspacePath: false,
+    );
+  }
+
+  _DefinitionSelection? _definitionSelectionFromResponse(Object? response) {
+    final payload = switch (response) {
+      final List<Object?> entries when entries.isNotEmpty => entries.first,
+      final Map<Object?, Object?> map => map,
+      _ => null,
+    };
+    if (payload is! Map<Object?, Object?>) {
+      return null;
+    }
+
+    final range = payload['targetSelectionRange'] ??
+        payload['range'] ??
+        payload['targetRange'];
+    if (range is! Map<Object?, Object?>) {
+      return null;
+    }
+    final start = range['start'];
+    if (start is! Map<Object?, Object?>) {
+      return null;
+    }
+    final line = (start['line'] as num?)?.toInt();
+    final character = (start['character'] as num?)?.toInt();
+    if (line == null || character == null) {
+      return null;
+    }
+    return _DefinitionSelection(line: line, character: character);
+  }
+
+  Map<String, Object?> _definitionResultPayload(
+    _DefinitionSelection? selection,
+  ) {
+    return <String, Object?>{
+      'editorId': _editorId,
+      if (selection != null)
+        'range': <String, Object?>{
+          'start': <String, Object?>{
+            'line': selection.line,
+            'character': selection.character,
+          },
+        },
+    };
+  }
+
+  bool _isWorkspacePath(String path) => !_isReadOnlyExternalPath(path);
+
+  bool _isReadOnlyExternalPath(String path) {
+    final normalizedPath = normalizeVfsPath(path);
+    return normalizedPath == _dartSdkRoot ||
+        normalizedPath.startsWith('$_dartSdkRoot/');
+  }
+
+  String _readOnlyExternalContent(String path) {
+    if (_isReadOnlyExternalPath(path)) {
+      return '// Read-only SDK definition target.\n'
+          '// SDK source loading is not yet wired through the workspace file API.\n'
+          '// Target: $path\n';
+    }
+    return '// Read-only definition target.\n// Target: $path\n';
+  }
+}
+
+enum _CortadoEditorLspRequestKind {
+  completion,
+  hover,
+  definition,
+}
+
+class _EditorRequestPosition {
+  const _EditorRequestPosition({
+    required this.line,
+    required this.character,
+  });
+
+  final int line;
+  final int character;
+}
+
+class _DefinitionTarget {
+  const _DefinitionTarget({
+    required this.path,
+    required this.isWorkspacePath,
+  });
+
+  final String path;
+  final bool isWorkspacePath;
+}
+
+class _DefinitionSelection {
+  const _DefinitionSelection({
+    required this.line,
+    required this.character,
+  });
+
+  final int line;
+  final int character;
 }
 
 class _EditorTabStrip extends StatelessWidget {

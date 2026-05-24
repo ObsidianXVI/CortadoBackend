@@ -55,7 +55,7 @@ Feature 1.4.
   by the Flutter `HtmlElementView` side:
   - `init(container, id, languageOrOptions, onChangeHash?, onSave?)`
   - `setContent(id, text, preserveSelection?)`
-  - `getContent(id)` / `setLanguage(id, lang)` / `dispose(id)`
+  - `getContent(id)` / `setLanguage(id, lang)` / `setReadOnly(id, readOnly)` / `dispose(id)`
 
 #### LSP completion bridge (Task 4.2.2)
 
@@ -85,3 +85,21 @@ Feature 1.4.
 - Implementation uses CodeMirror setDiagnostics and lintGutter(); calling with
   an empty array clears previous diagnostics. This API replaces diagnostics
   rather than appending.
+
+#### Hover and Go-to-Definition (Task 4.2.4)
+
+- JS adds CodeMirror hover UI with a 500ms delay and Ctrl+click go-to-definition.
+- Dart registers two new globals to handle requests from the browser:
+  - window._cortadoLSPHoverRequest({ editorId, requestId, position })
+  - window._cortadoLSPDefinitionRequest({ editorId, requestId, position })
+- Dart answers via result sinks called by JS to complete the UI action:
+  - window._cortadoLSPHoverResult(requestId, { markdown?: string, plaintext?: string })
+    - If markdown is provided, it is rendered to HTML and sanitized with DOMPurify before insertion.
+    - If only plaintext is provided, it is shown as raw text.
+  - window._cortadoLSPDefinitionResult(requestId, locationOrArray)
+    - Minimal shape supported: { editorId?: string, range?: { start: { line, character } } } or an array of the same (first item used).
+    - If editorId matches the current editor, JS moves the caret to range.start and scrolls it into view. Cross-file navigation is expected to be handled by the Dart host.
+
+Notes
+- Existing completion and diagnostics behavior is preserved.
+- No changes to the Dart API surface are required beyond the new request/result globals above.

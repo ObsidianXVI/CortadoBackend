@@ -16,6 +16,7 @@ class OpenTab with _$OpenTab {
     @Default(false) bool isLoading,
     @Default(false) bool isSaving,
     @Default(false) bool loaded,
+    @Default(false) bool readOnly,
     String? errorMessage,
   }) = _OpenTab;
 

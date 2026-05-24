@@ -11,6 +11,7 @@ import {
   lineNumbers,
   rectangularSelection,
 } from '@codemirror/view';
+import {hoverTooltip, type Tooltip} from '@codemirror/tooltip';
 import {
   autocompletion,
   closeBrackets,
@@ -41,6 +42,8 @@ import {python} from '@codemirror/lang-python';
 import {go} from '@codemirror/lang-go';
 import {yaml} from '@codemirror/lang-yaml';
 import {shouldDropCompletionResult} from './completion_bridge.js';
+import DOMPurify from 'dompurify';
+import {marked} from 'marked';
 
 // Minimal poly types for global exposure
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,6 +99,8 @@ interface EditorEntry {
   cursorVersion: number;
   // Compartment to (re)configure completion source.
   completionCompartment: Compartment;
+  // Compartment to (re)configure read-only state.
+  readOnlyCompartment: Compartment;
 }
 
 // Shape accepted from the host (Dart) for diagnostics. Supports either
@@ -155,6 +160,23 @@ const CortadoEditor = {
       cursorVersion: number;
     }
   >(),
+  _pendingHovers: new Map<
+    number,
+    {
+      resolve: (t: Tooltip | null) => void;
+      editorId: string;
+      pos: number;
+      cursorVersion: number;
+    }
+  >(),
+  _pendingDefinitions: new Map<
+    number,
+    {
+      editorId: string;
+      pos: number;
+      cursorVersion: number;
+    }
+  >(),
   _reqCounter: 1,
 
   _hashText(text: string): string {
@@ -181,6 +203,7 @@ const CortadoEditor = {
     const lang = langFrom(options.language);
     const langCompartment = new Compartment();
     const completionCompartment = new Compartment();
+    const readOnlyCompartment = new Compartment();
 
     const saveKeymap = [
       {
@@ -202,6 +225,15 @@ const CortadoEditor = {
         editorBaseExtensions,
         keymap.of(saveKeymap),
         langCompartment.of(lang ? [lang] : []),
+        readOnlyCompartment.of([
+          EditorState.readOnly.of(false),
+          EditorView.editable.of(true),
+        ]),
+        // Hover support (textDocument/hover), debounced by 500ms
+        hoverTooltip(this._hoverSourceFactory(id).bind(this), {
+          hoverTime: 500,
+          hideOnChange: true,
+        }),
         // Track changes and cursor movement.
         EditorView.updateListener.of((update) => {
           const entry = this._editors.get(id);
@@ -227,6 +259,36 @@ const CortadoEditor = {
             override: [this._completionSourceFactory(id).bind(this)],
           }),
         ),
+        // Ctrl+Click go-to-definition (textDocument/definition)
+        EditorView.domEventHandlers({
+          mousedown: (event, view) => {
+            const me = event as MouseEvent;
+            if (me.button !== 0) return false;
+            if (!me.ctrlKey) return false;
+            const pos = view.posAtCoords({ x: me.clientX, y: me.clientY }, false);
+            if (pos == null) return false;
+            const line = view.state.doc.lineAt(pos);
+            const requestId = this._reqCounter++;
+            const entry = this._editors.get(id);
+            const cursorVersion = entry ? entry.cursorVersion : 0;
+            this._pendingDefinitions.set(requestId, {
+              editorId: id,
+              pos,
+              cursorVersion,
+            });
+            const defReq: LSPRequestFn | undefined = (g as any)._cortadoLSPDefinitionRequest;
+            if (defReq) {
+              defReq({
+                editorId: id,
+                requestId,
+                position: { line: line.number - 1, character: pos - line.from },
+              });
+            }
+            // Prevent default text selection when ctrl-clicking.
+            me.preventDefault();
+            return true;
+          },
+        }),
       ],
       parent: container,
     });
@@ -240,6 +302,7 @@ const CortadoEditor = {
       suppressChange: false,
       cursorVersion: 0,
       completionCompartment,
+      readOnlyCompartment,
     });
 
     // Ensure a global result sink exists once per page.
@@ -284,6 +347,17 @@ const CortadoEditor = {
     if (comp) {
       view.dispatch({ effects: comp.reconfigure(lang ? [lang] : []) });
     }
+  },
+
+  setReadOnly(id: string, readOnly: boolean) {
+    const entry = this._editors.get(id);
+    if (!entry) return;
+    entry.view.dispatch({
+      effects: entry.readOnlyCompartment.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
+    });
   },
 
   dispose(id: string) {
@@ -423,6 +497,115 @@ const CortadoEditor = {
       }
 
       pending.resolve({ from: pending.from, options: items });
+    };
+
+    // Hover result handler called by the host.
+    (g as any)._cortadoLSPHoverResult = (
+      requestId: number,
+      result:
+        | null
+        | {
+            markdown?: string | null;
+            plaintext?: string | null;
+          },
+    ) => {
+      const pending = this._pendingHovers.get(requestId);
+      if (!pending) return;
+      this._pendingHovers.delete(requestId);
+      const entry = this._editors.get(pending.editorId);
+      if (!entry || entry.cursorVersion !== pending.cursorVersion) {
+        pending.resolve(null);
+        return;
+      }
+
+      const html = result?.markdown
+        ? marked.parse(result.markdown)
+        : result?.plaintext
+        ? // Escape plaintext by assigning to textContent below.
+          null
+        : null;
+
+      const tooltip: Tooltip = {
+        pos: pending.pos,
+        create() {
+          const dom = document.createElement('div');
+          dom.className = 'cm-tooltip-cortado-hover';
+          if (html != null) {
+            dom.innerHTML = DOMPurify.sanitize(html);
+          } else if (result?.plaintext) {
+            dom.textContent = result.plaintext;
+          } else {
+            dom.textContent = '';
+          }
+          return { dom };
+        },
+      };
+      pending.resolve(tooltip);
+    };
+
+    // Definition result handler. If the returned location references the same
+    // editorId, move the cursor there. Otherwise, the host is expected to
+    // handle cross-file navigation in its own UI.
+    (g as any)._cortadoLSPDefinitionResult = (
+      requestId: number,
+      result:
+        | null
+        | {
+            editorId?: string | null;
+            range?: { start: { line: number; character: number } } | null;
+          }
+        | Array<{
+            editorId?: string | null;
+            range?: { start: { line: number; character: number } } | null;
+          }>,
+    ) => {
+      const pending = this._pendingDefinitions.get(requestId);
+      if (!pending) return;
+      this._pendingDefinitions.delete(requestId);
+      const first = Array.isArray(result) ? result[0] : result;
+      if (!first) return;
+      const targetEditorId = first.editorId ?? pending.editorId;
+      const entry = this._editors.get(targetEditorId);
+      if (!entry) return;
+      if (entry.cursorVersion !== pending.cursorVersion) return;
+      const view = entry.view;
+      const start = first.range?.start;
+      if (!start) return;
+      const line = Math.max(0, start.line | 0);
+      const ch = Math.max(0, start.character | 0);
+      const lineObj = view.state.doc.line(Math.min(line + 1, view.state.doc.lines));
+      const pos = Math.min(lineObj.from + ch, view.state.doc.length);
+      view.dispatch({
+        selection: { anchor: pos },
+        effects: EditorView.scrollIntoView(pos, { y: 'center' as any }),
+      });
+    };
+  },
+
+  // Build a hover source bound to an editor id. Dispatches a hover request
+  // to the host and resolves when the host replies via _cortadoLSPHoverResult.
+  _hoverSourceFactory(id: string) {
+    return function hoverSource(this: typeof CortadoEditor, view: EditorView, pos: number) {
+      const reqFn: LSPRequestFn | undefined = (g as any)._cortadoLSPHoverRequest;
+      if (!reqFn) return null;
+      const entry = this._editors.get(id);
+      if (!entry) return null;
+      const line = view.state.doc.lineAt(pos);
+      const requestId = this._reqCounter++;
+      const cursorVersion = entry.cursorVersion;
+      return new Promise<Tooltip | null>((resolve) => {
+        this._pendingHovers.set(requestId, {
+          resolve,
+          editorId: id,
+          pos,
+          cursorVersion,
+        });
+        reqFn({
+          editorId: id,
+          requestId,
+          position: { line: line.number - 1, character: pos - line.from },
+        });
+      });
     };
   },
 };

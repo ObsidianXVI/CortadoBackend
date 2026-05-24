@@ -20,7 +20,12 @@ class TabsNotifier extends StateNotifier<TabsState> {
     return null;
   }
 
-  void open(String path) {
+  void open(
+    String path, {
+    String? title,
+    String? languageId,
+    bool readOnly = false,
+  }) {
     final normalizedPath = normalizeVfsPath(path);
     final existing = tabForPath(normalizedPath);
     if (existing != null) {
@@ -30,9 +35,10 @@ class TabsNotifier extends StateNotifier<TabsState> {
 
     final nextTab = OpenTab(
       path: normalizedPath,
-      title: _tabTitleForPath(normalizedPath),
-      languageId: editorLanguageIdForPath(normalizedPath),
+      title: title ?? _tabTitleForPath(normalizedPath),
+      languageId: languageId ?? editorLanguageIdForPath(normalizedPath),
       isLoading: true,
+      readOnly: readOnly,
     );
     final nextTabs = <OpenTab>[
       ...state.tabs,
@@ -90,6 +96,9 @@ class TabsNotifier extends StateNotifier<TabsState> {
     String path, {
     required String content,
     required String hash,
+    String? title,
+    String? languageId,
+    bool? readOnly,
   }) {
     final normalizedPath = normalizeVfsPath(path);
     _patchTab(
@@ -99,10 +108,11 @@ class TabsNotifier extends StateNotifier<TabsState> {
         currentHash: hash,
         errorMessage: null,
         isLoading: false,
-        languageId: editorLanguageIdForPath(normalizedPath),
+        languageId: languageId ?? editorLanguageIdForPath(normalizedPath),
         loaded: true,
+        readOnly: readOnly ?? tab.readOnly,
         savedHash: hash,
-        title: _tabTitleForPath(normalizedPath),
+        title: title ?? _tabTitleForPath(normalizedPath),
       ),
     );
   }

@@ -42,12 +42,11 @@ void registerCortadoEditorLspRequestHandler({
 
 void unregisterCortadoEditorLspRequestHandler(String editorId) {}
 
-void resolveCortadoEditorLspResult(
-  int requestId,
-  List<Map<String, Object?>> items,
-) {}
+void resolveCortadoEditorLspResponse(int requestId, Object? result) {}
 
 void setCortadoEditorDiagnostics(
   String editorId,
   List<Map<String, Object?>> diagnostics,
 ) {}
+
+void setCortadoEditorReadOnly(String editorId, bool readOnly) {}

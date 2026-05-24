@@ -12,6 +12,7 @@ typedef CortadoEditorSaveCallback = void Function();
 final Set<String> _registeredViewTypes = <String>{};
 final Map<String, CortadoEditorLspRequestCallback> _lspRequestHandlers =
     <String, CortadoEditorLspRequestCallback>{};
+final Map<int, String> _lspRequestKindsById = <int, String>{};
 bool _didRegisterLspBridge = false;
 
 @JS('CortadoEditor.init')
@@ -42,11 +43,26 @@ external void _editorDispose(JSString editorId);
 @JS('CortadoEditor.setDiagnostics')
 external void _editorSetDiagnostics(JSString editorId, JSAny diagnostics);
 
+@JS('CortadoEditor.setReadOnly')
+external void _editorSetReadOnly(JSString editorId, JSBoolean readOnly);
+
 @JS('window._cortadoLSPRequest')
 external set _editorLspRequestHandler(JSFunction? handler);
 
+@JS('window._cortadoLSPHoverRequest')
+external set _editorLspHoverRequestHandler(JSFunction? handler);
+
+@JS('window._cortadoLSPDefinitionRequest')
+external set _editorLspDefinitionRequestHandler(JSFunction? handler);
+
 @JS('window._cortadoLSPResult')
-external void _editorLspResult(JSNumber requestId, JSAny items);
+external void _editorLspResult(JSNumber requestId, JSAny result);
+
+@JS('window._cortadoLSPHoverResult')
+external void _editorLspHoverResult(JSNumber requestId, JSAny result);
+
+@JS('window._cortadoLSPDefinitionResult')
+external void _editorLspDefinitionResult(JSNumber requestId, JSAny result);
 
 @JS('JSON.parse')
 external JSAny _jsonParse(JSString input);
@@ -130,16 +146,13 @@ void registerCortadoEditorLspRequestHandler({
   }
 
   _editorLspRequestHandler = ((JSAny request) {
-    final requestJson = _jsonStringify(request).toDart;
-    final decoded = jsonDecode(requestJson);
-    if (decoded is! Map<String, Object?>) {
-      return;
-    }
-    final editorId = decoded['editorId'];
-    if (editorId is! String) {
-      return;
-    }
-    _lspRequestHandlers[editorId]?.call(requestJson);
+    _dispatchLspRequest(request, fallbackKind: 'completion');
+  }).toJS;
+  _editorLspHoverRequestHandler = ((JSAny request) {
+    _dispatchLspRequest(request, fallbackKind: 'hover');
+  }).toJS;
+  _editorLspDefinitionRequestHandler = ((JSAny request) {
+    _dispatchLspRequest(request, fallbackKind: 'definition');
   }).toJS;
   _didRegisterLspBridge = true;
 }
@@ -151,17 +164,25 @@ void unregisterCortadoEditorLspRequestHandler(String editorId) {
   }
 
   _editorLspRequestHandler = null;
+  _editorLspHoverRequestHandler = null;
+  _editorLspDefinitionRequestHandler = null;
   _didRegisterLspBridge = false;
 }
 
-void resolveCortadoEditorLspResult(
-  int requestId,
-  List<Map<String, Object?>> items,
-) {
-  _editorLspResult(
-    requestId.toJS,
-    _jsonParse(jsonEncode(items).toJS),
-  );
+void resolveCortadoEditorLspResponse(int requestId, Object? result) {
+  final jsResult = _jsonParse(jsonEncode(result).toJS);
+  final requestKind = _lspRequestKindsById.remove(requestId) ?? 'completion';
+  switch (requestKind) {
+    case 'hover':
+      _editorLspHoverResult(requestId.toJS, jsResult);
+      return;
+    case 'definition':
+      _editorLspDefinitionResult(requestId.toJS, jsResult);
+      return;
+    default:
+      _editorLspResult(requestId.toJS, jsResult);
+      return;
+  }
 }
 
 void setCortadoEditorDiagnostics(
@@ -171,5 +192,37 @@ void setCortadoEditorDiagnostics(
   _editorSetDiagnostics(
     editorId.toJS,
     _jsonParse(jsonEncode(diagnostics).toJS),
+  );
+}
+
+void setCortadoEditorReadOnly(String editorId, bool readOnly) {
+  _editorSetReadOnly(editorId.toJS, readOnly.toJS);
+}
+
+void _dispatchLspRequest(
+  JSAny request, {
+  required String fallbackKind,
+}) {
+  final requestJson = _jsonStringify(request).toDart;
+  final decoded = jsonDecode(requestJson);
+  if (decoded is! Map<String, Object?>) {
+    return;
+  }
+
+  final editorId = decoded['editorId'];
+  if (editorId is! String) {
+    return;
+  }
+
+  final requestId = (decoded['requestId'] as num?)?.toInt();
+  final kind = (decoded['kind'] as String?) ?? fallbackKind;
+  if (requestId != null) {
+    _lspRequestKindsById[requestId] = kind;
+  }
+  _lspRequestHandlers[editorId]?.call(
+    jsonEncode(<String, Object?>{
+      ...decoded,
+      'kind': kind,
+    }),
   );
 }

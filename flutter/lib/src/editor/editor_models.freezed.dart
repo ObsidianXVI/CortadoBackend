@@ -25,6 +25,7 @@ mixin _$OpenTab {
   bool get isLoading => throw _privateConstructorUsedError;
   bool get isSaving => throw _privateConstructorUsedError;
   bool get loaded => throw _privateConstructorUsedError;
+  bool get readOnly => throw _privateConstructorUsedError;
   String? get errorMessage => throw _privateConstructorUsedError;
 
   /// Create a copy of OpenTab
@@ -48,6 +49,7 @@ abstract class $OpenTabCopyWith<$Res> {
       bool isLoading,
       bool isSaving,
       bool loaded,
+      bool readOnly,
       String? errorMessage});
 }
 
@@ -75,6 +77,7 @@ class _$OpenTabCopyWithImpl<$Res, $Val extends OpenTab>
     Object? isLoading = null,
     Object? isSaving = null,
     Object? loaded = null,
+    Object? readOnly = null,
     Object? errorMessage = freezed,
   }) {
     return _then(_value.copyWith(
@@ -114,6 +117,10 @@ class _$OpenTabCopyWithImpl<$Res, $Val extends OpenTab>
           ? _value.loaded
           : loaded // ignore: cast_nullable_to_non_nullable
               as bool,
+      readOnly: null == readOnly
+          ? _value.readOnly
+          : readOnly // ignore: cast_nullable_to_non_nullable
+              as bool,
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -139,6 +146,7 @@ abstract class _$$OpenTabImplCopyWith<$Res> implements $OpenTabCopyWith<$Res> {
       bool isLoading,
       bool isSaving,
       bool loaded,
+      bool readOnly,
       String? errorMessage});
 }
 
@@ -164,6 +172,7 @@ class __$$OpenTabImplCopyWithImpl<$Res>
     Object? isLoading = null,
     Object? isSaving = null,
     Object? loaded = null,
+    Object? readOnly = null,
     Object? errorMessage = freezed,
   }) {
     return _then(_$OpenTabImpl(
@@ -203,6 +212,10 @@ class __$$OpenTabImplCopyWithImpl<$Res>
           ? _value.loaded
           : loaded // ignore: cast_nullable_to_non_nullable
               as bool,
+      readOnly: null == readOnly
+          ? _value.readOnly
+          : readOnly // ignore: cast_nullable_to_non_nullable
+              as bool,
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -224,6 +237,7 @@ class _$OpenTabImpl extends _OpenTab {
       this.isLoading = false,
       this.isSaving = false,
       this.loaded = false,
+      this.readOnly = false,
       this.errorMessage})
       : super._();
 
@@ -252,11 +266,14 @@ class _$OpenTabImpl extends _OpenTab {
   @JsonKey()
   final bool loaded;
   @override
+  @JsonKey()
+  final bool readOnly;
+  @override
   final String? errorMessage;
 
   @override
   String toString() {
-    return 'OpenTab(path: $path, title: $title, languageId: $languageId, content: $content, savedHash: $savedHash, currentHash: $currentHash, isLoading: $isLoading, isSaving: $isSaving, loaded: $loaded, errorMessage: $errorMessage)';
+    return 'OpenTab(path: $path, title: $title, languageId: $languageId, content: $content, savedHash: $savedHash, currentHash: $currentHash, isLoading: $isLoading, isSaving: $isSaving, loaded: $loaded, readOnly: $readOnly, errorMessage: $errorMessage)';
   }
 
   @override
@@ -278,13 +295,26 @@ class _$OpenTabImpl extends _OpenTab {
             (identical(other.isSaving, isSaving) ||
                 other.isSaving == isSaving) &&
             (identical(other.loaded, loaded) || other.loaded == loaded) &&
+            (identical(other.readOnly, readOnly) ||
+                other.readOnly == readOnly) &&
             (identical(other.errorMessage, errorMessage) ||
                 other.errorMessage == errorMessage));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, path, title, languageId, content,
-      savedHash, currentHash, isLoading, isSaving, loaded, errorMessage);
+  int get hashCode => Object.hash(
+      runtimeType,
+      path,
+      title,
+      languageId,
+      content,
+      savedHash,
+      currentHash,
+      isLoading,
+      isSaving,
+      loaded,
+      readOnly,
+      errorMessage);
 
   /// Create a copy of OpenTab
   /// with the given fields replaced by the non-null parameter values.
@@ -306,6 +336,7 @@ abstract class _OpenTab extends OpenTab {
       final bool isLoading,
       final bool isSaving,
       final bool loaded,
+      final bool readOnly,
       final String? errorMessage}) = _$OpenTabImpl;
   const _OpenTab._() : super._();
 
@@ -327,6 +358,8 @@ abstract class _OpenTab extends OpenTab {
   bool get isSaving;
   @override
   bool get loaded;
+  @override
+  bool get readOnly;
   @override
   String? get errorMessage;
 
