@@ -172,6 +172,7 @@ class _TestWorkspaceManager extends WorkspaceManager {
     String workspaceId, {
     required String path,
     List<int> content = const <int>[],
+    bool createMissingDirs = true,
   }) async {
     final text = utf8.decode(content);
     files[path] = text;

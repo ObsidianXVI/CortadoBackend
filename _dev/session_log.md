@@ -480,6 +480,8 @@
 - A flutter/lib/src/editor/editor_platform_stub.dart
 - A flutter/lib/src/editor/web/editor_platform_web.dart
 - A flutter/lib/src/editor/tabs_notifier.dart
+23/05/26 23:54 [DOCS] (pending) `dev-pro-large` Recorded the standing product constraint that frontend-oriented Flutter package work should remain minimal and integration-focused, with effort spent on API/client correctness and avoiding UI/dependency bloat rather than widget polish.
+- M DECISIONS.md
 24/05/26 00:02 [FEAT] (pending) `dev-pro-large` Completed Task 3.3.1 by adding a bounded wait/retry loop before recreating workspace pods on a terminating `ReadWriteOnce` PVC, preserving the explicit PVC cleanup flow, and extending control-plane coverage for PVC spec details plus timeout cleanup; then advanced the active release/task pointers to Task 3.3.2.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
@@ -515,3 +517,22 @@
 - A terraform/modules/workspace_snapshots/outputs.tf
 - A terraform/modules/workspace_snapshots/variables.tf
 - A terraform/modules/workspace_snapshots/versions.tf
+24/05/26 00:42 [FEAT] (pending) `dev-pro-large` Completed Feature 4.1 by landing the LSP proto contract and optional Dart SDK workspace-image layer, implementing the agent-side Dart LSP manager with CRLF-safe framing and restart handling, routing LSP traffic over mux channels `0x0100–0x01FF` in the control plane, and cleaning up the resolved 23/05 file-API/editor decisions by defaulting writes to create missing parent directories with an explicit strict opt-out while advancing the tracker to Feature 4.2 Task 4.2.1.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M DECISIONS_NEEDED.md
+- M _dev/test_status.md
+- M agent/Dockerfile
+- A agent/internal/lsp/manager.go
+- M agent/internal/server/agent_server.go
+- M agent/internal/server/filesystem.go
+- A agent/internal/server/lsp.go
+- M control-plane/internal/api/files.go
+- M control-plane/internal/workspace/agent_file_client.go
+- A control-plane/internal/gateway/lsp_bridge.go
+- M control-plane/internal/gateway/handler.go
+- M control-plane/internal/gateway/mux.go
+- M flutter/lib/src/workspace_manager.dart
+- M proto/agent/v1/agent.proto
+- M proto/buf.yaml

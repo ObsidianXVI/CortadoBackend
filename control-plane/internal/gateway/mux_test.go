@@ -82,3 +82,18 @@ func TestMuxConnEnqueueDropsWhenQueueIsFull(t *testing.T) {
 		t.Fatal("expected second enqueue to be dropped")
 	}
 }
+
+func TestMaxPayloadSizeUsesLSPOverride(t *testing.T) {
+	if got, want := MaxPayloadSize(TerminalChannelID), 16*1024; got != want {
+		t.Fatalf("unexpected default payload size: got %d want %d", got, want)
+	}
+	if got, want := MaxPayloadSize(LSPChannelStartID), 4*1024*1024; got != want {
+		t.Fatalf("unexpected lsp payload size: got %d want %d", got, want)
+	}
+	if !IsLSPChannel(LSPChannelStartID) || !IsLSPChannel(LSPChannelEndID) {
+		t.Fatal("expected lsp channel bounds to be recognized")
+	}
+	if IsLSPChannel(TerminalChannelID) || IsLSPChannel(FileSyncChannelID) {
+		t.Fatal("expected non-lsp channels to be excluded")
+	}
+}

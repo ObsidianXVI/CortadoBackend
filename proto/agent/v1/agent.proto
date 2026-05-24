@@ -8,6 +8,8 @@ option go_package = "github.com/your-org/cortado/agent/gen/agent/v1";
 service WorkspaceAgentService {
   rpc CreatePty(CreatePtyRequest) returns (CreatePtyResponse);
   rpc StreamPty(stream StreamPtyRequest) returns (stream StreamPtyResponse);
+  rpc OpenLSP(OpenLSPRequest) returns (OpenLSPResponse);
+  rpc StreamLSP(stream LSPMessage) returns (stream LSPMessage);
   // Returns recent idle/activity info for this agent.
   // Used by the control plane to distinguish busy builds from idle sessions.
   rpc GetIdleStatus(GetIdleStatusRequest) returns (GetIdleStatusResponse);
@@ -34,6 +36,12 @@ message CreatePtyResponse {
   string pty_id = 1;
 }
 
+message OpenLSPRequest {
+  string language = 1;
+}
+
+message OpenLSPResponse {}
+
 message StreamPtyRequest {
   string pty_id = 1;
 
@@ -49,6 +57,10 @@ message StreamPtyResponse {
     bytes data = 1;
     int32 exit_code = 2;
   }
+}
+
+message LSPMessage {
+  bytes data = 1;
 }
 
 message WindowSize {
@@ -131,6 +143,7 @@ message WriteFileChunk {
   int32 seq = 3;
   bool is_last = 4;
   bytes checksum = 5;
+  optional bool create_missing_dirs = 6;
 }
 
 message WriteFileResponse {

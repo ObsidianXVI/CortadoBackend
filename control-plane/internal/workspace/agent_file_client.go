@@ -111,7 +111,7 @@ func (s *AgentFileService) ReadFile(ctx context.Context, workspaceID, path strin
 	return err
 }
 
-func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path string, reader io.Reader) (*agentpb.WriteFileResponse, error) {
+func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path string, createMissingDirs bool, reader io.Reader) (*agentpb.WriteFileResponse, error) {
 	response, err := withAgentFileClient(ctx, s.timeout, s.dialer, s.workspaceResolver, workspaceID, func(callCtx context.Context, client agentpb.WorkspaceAgentServiceClient) (*agentpb.WriteFileResponse, error) {
 		stream, err := client.WriteFile(callCtx)
 		if err != nil {
@@ -137,6 +137,9 @@ func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path stri
 						Data: data,
 					},
 				}
+				if seq == 0 {
+					req.Chunk.CreateMissingDirs = boolPtr(createMissingDirs)
+				}
 				if readErr == io.EOF {
 					req.Chunk.IsLast = true
 					req.Chunk.Checksum = encodeXXHash64(hasher.Sum64())
@@ -151,10 +154,11 @@ func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path stri
 				if n == 0 {
 					if err := stream.Send(&agentpb.WriteFileRequest{
 						Chunk: &agentpb.WriteFileChunk{
-							Path:     path,
-							Seq:      seq,
-							IsLast:   true,
-							Checksum: encodeXXHash64(hasher.Sum64()),
+							Path:              path,
+							Seq:               seq,
+							IsLast:            true,
+							Checksum:          encodeXXHash64(hasher.Sum64()),
+							CreateMissingDirs: boolPtr(createMissingDirs),
 						},
 					}); err != nil {
 						return nil, err
@@ -171,6 +175,10 @@ func (s *AgentFileService) WriteFile(ctx context.Context, workspaceID, path stri
 		return nil, err
 	}
 	return response, nil
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func (s *AgentFileService) MakeDir(ctx context.Context, workspaceID, path string) error {

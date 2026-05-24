@@ -16,7 +16,11 @@ const (
 	frameHeaderLen      = 7
 	terminalResizeLen   = 8
 	TerminalChannelID   = 0x0001
+	LSPChannelStartID   = 0x0100
+	LSPChannelEndID     = 0x01FF
 	FileSyncChannelID   = 0x0200
+	defaultMaxPayload   = 16 * 1024
+	lspMaxPayload       = 4 * 1024 * 1024
 	defaultPingInterval = 20 * time.Second
 	defaultPongWait     = 60 * time.Second
 	defaultWriteTimeout = 10 * time.Second
@@ -170,6 +174,17 @@ func DecodeTerminalResizePayload(payload []byte) (TerminalResize, error) {
 		Cols: binary.BigEndian.Uint32(payload[0:4]),
 		Rows: binary.BigEndian.Uint32(payload[4:8]),
 	}, nil
+}
+
+func IsLSPChannel(channelID uint16) bool {
+	return channelID >= LSPChannelStartID && channelID <= LSPChannelEndID
+}
+
+func MaxPayloadSize(channelID uint16) int {
+	if IsLSPChannel(channelID) {
+		return lspMaxPayload
+	}
+	return defaultMaxPayload
 }
 
 func (c *MuxConn) StartWritePump() {

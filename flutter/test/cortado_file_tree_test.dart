@@ -479,6 +479,7 @@ class _FakeWorkspaceManager extends WorkspaceManager {
     String workspaceId, {
     required String path,
     List<int> content = const <int>[],
+    bool createMissingDirs = true,
   }) async {
     writeRequests.add(
       _WriteRequest(

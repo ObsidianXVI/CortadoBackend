@@ -1,38 +1,40 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.4 → Feature 4.1 (LSP Gateway) → Task 4.1.1
+v0.4 → Feature 4.2 (Editor LSP Integration) → Task 4.2.1
 
 ## Status
 PENDING
 
 ## What was done last session
-Completed Task 3.3.2 by adding the snapshot RPC to the agent proto, wiring a restic-backed snapshot path into the workspace agent with env-driven repository configuration, triggering best-effort snapshots from the control-plane stop flow, provisioning the snapshot bucket plus Cloud Run/Secret Manager wiring in Terraform, and verifying the proto, Go, and Terraform gates.
+Completed Feature 4.1 by landing the LSP proto contract and optional Dart SDK workspace-image layer, implementing the agent-side LSP manager with CRLF-safe Content-Length framing and restart coverage, wiring LSP mux channels through the control-plane gateway, and cleaning up the answered 23/05 file-API/editor decisions by defaulting writes to auto-create parent directories with an explicit strict opt-out while recording the resolved decisions.
 
 ## What was done this session
-Task 4.1.1 has not been started yet.
+Feature 4.1.1–4.1.3 and the 23/05 cleanup follow-up are complete and verified.
 
 ## Remaining work this session
-Implement the initial LSP gateway contract:
-- add `OpenLSP` and `StreamLSP` RPCs to `agent.proto`
-- define `OpenLSPRequest`, `OpenLSPResponse`, and `LSPMessage`
-- update generated bindings after the proto change
-- add the Dart SDK Docker build-arg path for Dart LSP support
+Implement the Dart-side LSP client:
+- add a `CortadoLSPClient` over the mux LSP channel
+- implement `initialize`, `initialized`, `textDocument/didOpen`, `textDocument/didChange`, and `textDocument/didClose`
+- use full-document sync mode for edits
+- subscribe to `textDocument/publishDiagnostics`
+- show and dismiss the "Language server starting..." state around `initialized`
+- queue requests until the server finishes initialization
 
 ## Definition of done
-- [ ] `agent.proto` defines `OpenLSP(OpenLSPRequest) returns (OpenLSPResponse)` and `StreamLSP(stream LSPMessage) returns (stream LSPMessage)`
-- [ ] `OpenLSPRequest` carries `language`
-- [ ] `LSPMessage` carries raw JSON-RPC `data`
-- [ ] Generated bindings are refreshed after the proto change
-- [ ] The workspace Docker image supports an `INCLUDE_DART_SDK` build arg for optionally layering in the Dart SDK
-- [ ] Relevant proto / agent verification passes
-- [ ] `cd proto && buf lint` passes
-- [ ] `cd agent && GOTOOLCHAIN=local go test ./...` passes
-- [ ] `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...` passes
+- [ ] `CortadoLSPClient` manages JSON-RPC 2.0 request/response state over an LSP mux channel
+- [ ] `initialize` and `initialized` are sent in order when the channel opens
+- [ ] `didOpen`, `didChange`, and `didClose` notifications are wired for editor lifecycle events
+- [ ] file changes use full-document sync payloads
+- [ ] `publishDiagnostics` notifications are surfaced to Dart listeners
+- [ ] requests issued before initialization are queued and flushed afterward
+- [ ] the loading indicator is shown until initialization completes
+- [ ] relevant Flutter tests cover initialization, request queueing, and diagnostics delivery
+- [ ] `cd flutter && flutter analyze` passes
 
 ## Next task after this one
-Feature 4.1 → Task 4.1.2 — Agent-side LSP process manager
-See _dev/features/feat-4-1.md for full spec
+Feature 4.2 → Task 4.2.2 — Completions in CodeMirror
+See _dev/features/feat-4-2.md for full spec
 
 ## Blocked on / decisions needed
-See `DECISIONS_NEEDED.md` for the standing file-API/CodeMirror follow-ups plus the Task 3.3.2 snapshot-bucket IAM-role confirmation for restic.
+None currently recorded.

@@ -6,10 +6,12 @@ import (
 	"io"
 	"math"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
+	lspmanager "github.com/your-org/cortado/agent/internal/lsp"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,6 +24,9 @@ type AgentServer struct {
 	pb.UnimplementedWorkspaceAgentServiceServer
 
 	commandRunner    snapshotCommandRunner
+	lspMgr           *lspmanager.Manager
+	lspMu            sync.RWMutex
+	lspLanguage      string
 	ptyMgr           *ptymanager.Manager
 	snapshotBucket   string
 	snapshotPassword string
@@ -32,6 +37,7 @@ type AgentServer struct {
 
 type AgentServerConfig struct {
 	CommandRunner    snapshotCommandRunner
+	LSPManager       *lspmanager.Manager
 	SnapshotBucket   string
 	SnapshotPassword string
 	WorkspaceID      string
@@ -62,9 +68,15 @@ func NewAgentServerWithConfig(ptyMgr *ptymanager.Manager, tracker usageTracker, 
 	if cfg.CommandRunner == nil {
 		cfg.CommandRunner = runSnapshotCommand
 	}
+	if cfg.LSPManager == nil {
+		cfg.LSPManager = lspmanager.NewManagerWithConfig(lspmanager.ManagerConfig{
+			WorkspaceRoot: cfg.WorkspaceRoot,
+		})
+	}
 
 	return &AgentServer{
 		commandRunner:    cfg.CommandRunner,
+		lspMgr:           cfg.LSPManager,
 		ptyMgr:           ptyMgr,
 		snapshotBucket:   strings.TrimSpace(cfg.SnapshotBucket),
 		snapshotPassword: cfg.SnapshotPassword,

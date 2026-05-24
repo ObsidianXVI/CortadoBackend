@@ -251,3 +251,13 @@
 - PASS `terraform -chdir=terraform/envs/dev validate`
 - PASS `terraform -chdir=terraform/envs/prod init -backend=false -input=false`
 - PASS `terraform -chdir=terraform/envs/prod validate`
+24/05/26 00:42
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `docker build --build-arg INCLUDE_DART_SDK=true -t cortado-workspace:test agent`
+- PASS `cd agent && GOTOOLCHAIN=local go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd flutter && flutter test test/workspace_manager_test.dart test/cortado_code_editor_test.dart test/cortado_file_tree_test.dart`
+- PASS `cd flutter && flutter analyze`

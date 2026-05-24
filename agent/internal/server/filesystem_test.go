@@ -136,34 +136,10 @@ func TestAgentServerWriteFileAndDeletePath(t *testing.T) {
 
 	if err := writeStream.Send(&pb.WriteFileRequest{
 		Chunk: &pb.WriteFileChunk{
-			Path:     "dir/file.txt",
-			Seq:      0,
-			Data:     content[:5],
-			IsLast:   true,
-			Checksum: expectedChecksum,
-		},
-	}); err != nil && status.Code(err) != codes.NotFound {
-		t.Fatalf("send missing-parent chunk: %v", err)
-	}
-
-	if _, err := writeStream.CloseAndRecv(); status.Code(err) != codes.NotFound {
-		t.Fatalf("expected missing parent directory failure, got %v", err)
-	}
-
-	if err := os.Mkdir(filepath.Join(workspaceRoot, "dir"), 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-
-	writeStream, err = client.WriteFile(ctx)
-	if err != nil {
-		t.Fatalf("open write stream: %v", err)
-	}
-
-	if err := writeStream.Send(&pb.WriteFileRequest{
-		Chunk: &pb.WriteFileChunk{
-			Path: "dir/file.txt",
-			Seq:  0,
-			Data: content[:5],
+			Path:              "dir/file.txt",
+			Seq:               0,
+			Data:              content[:5],
+			CreateMissingDirs: boolPtr(true),
 		},
 	}); err != nil {
 		t.Fatalf("send first chunk: %v", err)
@@ -204,6 +180,42 @@ func TestAgentServerWriteFileAndDeletePath(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workspaceRoot, "dir")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected path deletion, got stat err %v", err)
+	}
+}
+
+func TestAgentServerWriteFileCanRequireExistingParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	content := []byte("hello filesystem api")
+	expectedChecksum := encodeXXHash64(xxhash.Sum64(content))
+
+	client, cleanup := newTestClientWithWorkspaceRoot(t, nil, workspaceRoot)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	writeStream, err := client.WriteFile(ctx)
+	if err != nil {
+		t.Fatalf("open write stream: %v", err)
+	}
+
+	if err := writeStream.Send(&pb.WriteFileRequest{
+		Chunk: &pb.WriteFileChunk{
+			Path:              "dir/file.txt",
+			Seq:               0,
+			Data:              content,
+			IsLast:            true,
+			Checksum:          expectedChecksum,
+			CreateMissingDirs: boolPtr(false),
+		},
+	}); err != nil && status.Code(err) != codes.NotFound {
+		t.Fatalf("send missing-parent chunk: %v", err)
+	}
+
+	if _, err := writeStream.CloseAndRecv(); status.Code(err) != codes.NotFound {
+		t.Fatalf("expected missing parent directory failure, got %v", err)
 	}
 }
 
@@ -464,4 +476,8 @@ func waitForWatchEvent(t *testing.T, stream pb.WorkspaceAgentService_WatchFilesC
 			return event
 		}
 	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }

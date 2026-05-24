@@ -21,10 +21,12 @@ type Session struct {
 }
 
 type TerminalFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
+type LSPFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
 type FileFrameHandler func(ctx context.Context, session Session, frame Frame, receivedAt time.Time) error
 
 type ConnectHandlerConfig struct {
 	FileHandler        FileFrameHandler
+	LSPHandler         LSPFrameHandler
 	Logger             *log.Logger
 	MuxConnConfig      MuxConnConfig
 	TerminalHandler    TerminalFrameHandler
@@ -68,7 +70,7 @@ func NewConnectHandler(cfg ConnectHandlerConfig) http.Handler {
 			Conn:        conn,
 			WorkspaceID: workspaceID,
 		}
-		if err := readLoop(r.Context(), session, cfg.TerminalHandler, cfg.FileHandler); err != nil {
+		if err := readLoop(r.Context(), session, cfg.TerminalHandler, cfg.LSPHandler, cfg.FileHandler); err != nil {
 			cfg.Logger.Printf("workspace websocket closed for %s: %v", workspaceID, err)
 		}
 	})
@@ -107,6 +109,17 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 			WorkspaceResolver: resolver,
 		}).HandleFrame
 	}
+	if cfg.LSPHandler == nil {
+		resolver := cfg.WorkspaceResolver
+		if resolver == nil {
+			resolver = StaticWorkspaceResolver{Namespace: cfg.WorkspaceNamespace}
+		}
+		cfg.LSPHandler = NewLSPBridge(LSPBridgeConfig{
+			Dialer:            cfg.GRPCDialer,
+			Logger:            cfg.Logger,
+			WorkspaceResolver: resolver,
+		}).HandleFrame
+	}
 
 	if cfg.Upgrader.CheckOrigin == nil {
 		cfg.Upgrader.CheckOrigin = func(*http.Request) bool { return true }
@@ -118,7 +131,7 @@ func withConnectHandlerDefaults(cfg ConnectHandlerConfig) ConnectHandlerConfig {
 	return cfg
 }
 
-func readLoop(ctx context.Context, session Session, terminalHandler TerminalFrameHandler, fileHandler FileFrameHandler) error {
+func readLoop(ctx context.Context, session Session, terminalHandler TerminalFrameHandler, lspHandler LSPFrameHandler, fileHandler FileFrameHandler) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -144,6 +157,10 @@ func readLoop(ctx context.Context, session Session, terminalHandler TerminalFram
 		if err != nil {
 			return fmt.Errorf("decode mux frame: %w", err)
 		}
+		if len(frame.Payload) > MaxPayloadSize(frame.ChannelID) {
+			session.Conn.SendError(frame.ChannelID, fmt.Sprintf("payload exceeds %d bytes", MaxPayloadSize(frame.ChannelID)))
+			continue
+		}
 		if frame.MessageType == MessageTypePing {
 			session.Conn.SendFrame(frame)
 			continue
@@ -156,6 +173,10 @@ func readLoop(ctx context.Context, session Session, terminalHandler TerminalFram
 		case FileSyncChannelID:
 			handlerErr = fileHandler(ctx, session, frame, receivedAt)
 		default:
+			if IsLSPChannel(frame.ChannelID) {
+				handlerErr = lspHandler(ctx, session, frame, receivedAt)
+				break
+			}
 			session.Conn.SendError(frame.ChannelID, "unsupported channel")
 			continue
 		}

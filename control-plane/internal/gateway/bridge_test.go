@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
@@ -214,6 +215,114 @@ func TestConnectRouteBridgesFileWatchEventsToMuxChannel(t *testing.T) {
 	closeFrame := readFrame(t, ws)
 	if closeFrame.ChannelID != gateway.FileSyncChannelID || closeFrame.MessageType != gateway.MessageTypeClose {
 		t.Fatalf("unexpected close frame: %#v", closeFrame)
+	}
+}
+
+func TestConnectRouteBridgesLSPFramesToAgentStream(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	openReqCh := make(chan *agentpb.OpenLSPRequest, 1)
+	languageMDCh := make(chan string, 1)
+	inboundDataCh := make(chan []byte, 1)
+
+	dialer, cleanup := newAgentDialer(t, &stubAgentServer{
+		openLSP: func(_ context.Context, req *agentpb.OpenLSPRequest) (*agentpb.OpenLSPResponse, error) {
+			openReqCh <- req
+			return &agentpb.OpenLSPResponse{}, nil
+		},
+		streamLSP: func(stream agentpb.WorkspaceAgentService_StreamLSPServer) error {
+			if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+				values := md.Get("x-cortado-lsp-language")
+				if len(values) > 0 {
+					languageMDCh <- values[0]
+				}
+			}
+
+			msg, err := stream.Recv()
+			if err != nil {
+				return err
+			}
+			inboundDataCh <- append([]byte(nil), msg.GetData()...)
+
+			if err := stream.Send(&agentpb.LSPMessage{Data: []byte("echo:" + string(msg.GetData()))}); err != nil {
+				return err
+			}
+			return nil
+		},
+	}, nil)
+	defer cleanup()
+
+	server := httptest.NewServer(api.NewRouter(api.RouterConfig{
+		ConnectHandler: gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
+			Logger: newDiscardLogger(),
+			MuxConnConfig: gateway.MuxConnConfig{
+				Logger:       newDiscardLogger(),
+				PingInterval: time.Hour,
+			},
+			GRPCDialer: dialer,
+			WorkspaceResolver: testWorkspaceResolver{
+				dns: "workspace.test.svc.cluster.local",
+			},
+		}),
+	}))
+	defer server.Close()
+
+	ws := mustDial(t, server.URL+"/v1/workspaces/ws-123/connect?dev_token=dev-bypass")
+	defer ws.Close()
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.LSPChannelStartID,
+		MessageType: gateway.MessageTypeOpen,
+		Payload:     []byte("dart"),
+	})
+
+	select {
+	case req := <-openReqCh:
+		if req.GetLanguage() != "dart" {
+			t.Fatalf("unexpected lsp language: %q", req.GetLanguage())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for OpenLSP request")
+	}
+
+	select {
+	case language := <-languageMDCh:
+		if language != "dart" {
+			t.Fatalf("unexpected lsp metadata language: %q", language)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for StreamLSP metadata")
+	}
+
+	writeFrame(t, ws, gateway.Frame{
+		ChannelID:   gateway.LSPChannelStartID,
+		MessageType: gateway.MessageTypeData,
+		Payload:     []byte(`{"id":1}`),
+	})
+
+	select {
+	case got := <-inboundDataCh:
+		if string(got) != `{"id":1}` {
+			t.Fatalf("unexpected lsp stream data: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for data to reach lsp stream")
+	}
+
+	dataFrame := readFrame(t, ws)
+	if dataFrame.ChannelID != gateway.LSPChannelStartID {
+		t.Fatalf("unexpected lsp channel id: got %d want %d", dataFrame.ChannelID, gateway.LSPChannelStartID)
+	}
+	if dataFrame.MessageType != gateway.MessageTypeData {
+		t.Fatalf("unexpected lsp frame type: got %d want %d", dataFrame.MessageType, gateway.MessageTypeData)
+	}
+	if string(dataFrame.Payload) != `echo:{"id":1}` {
+		t.Fatalf("unexpected lsp payload: %q", dataFrame.Payload)
+	}
+
+	closeFrame := readFrame(t, ws)
+	if closeFrame.ChannelID != gateway.LSPChannelStartID || closeFrame.MessageType != gateway.MessageTypeClose {
+		t.Fatalf("unexpected lsp close frame: %#v", closeFrame)
 	}
 }
 
@@ -557,6 +666,8 @@ type stubAgentServer struct {
 	agentpb.UnimplementedWorkspaceAgentServiceServer
 
 	createPty  func(context.Context, *agentpb.CreatePtyRequest) (*agentpb.CreatePtyResponse, error)
+	openLSP    func(context.Context, *agentpb.OpenLSPRequest) (*agentpb.OpenLSPResponse, error)
+	streamLSP  func(agentpb.WorkspaceAgentService_StreamLSPServer) error
 	streamPty  func(agentpb.WorkspaceAgentService_StreamPtyServer) error
 	watchFiles func(*agentpb.WatchFilesRequest, agentpb.WorkspaceAgentService_WatchFilesServer) error
 }
@@ -573,6 +684,20 @@ func (s *stubAgentServer) StreamPty(stream agentpb.WorkspaceAgentService_StreamP
 		return nil
 	}
 	return s.streamPty(stream)
+}
+
+func (s *stubAgentServer) OpenLSP(ctx context.Context, req *agentpb.OpenLSPRequest) (*agentpb.OpenLSPResponse, error) {
+	if s.openLSP == nil {
+		return &agentpb.OpenLSPResponse{}, nil
+	}
+	return s.openLSP(ctx, req)
+}
+
+func (s *stubAgentServer) StreamLSP(stream agentpb.WorkspaceAgentService_StreamLSPServer) error {
+	if s.streamLSP == nil {
+		return nil
+	}
+	return s.streamLSP(stream)
 }
 
 func (s *stubAgentServer) WatchFiles(req *agentpb.WatchFilesRequest, stream agentpb.WorkspaceAgentService_WatchFilesServer) error {

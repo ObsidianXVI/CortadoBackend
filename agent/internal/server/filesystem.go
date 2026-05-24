@@ -137,12 +137,13 @@ func (s *AgentServer) ReadFile(req *pb.ReadFileRequest, stream pb.WorkspaceAgent
 
 func (s *AgentServer) WriteFile(stream pb.WorkspaceAgentService_WriteFileServer) (err error) {
 	var (
-		bytesWritten int64
-		expectedSeq  int32
-		sawLast      bool
-		targetPath   string
-		tempPath     string
-		file         *os.File
+		bytesWritten      int64
+		createMissingDirs = true
+		expectedSeq       int32
+		sawLast           bool
+		targetPath        string
+		tempPath          string
+		file              *os.File
 	)
 
 	hasher := xxhash.New()
@@ -180,10 +181,16 @@ func (s *AgentServer) WriteFile(stream pb.WorkspaceAgentService_WriteFileServer)
 		if err != nil {
 			return err
 		}
+		if expectedSeq > 0 && chunk.CreateMissingDirs != nil {
+			return status.Error(codes.InvalidArgument, "create_missing_dirs can only be set on the first chunk")
+		}
 
 		if targetPath == "" {
 			targetPath = path
-			tempPath, file, err = prepareWriteTarget(targetPath)
+			if chunk.CreateMissingDirs != nil {
+				createMissingDirs = chunk.GetCreateMissingDirs()
+			}
+			tempPath, file, err = prepareWriteTarget(targetPath, createMissingDirs)
 			if err != nil {
 				return err
 			}
@@ -514,11 +521,19 @@ func relativeWorkspacePath(root, path string) (string, error) {
 	return filepath.ToSlash(relativePath), nil
 }
 
-func prepareWriteTarget(targetPath string) (string, *os.File, error) {
+func prepareWriteTarget(targetPath string, createMissingDirs bool) (string, *os.File, error) {
 	parentDir := filepath.Dir(targetPath)
 	parentInfo, err := os.Stat(parentDir)
 	if err != nil {
-		return "", nil, mapFilesystemError("stat parent directory", err)
+		if errors.Is(err, os.ErrNotExist) && createMissingDirs {
+			if err := os.MkdirAll(parentDir, 0o755); err != nil {
+				return "", nil, mapFilesystemError("create parent directories", err)
+			}
+			parentInfo, err = os.Stat(parentDir)
+		}
+		if err != nil {
+			return "", nil, mapFilesystemError("stat parent directory", err)
+		}
 	}
 	if !parentInfo.IsDir() {
 		return "", nil, status.Error(codes.InvalidArgument, "parent path must be a directory")

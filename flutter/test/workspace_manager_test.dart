@@ -226,6 +226,13 @@ void main() {
       expect(writeResult.bytesWritten, 7);
       expect(writeResult.checksum, orderedEquals(const <int>[1, 2, 3]));
 
+      await manager.writeFile(
+        'ws-123',
+        path: '/lib/strict.dart',
+        content: utf8.encode('strict'),
+        createMissingDirs: false,
+      );
+
       await manager.makeDir('ws-123', path: '/lib/newdir');
       await manager.renamePath(
         'ws-123',
@@ -234,7 +241,7 @@ void main() {
       );
       await manager.deletePath('ws-123', path: '/lib/app.dart');
 
-      expect(requests, hasLength(5));
+      expect(requests, hasLength(6));
       expect(
         requests[0].request.url,
         Uri.parse(
@@ -250,17 +257,23 @@ void main() {
       expect(
         requests[2].request.url,
         Uri.parse(
-          'http://localhost:8080/api/v1/workspaces/ws-123/files/directory?foo=bar&path=lib%2Fnewdir',
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/content?foo=bar&path=lib%2Fstrict.dart&createMissingDirs=false',
         ),
       );
       expect(
         requests[3].request.url,
         Uri.parse(
-          'http://localhost:8080/api/v1/workspaces/ws-123/files/rename?foo=bar&path=lib%2Fmain.dart&newPath=lib%2Fapp.dart',
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/directory?foo=bar&path=lib%2Fnewdir',
         ),
       );
       expect(
         requests[4].request.url,
+        Uri.parse(
+          'http://localhost:8080/api/v1/workspaces/ws-123/files/rename?foo=bar&path=lib%2Fmain.dart&newPath=lib%2Fapp.dart',
+        ),
+      );
+      expect(
+        requests[5].request.url,
         Uri.parse(
           'http://localhost:8080/api/v1/workspaces/ws-123/files?foo=bar&path=lib%2Fapp.dart',
         ),

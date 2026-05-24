@@ -1,14 +1,19 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	pb "github.com/your-org/cortado/agent/gen/agent/v1"
+	lspmanager "github.com/your-org/cortado/agent/internal/lsp"
 	ptymanager "github.com/your-org/cortado/agent/internal/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -135,6 +140,75 @@ func TestAgentServerRejectsMissingStreamPtySessionID(t *testing.T) {
 
 	_, err = stream.Recv()
 	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected invalid argument, got %v", err)
+	}
+}
+
+func TestAgentServerOpenAndStreamLSP(t *testing.T) {
+	t.Parallel()
+
+	manager := lspmanager.NewManagerWithConfig(lspmanager.ManagerConfig{
+		CommandFactory: helperLSPCommandFactory(t, "echo", ""),
+		WorkspaceRoot:  t.TempDir(),
+	})
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{
+		LSPManager:    manager,
+		WorkspaceRoot: t.TempDir(),
+	})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.OpenLSP(ctx, &pb.OpenLSPRequest{Language: "dart"}); err != nil {
+		t.Fatalf("open lsp: %v", err)
+	}
+
+	stream, err := client.StreamLSP(ctx)
+	if err != nil {
+		t.Fatalf("stream lsp: %v", err)
+	}
+	if err := stream.Send(&pb.LSPMessage{Data: []byte(`{"id":1}`)}); err != nil {
+		t.Fatalf("send lsp message: %v", err)
+	}
+
+	response, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("recv lsp message: %v", err)
+	}
+	if got, want := string(response.GetData()), `echo:{"id":1}`; got != want {
+		t.Fatalf("unexpected lsp response: got %q want %q", got, want)
+	}
+}
+
+func TestAgentServerRejectsStreamLSPBeforeOpen(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClient(t, nil)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := client.StreamLSP(ctx)
+	if err != nil {
+		t.Fatalf("stream lsp: %v", err)
+	}
+	if _, err := stream.Recv(); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected failed precondition, got %v", err)
+	}
+}
+
+func TestAgentServerRejectsUnsupportedLSP(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClient(t, nil)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := client.OpenLSP(ctx, &pb.OpenLSPRequest{Language: "python"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("expected invalid argument, got %v", err)
 	}
 }
@@ -319,4 +393,90 @@ func containsEnv(env []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func helperLSPCommandFactory(t *testing.T, mode, stateFile string) lspmanager.CommandFactory {
+	t.Helper()
+
+	return func(language, workspaceRoot string) (lspmanager.CommandConfig, error) {
+		return lspmanager.CommandConfig{
+			Args: []string{"-test.run=TestHelperProcess"},
+			Dir:  workspaceRoot,
+			Env: append(os.Environ(),
+				"GO_WANT_HELPER_PROCESS=1",
+				"LSP_HELPER_MODE="+mode,
+				"LSP_HELPER_STATE_FILE="+stateFile,
+			),
+			Path: os.Args[0],
+		}, nil
+	}
+}
+
+func TestHelperProcess(_ *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	switch os.Getenv("LSP_HELPER_MODE") {
+	case "echo":
+		runEchoHelper()
+	default:
+		os.Exit(2)
+	}
+}
+
+func runEchoHelper() {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		body, err := readHelperFrame(reader)
+		if err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				os.Exit(0)
+			}
+			os.Exit(7)
+		}
+		if err := writeHelperFrame(os.Stdout, []byte(fmt.Sprintf("echo:%s", body))); err != nil {
+			os.Exit(8)
+		}
+	}
+}
+
+func readHelperFrame(reader *bufio.Reader) ([]byte, error) {
+	contentLength := -1
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || !strings.EqualFold(strings.TrimSpace(key), "Content-Length") {
+			continue
+		}
+
+		contentLength, err = strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	body := make([]byte, contentLength)
+	if _, err := io.ReadFull(reader, body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func writeHelperFrame(writer io.Writer, data []byte) error {
+	if _, err := fmt.Fprintf(writer, "Content-Length: %d\r\n\r\n", len(data)); err != nil {
+		return err
+	}
+	_, err := writer.Write(data)
+	return err
 }

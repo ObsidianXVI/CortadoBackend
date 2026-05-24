@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	chi "github.com/go-chi/chi/v5"
@@ -85,7 +86,13 @@ func (h *filesHandler) writeContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.fileService.WriteFile(r.Context(), workspaceID, path, r.Body)
+	createMissingDirs, err := parseCreateMissingDirs(r)
+	if err != nil {
+		http.Error(w, "invalid createMissingDirs query parameter", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.fileService.WriteFile(r.Context(), workspaceID, path, createMissingDirs, r.Body)
 	if err != nil {
 		writeWorkspaceError(w, err)
 		return
@@ -161,4 +168,12 @@ func timestampAsTime(value *timestamppb.Timestamp) time.Time {
 		return time.Time{}
 	}
 	return value.AsTime().UTC()
+}
+
+func parseCreateMissingDirs(r *http.Request) (bool, error) {
+	value := r.URL.Query().Get("createMissingDirs")
+	if value == "" {
+		return true, nil
+	}
+	return strconv.ParseBool(value)
 }

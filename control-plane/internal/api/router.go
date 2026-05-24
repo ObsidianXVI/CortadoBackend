@@ -35,7 +35,7 @@ type WorkspaceFileService interface {
 	MakeDir(ctx context.Context, workspaceID, path string) error
 	ReadFile(ctx context.Context, workspaceID, path string, writer io.Writer) error
 	RenamePath(ctx context.Context, workspaceID, oldPath, newPath string) error
-	WriteFile(ctx context.Context, workspaceID, path string, reader io.Reader) (*agentpb.WriteFileResponse, error)
+	WriteFile(ctx context.Context, workspaceID, path string, createMissingDirs bool, reader io.Reader) (*agentpb.WriteFileResponse, error)
 }
 
 func NewRouter(cfg RouterConfig) http.Handler {

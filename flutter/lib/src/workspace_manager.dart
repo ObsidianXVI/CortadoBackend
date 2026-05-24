@@ -113,6 +113,7 @@ class WorkspaceManager {
     String workspaceId, {
     required String path,
     List<int> content = const <int>[],
+    bool createMissingDirs = true,
   }) async {
     _validateWorkspaceId(workspaceId);
 
@@ -120,7 +121,10 @@ class WorkspaceManager {
       _workspaceUri(
         workspaceId,
         action: 'files/content',
-        queryParameters: _fileQueryParameters(path),
+        queryParameters: <String, String>{
+          ..._fileQueryParameters(path),
+          if (!createMissingDirs) 'createMissingDirs': 'false',
+        },
       ),
       headers: await _headers(contentType: 'application/octet-stream'),
       body: content,

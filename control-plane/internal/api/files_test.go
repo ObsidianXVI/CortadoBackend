@@ -83,6 +83,9 @@ func TestFileRoutesListReadWriteMakeDirRenameAndDelete(t *testing.T) {
 	if files.writePath != "src/main.go" || string(files.writeContent) != "updated body" {
 		t.Fatalf("unexpected write capture: path=%q body=%q", files.writePath, files.writeContent)
 	}
+	if !files.writeCreateMissingDirs {
+		t.Fatalf("expected createMissingDirs default to true")
+	}
 
 	mkdirReq := httptest.NewRequest(http.MethodPost, "/v1/workspaces/ws-123/files/directory?path=src/newdir", nil)
 	mkdirReq.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
@@ -150,24 +153,89 @@ func TestFileRoutesMakeDirConflictReturnsConflict(t *testing.T) {
 	}
 }
 
+func TestFileRoutesWriteContentParsesCreateMissingDirs(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	now := time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC)
+	workspaces := &workspaceServiceStub{
+		getResult: workspace.Workspace{
+			ID:        "ws-123",
+			TenantID:  "dev-tenant",
+			Status:    workspace.StatusRunning,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+	files := &workspaceFileServiceStub{
+		writeResponse: &agentpb.WriteFileResponse{},
+	}
+
+	router := NewRouter(RouterConfig{
+		WorkspaceSvc:     workspaces,
+		WorkspaceFileSvc: files,
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/workspaces/ws-123/files/content?path=src/main.go&createMissingDirs=false", bytes.NewBufferString("updated body"))
+	req.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected write status: got %d want %d", rec.Code, http.StatusOK)
+	}
+	if files.writeCreateMissingDirs {
+		t.Fatalf("expected createMissingDirs to be false")
+	}
+}
+
+func TestFileRoutesWriteContentRejectsInvalidCreateMissingDirs(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	now := time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC)
+	router := NewRouter(RouterConfig{
+		WorkspaceSvc: &workspaceServiceStub{
+			getResult: workspace.Workspace{
+				ID:        "ws-123",
+				TenantID:  "dev-tenant",
+				Status:    workspace.StatusRunning,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+		WorkspaceFileSvc: &workspaceFileServiceStub{
+			writeResponse: &agentpb.WriteFileResponse{},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/workspaces/ws-123/files/content?path=src/main.go&createMissingDirs=not-bool", bytes.NewBufferString("updated body"))
+	req.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected write status: got %d want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 type workspaceFileServiceStub struct {
-	deleteErr     error
-	deletePath    string
-	listEntries   []*agentpb.DirectoryEntry
-	listErr       error
-	listPath      string
-	mkdirErr      error
-	mkdirPath     string
-	readContent   []byte
-	readErr       error
-	readPath      string
-	renameErr     error
-	renameNewPath string
-	renameOldPath string
-	writeContent  []byte
-	writeErr      error
-	writePath     string
-	writeResponse *agentpb.WriteFileResponse
+	deleteErr              error
+	deletePath             string
+	listEntries            []*agentpb.DirectoryEntry
+	listErr                error
+	listPath               string
+	mkdirErr               error
+	mkdirPath              string
+	readContent            []byte
+	readErr                error
+	readPath               string
+	renameErr              error
+	renameNewPath          string
+	renameOldPath          string
+	writeContent           []byte
+	writeCreateMissingDirs bool
+	writeErr               error
+	writePath              string
+	writeResponse          *agentpb.WriteFileResponse
 }
 
 func (s *workspaceFileServiceStub) DeletePath(_ context.Context, _, path string) error {
@@ -194,8 +262,9 @@ func (s *workspaceFileServiceStub) ReadFile(_ context.Context, _, path string, w
 	return err
 }
 
-func (s *workspaceFileServiceStub) WriteFile(_ context.Context, _, path string, reader io.Reader) (*agentpb.WriteFileResponse, error) {
+func (s *workspaceFileServiceStub) WriteFile(_ context.Context, _, path string, createMissingDirs bool, reader io.Reader) (*agentpb.WriteFileResponse, error) {
 	s.writePath = path
+	s.writeCreateMissingDirs = createMissingDirs
 	body, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
