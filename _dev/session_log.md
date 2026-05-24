@@ -590,3 +590,11 @@
 - A indexer/pyproject.toml
 - A indexer/src/cortado_indexer/chunker.py
 - A indexer/src/cortado_indexer/cli.py
+24/05/26 02:05 [FIX] (pending) `dev-pro-large` Cleaned up the initial indexer scaffold commit by removing accidental Python bytecode artifacts and tightening `.gitignore` to ignore `__pycache__` and `.pyc` files so the new Python service tracks only source files.
+- M .gitignore
+- D indexer/src/cortado_indexer/__pycache__/__init__.cpython-314.pyc
+- D indexer/src/cortado_indexer/__pycache__/__main__.cpython-314.pyc
+- D indexer/src/cortado_indexer/__pycache__/chunker.cpython-314.pyc
+- D indexer/src/cortado_indexer/__pycache__/cli.cpython-314.pyc
+- D indexer/src/cortado_indexer/__pycache__/models.cpython-314.pyc
+- D indexer/tests/__pycache__/test_chunker.cpython-314.pyc
