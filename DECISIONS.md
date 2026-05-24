@@ -57,3 +57,6 @@
 
 - The daemon-to-control-plane FileSync transport stays on the simple local-development path for now, while production hardening is deferred and explicitly tracked as follow-up work.
   Rationale: the user chose to keep the dev setup lightweight rather than forcing authenticated TLS/gRPC before the daemon bridge exists. The later production path should add daemon authentication plus TLS-capable transport and any associated deployment/runtime changes before the local-sync flow is treated as production-ready.
+
+- Unresolved local-sync `ConflictNotice` messages on channel `0x0600` belong on the local daemon WebSocket bridge (`ws://127.0.0.1:9731`), not the control-plane workspace mux.
+  Rationale: file-sync conflicts are a local-daemon concern and should surface through the same localhost bridge that Task 6.1.5 exposes to the Flutter package. Keeping conflict notices on the daemon bridge avoids mixing local-sync UI events into the workspace terminal/LSP mux and keeps the responsibility boundary aligned with the local daemon feature.

@@ -46,7 +46,7 @@ build-daemon:
 
 ### Task 6.1.4 — Conflict detection and resolution
 - Vector clock per file: `{localClock, remoteClock, lastSyncedClock}`.
-- Conflict: both sides modified since `lastSyncedClock`. For text files: attempt `diff3` 3-way merge (call system `diff3` binary or use a pure-Go implementation). On merge failure: emit `ConflictNotice` on WS mux channel `0x0600`.
+- Conflict: both sides modified since `lastSyncedClock`. For text files: attempt `diff3` 3-way merge (call system `diff3` binary or use a pure-Go implementation). On merge failure: emit `ConflictNotice` on mux channel `0x0600` over the local daemon WebSocket bridge at `ws://127.0.0.1:9731`.
 - Binary files: last-write-wins by `modTime`.
 - Log all merge operations to `~/.cortado/merge.log`.
 

@@ -14,8 +14,8 @@ Completed Task 6.1.3 by adding `proto/filesync/v1/filesync.proto`, generating th
 
 ## Remaining work this session
 Task 6.1.4:
-- decide whether unresolved `ConflictNotice` events on mux channel `0x0600` belong on the local daemon WebSocket (`ws://127.0.0.1:9731`) or the control-plane workspace mux (`/v1/workspaces/{id}/connect`)
-- wire the chosen conflict-notice transport so unresolved text conflicts are emitted instead of staying engine-local only
+- wire unresolved `ConflictNotice` events onto the local daemon WebSocket bridge on mux channel `0x0600`
+- cover the conflict-notice emission path with targeted tests once the daemon bridge transport is in place
 
 ## Definition of done
 - [x] daemon state tracks `localClock`, `remoteClock`, and `lastSyncedClock` consistently for synced files
@@ -28,4 +28,4 @@ Task 6.1.5 — Flutter package: daemon bridge
 See _dev/features/feat-6-1.md for the active Feature 6.1 spec
 
 ## Blocked on / decisions needed
-Need confirmation on which WebSocket transport should carry unresolved file-sync `ConflictNotice` messages on channel `0x0600`: the local daemon bridge socket or the control-plane workspace mux. The conflict engine and logging are implemented, but the notice emission target is still ambiguous before Task 6.1.5.
+No active blockers. `ConflictNotice` ownership is resolved to the local daemon WebSocket bridge; the remaining work is implementation.

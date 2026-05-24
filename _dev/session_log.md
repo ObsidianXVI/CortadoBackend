@@ -709,3 +709,8 @@
 - A daemon/internal/filesync/engine.go
 - M daemon/internal/state/store.go
 - M daemon/internal/watch/manager.go
+24/05/26 04:14 [DOCS] (pending) `dev-pro-large` Resolved the remaining Task 6.1.4 transport ambiguity by documenting that unresolved file-sync `ConflictNotice` events on channel `0x0600` belong on the local daemon WebSocket bridge rather than the control-plane workspace mux, and updated the active task/spec context to match.
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M DECISIONS_NEEDED.md
+- M _dev/features/feat-6-1.md
