@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 typedef CortadoEditorChangedCallback = void Function(String hash);
+typedef CortadoEditorLspRequestCallback = void Function(String requestJson);
 typedef CortadoEditorSaveCallback = void Function();
 
 bool get supportsCortadoEditorPlatformView => false;
@@ -33,3 +34,15 @@ String getCortadoEditorContent(String editorId) => '';
 void setCortadoEditorLanguage(String editorId, String languageId) {}
 
 void disposeCortadoEditorView(String editorId) {}
+
+void registerCortadoEditorLspRequestHandler({
+  required String editorId,
+  required CortadoEditorLspRequestCallback onRequest,
+}) {}
+
+void unregisterCortadoEditorLspRequestHandler(String editorId) {}
+
+void resolveCortadoEditorLspResult(
+  int requestId,
+  List<Map<String, Object?>> items,
+) {}

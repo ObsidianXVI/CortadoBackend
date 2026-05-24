@@ -242,6 +242,11 @@
 - PASS `cd flutter && flutter test test/cortado_lsp_client_test.dart test/cortado_code_editor_test.dart`
 - PASS `cd flutter && flutter analyze`
 - PASS `cd flutter && flutter test`
+24/05/26 01:22
+- PASS `cd demo_app/web && npm test`
+- PASS `cd demo_app/web && npm run build`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 24/05/26 00:11
 - PASS `cd proto && buf lint`

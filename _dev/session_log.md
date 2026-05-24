@@ -543,3 +543,12 @@
 - M flutter/lib/src/editor/cortado_code_editor.dart
 - M flutter/lib/src/mux_frame.dart
 - M flutter/lib/cortado.dart
+24/05/26 01:22 [FEAT] (pending) `dev-pro-large` Completed Task 4.2.2 by bridging CodeMirror completion requests into Dart, routing them through `CortadoLSPClient`, adding web-side debounce and stale-result filtering with a small Node test, and rebuilding the checked-in demo editor bundle before advancing the tracker to Task 4.2.3.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M demo_app/web/editor-src/cortado_editor.ts
+- A demo_app/web/editor-src/completion_bridge.js
+- M demo_app/web/cortado_editor.js
+- M flutter/lib/src/editor/cortado_code_editor.dart
+- M flutter/lib/src/editor/editor_platform_stub.dart
+- M flutter/lib/src/editor/web/editor_platform_web.dart

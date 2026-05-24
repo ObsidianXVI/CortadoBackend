@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild editor-src/cortado_editor.ts --bundle --minify --target=es2019 --outfile=cortado_editor.js",
+    "test": "node editor-src/completion_bridge.test.mjs",
     "watch": "esbuild editor-src/cortado_editor.ts --bundle --target=es2019 --outfile=cortado_editor.js --watch"
   },
   "devDependencies": {
@@ -13,8 +14,10 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.2",
     "@codemirror/commands": "^6.5.0",
     "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.6",
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",

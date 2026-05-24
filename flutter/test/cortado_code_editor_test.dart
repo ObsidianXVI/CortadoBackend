@@ -153,6 +153,92 @@ void main() {
       'textDocument/didClose',
     );
   });
+
+  testWidgets('bridges completion requests through the LSP client',
+      (WidgetTester tester) async {
+    final platform = _TestEditorPlatform();
+    final manager = _TestWorkspaceManager(
+      files: <String, String>{
+        '/lib/main.dart': 'print("hello");',
+      },
+    );
+    final client = _TestMuxClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.expand(
+          child: CortadoCodeEditor(
+            client: client,
+            path: '/lib/main.dart',
+            platform: platform,
+            workspaceId: 'ws-123',
+            workspaceManager: manager,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final initializeRequest = _decodeFrameJson(client.sentFrames[1]);
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': initializeRequest['id'],
+        'result': <String, Object?>{
+          'capabilities': <String, Object?>{},
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    platform.emitLspRequest(
+      <String, Object?>{
+        'requestId': 1,
+        'position': <String, Object?>{
+          'line': 0,
+          'character': 5,
+        },
+      },
+    );
+    await tester.pump();
+
+    final completionRequest = _decodeFrameJson(client.sentFrames.last);
+    expect(completionRequest['method'], 'textDocument/completion');
+
+    client.emitJson(
+      <String, Object?>{
+        'jsonrpc': '2.0',
+        'id': completionRequest['id'],
+        'result': <String, Object?>{
+          'items': <Object?>[
+            <String, Object?>{
+              'label': 'print',
+              'detail': 'void Function(Object?)',
+              'kind': 3,
+              'insertText': 'print',
+            },
+          ],
+        },
+      },
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(platform.lastResolvedRequestId, 1);
+    expect(
+      platform.lastResolvedItems,
+      <Map<String, Object?>>[
+        <String, Object?>{
+          'label': 'print',
+          'detail': 'void Function(Object?)',
+          'type': 'function',
+        },
+      ],
+    );
+  });
 }
 
 Map<String, Object?> _decodeFrameJson(MuxFrame frame) =>
@@ -171,7 +257,11 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   String currentLanguageId = 'plain';
   bool lastPreserveSelection = false;
   CortadoEditorChangedCallback? _onChanged;
+  CortadoEditorLspRequestCallback? _onLspRequest;
   CortadoEditorSaveCallback? _onSave;
+  String? lspEditorId;
+  List<Map<String, Object?>> lastResolvedItems = <Map<String, Object?>>[];
+  int? lastResolvedRequestId;
 
   @override
   void disposeView(String editorId) {}
@@ -197,6 +287,25 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
   }
 
   @override
+  void registerLspRequestHandler({
+    required String editorId,
+    required CortadoEditorLspRequestCallback onRequest,
+  }) {
+    lspEditorId = editorId;
+    _onLspRequest = onRequest;
+  }
+
+  @override
+  void resolveLspResult(
+    int requestId,
+    List<Map<String, Object?>> items,
+  ) {
+    lastResolvedRequestId = requestId;
+    lastResolvedItems =
+        items.map(Map<String, Object?>.from).toList(growable: false);
+  }
+
+  @override
   String setContent(
     String editorId,
     String content, {
@@ -214,6 +323,25 @@ class _TestEditorPlatform extends CortadoCodeEditorPlatformAdapter {
 
   void triggerSave() {
     _onSave?.call();
+  }
+
+  void emitLspRequest(Map<String, Object?> payload) {
+    _onLspRequest?.call(
+      jsonEncode(
+        <String, Object?>{
+          'editorId': lspEditorId,
+          ...payload,
+        },
+      ),
+    );
+  }
+
+  @override
+  void unregisterLspRequestHandler(String editorId) {
+    if (lspEditorId == editorId) {
+      _onLspRequest = null;
+      lspEditorId = null;
+    }
   }
 }
 

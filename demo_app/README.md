@@ -56,3 +56,13 @@ Feature 1.4.
   - `init(container, id, languageOrOptions, onChangeHash?, onSave?)`
   - `setContent(id, text, preserveSelection?)`
   - `getContent(id)` / `setLanguage(id, lang)` / `dispose(id)`
+
+#### LSP completion bridge (Task 4.2.2)
+
+- Dart registers a global completion request handler: window._cortadoLSPRequest
+- JS calls it from a CodeMirror completion source after a 150ms debounce and resolves results when Dart calls window._cortadoLSPResult(requestId, items).
+- Stale results are ignored if the cursor moved before the async result arrives.
+- Request params shape:
+  _cortadoLSPRequest({ editorId: string, requestId: number, position: { line: number; character: number }, lineText?: string, prefix?: string })
+- Dart returns via: _cortadoLSPResult(requestId: number, items: Completion[])
+  where Completion is a CodeMirror 6 completion entry.

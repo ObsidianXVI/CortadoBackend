@@ -48,6 +48,27 @@ class CortadoCodeEditorPlatformAdapter {
     disposeCortadoEditorView(editorId);
   }
 
+  void registerLspRequestHandler({
+    required String editorId,
+    required CortadoEditorLspRequestCallback onRequest,
+  }) {
+    registerCortadoEditorLspRequestHandler(
+      editorId: editorId,
+      onRequest: onRequest,
+    );
+  }
+
+  void unregisterLspRequestHandler(String editorId) {
+    unregisterCortadoEditorLspRequestHandler(editorId);
+  }
+
+  void resolveLspResult(
+    int requestId,
+    List<Map<String, Object?>> items,
+  ) {
+    resolveCortadoEditorLspResult(requestId, items);
+  }
+
   void setLanguage(String editorId, String languageId) {
     setCortadoEditorLanguage(editorId, languageId);
   }
@@ -123,6 +144,10 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
         onChanged: _handleEditorHashChanged,
         onSave: _handleSaveShortcut,
       );
+      widget.platform.registerLspRequestHandler(
+        editorId: _editorId,
+        onRequest: (requestJson) => unawaited(_handleLspRequest(requestJson)),
+      );
     }
     _configureLspClient();
     _subscribeToFileEvents();
@@ -162,6 +187,7 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
     unawaited(_lspClient?.dispose());
     _removeTabsListener();
     _tabsNotifier.dispose();
+    widget.platform.unregisterLspRequestHandler(_editorId);
     widget.platform.disposeView(_editorId);
     super.dispose();
   }
@@ -606,6 +632,156 @@ class _CortadoCodeEditorState extends ConsumerState<CortadoCodeEditor> {
       widget.onError?.call(error.toString());
     });
   }
+
+  Future<void> _handleLspRequest(String requestJson) async {
+    final decoded = jsonDecode(requestJson);
+    if (decoded is! Map<String, Object?>) {
+      return;
+    }
+
+    final requestId = (decoded['requestId'] as num?)?.toInt();
+    if (requestId == null) {
+      return;
+    }
+
+    try {
+      final items = await _completionItemsForRequest(decoded);
+      widget.platform.resolveLspResult(requestId, items);
+    } catch (error) {
+      widget.onError?.call(error.toString());
+      widget.platform
+          .resolveLspResult(requestId, const <Map<String, Object?>>[]);
+    }
+  }
+
+  Future<List<Map<String, Object?>>> _completionItemsForRequest(
+    Map<String, Object?> request,
+  ) async {
+    final activeTab = _tabsNotifier.currentState.activeTab;
+    final lspClient = _lspClient;
+    final position = request['position'];
+    final line = switch (position) {
+      final Map<Object?, Object?> payload => (payload['line'] as num?)?.toInt(),
+      _ => (request['line'] as num?)?.toInt(),
+    };
+    final character = switch (position) {
+      final Map<Object?, Object?> payload =>
+        (payload['character'] as num?)?.toInt(),
+      _ => (request['character'] as num?)?.toInt(),
+    };
+    if (activeTab == null ||
+        lspClient == null ||
+        !_shouldUseLspForTab(activeTab) ||
+        line == null ||
+        character == null) {
+      return const <Map<String, Object?>>[];
+    }
+
+    final response = await lspClient.sendRequest(
+      'textDocument/completion',
+      params: <String, Object?>{
+        'textDocument': <String, Object?>{
+          'uri': _workspaceDocumentUri(activeTab.path),
+        },
+        'position': <String, Object?>{
+          'line': line,
+          'character': character,
+        },
+      },
+    );
+    return _mapCompletionItems(response);
+  }
+
+  List<Map<String, Object?>> _mapCompletionItems(Object? response) {
+    final items = switch (response) {
+      final List<Object?> entries => entries,
+      final Map<Object?, Object?> payload
+          when payload['items'] is List<Object?> =>
+        payload['items'] as List<Object?>,
+      _ => const <Object?>[],
+    };
+
+    return items
+        .whereType<Map<Object?, Object?>>()
+        .map(_mapCompletionItem)
+        .whereType<Map<String, Object?>>()
+        .toList(growable: false);
+  }
+
+  Map<String, Object?>? _mapCompletionItem(Map<Object?, Object?> item) {
+    final label = item['label'];
+    if (label is! String || label.isEmpty) {
+      return null;
+    }
+
+    final mapped = <String, Object?>{
+      'label': label,
+    };
+    final detail = item['detail'];
+    if (detail is String && detail.isNotEmpty) {
+      mapped['detail'] = detail;
+    }
+
+    final type = _completionTypeForKind((item['kind'] as num?)?.toInt());
+    if (type != null) {
+      mapped['type'] = type;
+    }
+
+    final apply = _completionApplyText(item);
+    if (apply != null && apply != label) {
+      mapped['apply'] = apply;
+    }
+    return mapped;
+  }
+
+  String? _completionApplyText(Map<Object?, Object?> item) {
+    final textEdit = item['textEdit'];
+    if (textEdit is Map<Object?, Object?>) {
+      final newText = textEdit['newText'];
+      if (newText is String && newText.isNotEmpty) {
+        return newText;
+      }
+    }
+
+    final insertText = item['insertText'];
+    if (insertText is String && insertText.isNotEmpty) {
+      return insertText;
+    }
+    return null;
+  }
+
+  String? _completionTypeForKind(int? kind) {
+    return switch (kind) {
+      2 || 3 => 'function',
+      4 => 'class',
+      5 || 10 => 'property',
+      6 => 'variable',
+      7 => 'class',
+      8 => 'interface',
+      9 => 'namespace',
+      11 => 'unit',
+      12 => 'text',
+      13 => 'enum',
+      14 => 'keyword',
+      15 => 'snippet',
+      16 => 'constant',
+      17 => 'class',
+      18 => 'constant',
+      19 => 'constant',
+      20 => 'enum',
+      21 => 'constant',
+      22 => 'struct',
+      23 => 'function',
+      24 => 'operator',
+      25 => 'type',
+      _ => null,
+    };
+  }
+
+  String _workspaceDocumentUri(String path) => Uri(
+        scheme: 'file',
+        path: '/workspace${normalizeVfsPath(path)}',
+      ).toString();
 }
 
 class _EditorTabStrip extends StatelessWidget {
