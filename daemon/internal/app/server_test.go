@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/your-org/cortado/daemon/internal/app"
+	"github.com/your-org/cortado/daemon/internal/filesync"
 	"github.com/your-org/cortado/daemon/internal/state"
 	"github.com/your-org/cortado/daemon/internal/version"
 )
@@ -100,6 +101,60 @@ func TestWebSocketUpgradeSendsHelloAndEchoesPayload(t *testing.T) {
 	}
 }
 
+func TestWebSocketUpgradeForwardsConflictNoticeFrame(t *testing.T) {
+	broadcaster := app.NewConflictBroadcaster()
+	server := newHTTPTestServerWithBroadcaster(t, broadcaster)
+	defer server.Close()
+
+	dialer := websocket.Dialer{
+		Subprotocols: []string{"cortado-daemon-v1"},
+	}
+	conn, _, err := dialer.Dial(websocketURL(server.URL+"/"), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("read hello message: %v", err)
+	}
+
+	broadcaster.PublishConflict(filesync.ConflictNotice{
+		Path:            "/tmp/workspace/main.txt",
+		Reason:          "text conflict requires manual resolution",
+		LocalClock:      2,
+		RemoteClock:     3,
+		LastSyncedClock: 1,
+	})
+
+	messageType, payload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read conflict frame: %v", err)
+	}
+	if messageType != websocket.BinaryMessage {
+		t.Fatalf("unexpected websocket message type: got %d want %d", messageType, websocket.BinaryMessage)
+	}
+
+	frame, err := app.DecodeFrame(payload)
+	if err != nil {
+		t.Fatalf("decode conflict frame: %v", err)
+	}
+	if frame.ChannelID != 0x0600 {
+		t.Fatalf("unexpected conflict channel: got %d want %d", frame.ChannelID, 0x0600)
+	}
+	if frame.MessageType != app.MessageTypeData {
+		t.Fatalf("unexpected frame message type: got %d want %d", frame.MessageType, app.MessageTypeData)
+	}
+
+	var notice filesync.ConflictNotice
+	if err := json.Unmarshal(frame.Payload, &notice); err != nil {
+		t.Fatalf("unmarshal conflict payload: %v", err)
+	}
+	if notice.Path != "/tmp/workspace/main.txt" || notice.RemoteClock != 3 {
+		t.Fatalf("unexpected conflict notice payload: %#v", notice)
+	}
+}
+
 func TestRunShutsDownWhenContextCancels(t *testing.T) {
 	store := mustOpenStore(t)
 	defer store.Close()
@@ -135,6 +190,11 @@ func TestRunShutsDownWhenContextCancels(t *testing.T) {
 
 func newHTTPTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
+	return newHTTPTestServerWithBroadcaster(t, nil)
+}
+
+func newHTTPTestServerWithBroadcaster(t *testing.T, broadcaster *app.ConflictBroadcaster) *httptest.Server {
+	t.Helper()
 
 	store := mustOpenStore(t)
 	t.Cleanup(func() {
@@ -142,10 +202,11 @@ func newHTTPTestServer(t *testing.T) *httptest.Server {
 	})
 
 	server, err := app.NewServer(app.ServerConfig{
-		ListenAddr: "127.0.0.1:9731",
-		Logger:     log.New(io.Discard, "", 0),
-		StateStore: store,
-		Version:    version.Info(),
+		ConflictBroadcaster: broadcaster,
+		ListenAddr:          "127.0.0.1:9731",
+		Logger:              log.New(io.Discard, "", 0),
+		StateStore:          store,
+		Version:             version.Info(),
 	})
 	if err != nil {
 		t.Fatalf("new server: %v", err)

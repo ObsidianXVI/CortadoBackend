@@ -26,6 +26,7 @@ type MergeRunner interface {
 }
 
 type EngineConfig struct {
+	ConflictSink ConflictSink
 	Logger       *log.Logger
 	MergeLogPath string
 	MergeRunner  MergeRunner
@@ -34,6 +35,7 @@ type EngineConfig struct {
 }
 
 type Engine struct {
+	conflictSink ConflictSink
 	logger       *log.Logger
 	mergeLogPath string
 	mergeRunner  MergeRunner
@@ -61,6 +63,10 @@ type ConflictNotice struct {
 	Path            string
 	Reason          string
 	RemoteClock     int64
+}
+
+type ConflictSink interface {
+	PublishConflict(ConflictNotice)
 }
 
 type diff3Runner struct{}
@@ -102,6 +108,7 @@ func NewEngine(cfg EngineConfig) (*Engine, error) {
 	}
 
 	return &Engine{
+		conflictSink: cfg.ConflictSink,
 		logger:       logger,
 		mergeLogPath: mergeLogPath,
 		mergeRunner:  mergeRunner,
@@ -253,6 +260,9 @@ func (e *Engine) ApplyRemoteChange(ctx context.Context, change RemoteFileChange)
 			LastSyncedClock: fileState.SyncedClock,
 		}
 		_ = e.logResolution("conflict", fileState, conflict.Reason)
+		if e.conflictSink != nil {
+			e.conflictSink.PublishConflict(*conflict)
+		}
 
 		return ApplyResult{
 			Conflict: conflict,

@@ -38,6 +38,7 @@ func main() {
 	}()
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
+	conflictBroadcaster := app.NewConflictBroadcaster()
 	if len(cfg.WatchRoots) > 0 {
 		manager, err := watch.NewManager(watch.ManagerConfig{
 			Logger:     logger,
@@ -71,10 +72,11 @@ func main() {
 	}
 
 	server, err := app.NewServer(app.ServerConfig{
-		ListenAddr: cfg.ListenAddr,
-		Logger:     logger,
-		StateStore: store,
-		Version:    version.Info(),
+		ConflictBroadcaster: conflictBroadcaster,
+		ListenAddr:          cfg.ListenAddr,
+		Logger:              logger,
+		StateStore:          store,
+		Version:             version.Info(),
 	})
 	if err != nil {
 		log.Fatalf("initialize daemon server: %v", err)

@@ -7,9 +7,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/your-org/cortado/daemon/internal/filesync"
 	"github.com/your-org/cortado/daemon/internal/state"
 	"github.com/your-org/cortado/daemon/internal/version"
 )
@@ -17,18 +19,20 @@ import (
 const daemonSubprotocol = "cortado-daemon-v1"
 
 type ServerConfig struct {
-	ListenAddr string
-	Logger     *log.Logger
-	StateStore *state.Store
-	Version    version.BuildInfo
+	ConflictBroadcaster *ConflictBroadcaster
+	ListenAddr          string
+	Logger              *log.Logger
+	StateStore          *state.Store
+	Version             version.BuildInfo
 }
 
 type Server struct {
-	listenAddr string
-	logger     *log.Logger
-	server     *http.Server
-	stateStore *state.Store
-	version    version.BuildInfo
+	conflictBroadcaster *ConflictBroadcaster
+	listenAddr          string
+	logger              *log.Logger
+	server              *http.Server
+	stateStore          *state.Store
+	version             version.BuildInfo
 }
 
 func NewServer(cfg ServerConfig) (*Server, error) {
@@ -50,10 +54,11 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}
 
 	server := &Server{
-		listenAddr: cfg.ListenAddr,
-		logger:     logger,
-		stateStore: cfg.StateStore,
-		version:    cfg.Version,
+		conflictBroadcaster: cfg.ConflictBroadcaster,
+		listenAddr:          cfg.ListenAddr,
+		logger:              logger,
+		stateStore:          cfg.StateStore,
+		version:             cfg.Version,
 	}
 	server.server = &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -146,14 +151,40 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	if err := conn.WriteJSON(map[string]any{
+	var writeMu sync.Mutex
+	writeMessage := func(messageType int, payload []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+
+		if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return fmt.Errorf("set daemon websocket write deadline: %w", err)
+		}
+		return conn.WriteMessage(messageType, payload)
+	}
+
+	helloPayload, err := json.Marshal(map[string]any{
 		"type":          "hello",
 		"schemaVersion": s.stateStore.SchemaVersion(),
 		"statePath":     s.stateStore.Path(),
 		"version":       s.version,
-	}); err != nil {
+	})
+	if err != nil {
+		s.logger.Printf("marshal daemon hello frame: %v", err)
+		return
+	}
+	if err := writeMessage(websocket.TextMessage, helloPayload); err != nil {
 		s.logger.Printf("write daemon hello frame: %v", err)
 		return
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+
+	if s.conflictBroadcaster != nil {
+		conflicts, unsubscribe := s.conflictBroadcaster.Subscribe()
+		defer unsubscribe()
+
+		go s.forwardConflicts(done, conflicts, writeMessage)
 	}
 
 	for {
@@ -171,9 +202,45 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := conn.WriteMessage(messageType, payload); err != nil {
+		if err := writeMessage(messageType, payload); err != nil {
 			s.logger.Printf("echo local daemon websocket payload: %v", err)
 			return
+		}
+	}
+}
+
+func (s *Server) forwardConflicts(
+	done <-chan struct{},
+	conflicts <-chan filesync.ConflictNotice,
+	writeMessage func(int, []byte) error,
+) {
+	for {
+		select {
+		case <-done:
+			return
+		case notice, ok := <-conflicts:
+			if !ok {
+				return
+			}
+
+			payload, err := json.Marshal(notice)
+			if err != nil {
+				s.logger.Printf("marshal conflict notice: %v", err)
+				continue
+			}
+			frame, err := EncodeFrame(Frame{
+				ChannelID:   conflictNoticeChannelID,
+				MessageType: MessageTypeData,
+				Payload:     payload,
+			})
+			if err != nil {
+				s.logger.Printf("encode conflict notice frame: %v", err)
+				continue
+			}
+			if err := writeMessage(websocket.BinaryMessage, frame); err != nil {
+				s.logger.Printf("write conflict notice frame: %v", err)
+				return
+			}
 		}
 	}
 }

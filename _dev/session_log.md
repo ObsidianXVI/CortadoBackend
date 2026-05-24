@@ -714,3 +714,12 @@
 - M DECISIONS.md
 - M DECISIONS_NEEDED.md
 - M _dev/features/feat-6-1.md
+24/05/26 04:22 [FEAT] (pending) `dev-pro-large` Completed Task 6.1.4 by wiring daemon-side conflict notices through a localhost conflict broadcaster into binary mux frames on channel `0x0600`, covering both the WebSocket emission path and the engine-side sink publication, and advancing the active tracker to the Flutter daemon bridge task.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- M daemon/cmd/daemon/main.go
+- A daemon/internal/app/conflict_broadcaster.go
+- A daemon/internal/app/mux.go
+- M daemon/internal/app/server.go
+- M daemon/internal/filesync/engine.go

@@ -188,6 +188,75 @@ func TestEngineReturnsConflictNoticeWhenTextMergeFails(t *testing.T) {
 	}
 }
 
+func TestEnginePublishesConflictNoticeToSink(t *testing.T) {
+	store := mustOpenStore(t)
+	defer store.Close()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "main.txt")
+	baseContent := []byte("hello\nworld\n")
+	localContent := []byte("hello\nlocal\n")
+	if err := os.WriteFile(path, localContent, 0o644); err != nil {
+		t.Fatalf("write local file: %v", err)
+	}
+
+	if err := store.UpsertFileState(state.FileState{
+		Path:        path,
+		Checksum:    checksumString(localContent),
+		ModTimeUnix: 20,
+		SyncedClock: 1,
+		LocalClock:  2,
+		RemoteClock: 1,
+	}); err != nil {
+		t.Fatalf("seed file state: %v", err)
+	}
+
+	sink := &conflictSinkStub{}
+	engine, err := NewEngine(EngineConfig{
+		ConflictSink: sink,
+		Logger:       log.New(io.Discard, "", 0),
+		MergeRunner: mergeRunnerStub{
+			err: ErrMergeConflict,
+		},
+		StateStore: store,
+	})
+	if err != nil {
+		t.Fatalf("new engine: %v", err)
+	}
+	if _, err := engine.MarkSynced(path, baseContent); err != nil {
+		t.Fatalf("mark synced: %v", err)
+	}
+	if err := store.UpsertFileState(state.FileState{
+		Path:        path,
+		Checksum:    checksumString(localContent),
+		ModTimeUnix: 20,
+		SyncedClock: 1,
+		LocalClock:  2,
+		RemoteClock: 1,
+	}); err != nil {
+		t.Fatalf("restore local clock state: %v", err)
+	}
+
+	result, err := engine.ApplyRemoteChange(context.Background(), RemoteFileChange{
+		Path:        path,
+		Content:     []byte("hello\nremote\n"),
+		ModTimeUnix: 30,
+		RemoteClock: 2,
+	})
+	if err != nil {
+		t.Fatalf("apply remote conflict change: %v", err)
+	}
+	if result.Conflict == nil {
+		t.Fatalf("expected conflict result, got %#v", result)
+	}
+	if len(sink.notices) != 1 {
+		t.Fatalf("unexpected published notice count: got %d want %d", len(sink.notices), 1)
+	}
+	if sink.notices[0].Path != path {
+		t.Fatalf("unexpected published notice: %#v", sink.notices[0])
+	}
+}
+
 func TestEngineUsesBinaryLastWriteWinsByModTime(t *testing.T) {
 	store := mustOpenStore(t)
 	defer store.Close()
@@ -237,6 +306,14 @@ func TestEngineUsesBinaryLastWriteWinsByModTime(t *testing.T) {
 type mergeRunnerStub struct {
 	err    error
 	merged []byte
+}
+
+type conflictSinkStub struct {
+	notices []ConflictNotice
+}
+
+func (s *conflictSinkStub) PublishConflict(notice ConflictNotice) {
+	s.notices = append(s.notices, notice)
 }
 
 func (m mergeRunnerStub) Merge(context.Context, []byte, []byte, []byte) ([]byte, error) {

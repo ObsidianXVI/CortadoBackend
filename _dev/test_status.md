@@ -340,3 +340,6 @@
 24/05/26 04:10
 - PASS `cd daemon && go test ./...`
 - PASS `cd daemon && CGO_ENABLED=0 go build ./...`
+24/05/26 04:22
+- PASS `cd daemon && go test ./...`
+- PASS `cd daemon && CGO_ENABLED=0 go build ./...`
