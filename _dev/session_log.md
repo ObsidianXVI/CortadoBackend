@@ -653,3 +653,9 @@
 - M terraform/modules/cloudrun/variables.tf
 - M terraform/modules/secrets/main.tf
 - M terraform/modules/secrets/outputs.tf
+24/05/26 03:23 [FEAT] (pending) `dev-pro-large` Deferred Feature 5.3 from the immediate core roadmap, generated the missing v0.6 and v0.7 feature spec files from the release timeline, and updated the active planning trackers so the post-v0.5 sequence now points to the local-daemon and port-forwarding milestones.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- A _dev/features/feat-6-1.md
+- A _dev/features/feat-7-1.md

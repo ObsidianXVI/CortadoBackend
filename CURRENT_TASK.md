@@ -25,7 +25,7 @@ Task 5.2.3:
 - [ ] editor/widget tests and `flutter analyze` pass for the ghost-text integration
 
 ## Next task after this one
-Task 5.3.1 — Chat API endpoint with RAG
+Task 6.1.1 — cortado-daemon architecture
 See _dev/features/feat-5-2.md for the active Feature 5.2 spec
 
 ## Blocked on / decisions needed

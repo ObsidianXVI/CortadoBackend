@@ -51,3 +51,6 @@
 
 - Task 5.1.2 uses Vertex AI as the first embedding provider, with `text-embedding-004` as the default model and a 768-dimensional output.
   Rationale: the user explicitly asked for the simpler Vertex AI path. Keeping the first embedding pipeline inside the existing GCP stack avoids a second provider credential flow, preserves the feature spec's 768-dimension Qdrant collection target, and keeps the first implementation closer to the rest of Cortado's runtime environment.
+
+- Feature 5.3 (AI Chat Panel) is deferred beyond the core roadmap, and v0.6 plus v0.7 are treated as the remaining essential feature releases for now.
+  Rationale: the user explicitly chose to skip the next feature for the current shipping sequence so work can continue from Feature 5.2 into the local-sync and port-forwarding milestones without planning Task 5.3 as the next core deliverable.
