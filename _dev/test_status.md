@@ -235,3 +235,7 @@
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter build web`
+24/05/26 00:02
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

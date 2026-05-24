@@ -480,3 +480,10 @@
 - A flutter/lib/src/editor/editor_platform_stub.dart
 - A flutter/lib/src/editor/web/editor_platform_web.dart
 - A flutter/lib/src/editor/tabs_notifier.dart
+24/05/26 00:02 [FEAT] (pending) `dev-pro-large` Completed Task 3.3.1 by adding a bounded wait/retry loop before recreating workspace pods on a terminating `ReadWriteOnce` PVC, preserving the explicit PVC cleanup flow, and extending control-plane coverage for PVC spec details plus timeout cleanup; then advanced the active release/task pointers to Task 3.3.2.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go

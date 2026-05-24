@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -62,8 +63,21 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if pod.Spec.Volumes[0].PersistentVolumeClaim == nil || pod.Spec.Volumes[0].PersistentVolumeClaim.ClaimName != "ws-123-pvc" {
 		t.Fatalf("unexpected pod pvc volume: %#v", pod.Spec.Volumes[0])
 	}
-	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); err != nil {
+	pvc, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{})
+	if err != nil {
 		t.Fatalf("get workspace pvc: %v", err)
+	}
+	if pvc.Labels[workspaceIDLabel] != "ws-123" {
+		t.Fatalf("unexpected pvc labels: %#v", pvc.Labels)
+	}
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != defaultWorkspaceStorageClass {
+		t.Fatalf("unexpected pvc storage class: %#v", pvc.Spec.StorageClassName)
+	}
+	if len(pvc.Spec.AccessModes) != 1 || pvc.Spec.AccessModes[0] != corev1.ReadWriteOnce {
+		t.Fatalf("unexpected pvc access modes: %#v", pvc.Spec.AccessModes)
+	}
+	if got := pvc.Spec.Resources.Requests.Storage().String(); got != defaultWorkspacePVCSize {
+		t.Fatalf("unexpected pvc size: got %q want %q", got, defaultWorkspacePVCSize)
 	}
 }
 
@@ -111,6 +125,109 @@ func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 	}
 	if env[envWorkspaceID] != "ws-123" || env[envTenantID] != "tenant-1" || env[envWorkspaceUserID] != "user-1" {
 		t.Fatalf("unexpected workspace identity env: %#v", env)
+	}
+}
+
+func TestPodManagerCreateWaitsForTerminatingPodToReleaseVolume(t *testing.T) {
+	deletingAt := metav1.NewTime(time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC))
+	pods := &sequencedPodClient{
+		getResponses: []podGetResponse{
+			{
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "ws-123",
+						Namespace:         defaultWorkspaceNamespace,
+						DeletionTimestamp: &deletingAt,
+					},
+				},
+			},
+			{
+				err: apierrors.NewNotFound(corev1.Resource("pods"), "ws-123"),
+			},
+		},
+	}
+	pvcs := newMemoryPVCClient()
+	services := newMemoryServiceClient()
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{
+		VolumeReleasePollInterval: time.Millisecond,
+		VolumeReleaseTimeout:      10 * time.Millisecond,
+	})
+	manager.sleep = func(_ context.Context, _ time.Duration) error { return nil }
+
+	if err := manager.Create(Workspace{
+		ID:       "ws-123",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Image:    "example.com/cortado/workspace:test",
+		Resources: Resources{
+			CPU:      1,
+			MemoryGB: 2,
+		},
+	}); err != nil {
+		t.Fatalf("create workspace pod after wait: %v", err)
+	}
+
+	if pods.getCalls < 2 {
+		t.Fatalf("expected at least 2 pod lookups, got %d", pods.getCalls)
+	}
+	if pods.createCalls != 1 {
+		t.Fatalf("expected exactly 1 pod create call, got %d", pods.createCalls)
+	}
+	if _, err := services.Get("ws-123"); err != nil {
+		t.Fatalf("get workspace service after create: %v", err)
+	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); err != nil {
+		t.Fatalf("get workspace pvc after create: %v", err)
+	}
+}
+
+func TestPodManagerCreateTimesOutWhilePodIsStillTerminating(t *testing.T) {
+	deletingAt := metav1.NewTime(time.Date(2026, time.May, 23, 20, 5, 0, 0, time.UTC))
+	pods := &sequencedPodClient{
+		getResponses: []podGetResponse{
+			{
+				pod: &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "ws-123",
+						Namespace:         defaultWorkspaceNamespace,
+						DeletionTimestamp: &deletingAt,
+					},
+				},
+				repeat: true,
+			},
+		},
+	}
+	pvcs := newMemoryPVCClient()
+	services := newMemoryServiceClient()
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{
+		VolumeReleasePollInterval: time.Millisecond,
+		VolumeReleaseTimeout:      3 * time.Millisecond,
+	})
+
+	err := manager.Create(Workspace{
+		ID:       "ws-123",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Image:    "example.com/cortado/workspace:test",
+		Resources: Resources{
+			CPU:      1,
+			MemoryGB: 2,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected create to time out while pod is still terminating")
+	}
+	if got := err.Error(); got == "" || !containsAll(got, "wait for workspace volume release", "timed out") {
+		t.Fatalf("unexpected timeout error: %v", err)
+	}
+	if pods.createCalls != 0 {
+		t.Fatalf("expected no pod create call, got %d", pods.createCalls)
+	}
+	if _, err := services.Get("ws-123"); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected service cleanup after timeout, got %v", err)
+	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pvc cleanup after timeout, got %v", err)
 	}
 }
 
@@ -454,4 +571,67 @@ func (c *memoryPVCClient) Get(_ context.Context, name string, _ metav1.GetOption
 	}
 
 	return pvc.DeepCopy(), nil
+}
+
+type sequencedPodClient struct {
+	mu           sync.Mutex
+	createCalls  int
+	createdPod   *corev1.Pod
+	getCalls     int
+	getResponses []podGetResponse
+}
+
+type podGetResponse struct {
+	err    error
+	pod    *corev1.Pod
+	repeat bool
+}
+
+func (c *sequencedPodClient) Create(_ context.Context, pod *corev1.Pod, _ metav1.CreateOptions) (*corev1.Pod, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.createCalls++
+	c.createdPod = pod.DeepCopy()
+	return c.createdPod.DeepCopy(), nil
+}
+
+func (c *sequencedPodClient) Delete(_ context.Context, name string, _ metav1.DeleteOptions) error {
+	return apierrors.NewNotFound(corev1.Resource("pods"), name)
+}
+
+func (c *sequencedPodClient) Get(_ context.Context, name string, _ metav1.GetOptions) (*corev1.Pod, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.getCalls++
+	if len(c.getResponses) == 0 {
+		return nil, apierrors.NewNotFound(corev1.Resource("pods"), name)
+	}
+
+	response := c.getResponses[0]
+	if !response.repeat {
+		c.getResponses = c.getResponses[1:]
+	}
+	if response.err != nil {
+		return nil, response.err
+	}
+	return response.pod.DeepCopy(), nil
+}
+
+func (c *sequencedPodClient) List(_ context.Context, _ metav1.ListOptions) (*corev1.PodList, error) {
+	return &corev1.PodList{}, nil
+}
+
+func (c *sequencedPodClient) Watch(_ context.Context, _ metav1.ListOptions) (watch.Interface, error) {
+	return watch.NewRaceFreeFake(), nil
+}
+
+func containsAll(haystack string, needles ...string) bool {
+	for _, needle := range needles {
+		if !strings.Contains(haystack, needle) {
+			return false
+		}
+	}
+	return true
 }

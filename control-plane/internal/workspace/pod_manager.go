@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,14 +21,16 @@ import (
 )
 
 const (
-	defaultAgentPort               int32 = 9090
-	defaultClusterDNSDomain              = "cluster.local"
-	defaultWorkspaceMountPath            = "/workspace"
-	defaultWorkspaceNamespace            = "cortado-workspaces"
-	defaultWorkspacePVCSize              = "10Gi"
-	defaultWorkspaceStorageClass         = "cortado-workspace"
-	defaultWorkspaceServiceAccount       = "workspace-sa"
-	workspaceIDLabel                     = "cortado/workspace-id"
+	defaultAgentPort                 int32 = 9090
+	defaultClusterDNSDomain                = "cluster.local"
+	defaultWorkspaceMountPath              = "/workspace"
+	defaultWorkspaceNamespace              = "cortado-workspaces"
+	defaultWorkspacePVCSize                = "10Gi"
+	defaultVolumeReleasePollInterval       = 250 * time.Millisecond
+	defaultVolumeReleaseTimeout            = 30 * time.Second
+	defaultWorkspaceStorageClass           = "cortado-workspace"
+	defaultWorkspaceServiceAccount         = "workspace-sa"
+	workspaceIDLabel                       = "cortado/workspace-id"
 )
 
 type StatusSink interface {
@@ -48,35 +51,40 @@ const (
 )
 
 type PodManagerConfig struct {
-	AgentPort          int32
-	DNSDomain          string
-	PVCSize            string
-	ProjectID          string
-	Region             string
-	Namespace          string
-	ServiceAccountName string
-	StorageClassName   string
-	StatusSink         StatusSink
-	UsageEventsTopic   string
+	AgentPort                 int32
+	DNSDomain                 string
+	PVCSize                   string
+	ProjectID                 string
+	Region                    string
+	Namespace                 string
+	ServiceAccountName        string
+	StorageClassName          string
+	StatusSink                StatusSink
+	UsageEventsTopic          string
+	VolumeReleasePollInterval time.Duration
+	VolumeReleaseTimeout      time.Duration
 }
 
 type PodManager struct {
-	agentPort          int32
-	dnsDomain          string
-	namespace          string
-	pods               podClient
-	podInformer        cache.SharedIndexInformer
-	pvcs               pvcClient
-	pvcSize            resource.Quantity
-	projectID          string
-	region             string
-	runOnce            sync.Once
-	serviceAccountName string
-	services           serviceClient
-	storageClassName   string
-	statusSink         StatusSink
-	usageEventsTopic   string
-	usageFlusher       UsageFlusher
+	agentPort                 int32
+	dnsDomain                 string
+	namespace                 string
+	pods                      podClient
+	podInformer               cache.SharedIndexInformer
+	pvcs                      pvcClient
+	pvcSize                   resource.Quantity
+	projectID                 string
+	region                    string
+	runOnce                   sync.Once
+	serviceAccountName        string
+	services                  serviceClient
+	storageClassName          string
+	statusSink                StatusSink
+	usageEventsTopic          string
+	usageFlusher              UsageFlusher
+	sleep                     func(context.Context, time.Duration) error
+	volumeReleasePollInterval time.Duration
+	volumeReleaseTimeout      time.Duration
 }
 
 func NewPodManager(client kubernetes.Interface, cfg PodManagerConfig) *PodManager {
@@ -108,20 +116,23 @@ func newPodManager(pods podClient, pvcs pvcClient, services serviceClient, cfg P
 	)
 
 	manager := &PodManager{
-		agentPort:          cfg.AgentPort,
-		dnsDomain:          cfg.DNSDomain,
-		namespace:          cfg.Namespace,
-		pods:               pods,
-		podInformer:        podInformer,
-		pvcs:               pvcs,
-		pvcSize:            resource.MustParse(cfg.PVCSize),
-		projectID:          cfg.ProjectID,
-		region:             cfg.Region,
-		serviceAccountName: cfg.ServiceAccountName,
-		services:           services,
-		storageClassName:   cfg.StorageClassName,
-		statusSink:         cfg.StatusSink,
-		usageEventsTopic:   cfg.UsageEventsTopic,
+		agentPort:                 cfg.AgentPort,
+		dnsDomain:                 cfg.DNSDomain,
+		namespace:                 cfg.Namespace,
+		pods:                      pods,
+		podInformer:               podInformer,
+		pvcs:                      pvcs,
+		pvcSize:                   resource.MustParse(cfg.PVCSize),
+		projectID:                 cfg.ProjectID,
+		region:                    cfg.Region,
+		serviceAccountName:        cfg.ServiceAccountName,
+		services:                  services,
+		storageClassName:          cfg.StorageClassName,
+		statusSink:                cfg.StatusSink,
+		usageEventsTopic:          cfg.UsageEventsTopic,
+		sleep:                     sleepWithContext,
+		volumeReleasePollInterval: cfg.VolumeReleasePollInterval,
+		volumeReleaseTimeout:      cfg.VolumeReleaseTimeout,
 	}
 
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -150,6 +161,12 @@ func withDefaultConfig(cfg PodManagerConfig) PodManagerConfig {
 	}
 	if cfg.StorageClassName == "" {
 		cfg.StorageClassName = defaultWorkspaceStorageClass
+	}
+	if cfg.VolumeReleasePollInterval <= 0 {
+		cfg.VolumeReleasePollInterval = defaultVolumeReleasePollInterval
+	}
+	if cfg.VolumeReleaseTimeout <= 0 {
+		cfg.VolumeReleaseTimeout = defaultVolumeReleaseTimeout
 	}
 	if cfg.AgentPort == 0 {
 		cfg.AgentPort = defaultAgentPort
@@ -224,6 +241,20 @@ func (m *PodManager) Create(workspace Workspace) error {
 			}
 		}
 		return fmt.Errorf("create workspace pvc %q: %w", workspace.ID, err)
+	}
+
+	if err := m.waitForVolumeRelease(workspace.ID); err != nil {
+		if pvcCreated {
+			if cleanupErr := m.deletePersistentVolumeClaim(workspace.ID); cleanupErr != nil {
+				return fmt.Errorf("wait for workspace volume release %q: %w (cleanup pvc: %v)", workspace.ID, err, cleanupErr)
+			}
+		}
+		if serviceCreated {
+			if cleanupErr := m.deleteService(workspace.ID); cleanupErr != nil {
+				return fmt.Errorf("wait for workspace volume release %q: %w (cleanup service: %v)", workspace.ID, err, cleanupErr)
+			}
+		}
+		return fmt.Errorf("wait for workspace volume release %q: %w", workspace.ID, err)
 	}
 
 	pod := &corev1.Pod{
@@ -430,6 +461,34 @@ func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string) (bool, erro
 	return true, nil
 }
 
+func (m *PodManager) waitForVolumeRelease(workspaceID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), m.volumeReleaseTimeout)
+	defer cancel()
+
+	for {
+		pod, err := m.pods.Get(ctx, workspaceID, metav1.GetOptions{})
+		switch {
+		case apierrors.IsNotFound(err):
+			return nil
+		case err != nil:
+			return fmt.Errorf("get workspace pod %q: %w", workspaceID, err)
+		case pod.DeletionTimestamp == nil:
+			return nil
+		}
+
+		if err := m.sleep(ctx, m.volumeReleasePollInterval); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				return fmt.Errorf(
+					"timed out after %s waiting for terminating pod %q to release the workspace volume",
+					m.volumeReleaseTimeout,
+					workspaceID,
+				)
+			}
+			return fmt.Errorf("wait for terminating pod %q: %w", workspaceID, err)
+		}
+	}
+}
+
 func (m *PodManager) deletePersistentVolumeClaim(workspaceID string) error {
 	err := m.pvcs.Delete(context.Background(), workspacePVCName(workspaceID), metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -463,6 +522,18 @@ func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func podFromObject(obj interface{}) (*corev1.Pod, bool) {
