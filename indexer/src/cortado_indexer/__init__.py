@@ -1,0 +1,2 @@
+"""Cortado codebase indexing scaffold."""
+

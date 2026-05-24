@@ -581,3 +581,12 @@
 - M CURRENT_TASK.md
 - M DECISIONS.md
 - M DECISIONS_NEEDED.md
+24/05/26 02:02 [FEAT] (pending) `dev-pro-large` Pulled the v0.5 indexing and AI features into dedicated feature specs and scaffolded the new Python `indexer/` job with a pinned tree-sitter core dependency, fallback chunking path, CLI entrypoint, Dockerfile, and unit coverage so Task 5.1.1 can continue from a concrete service baseline instead of the release timeline alone.
+- A _dev/features/feat-5-1.md
+- A _dev/features/feat-5-2.md
+- A _dev/features/feat-5-3.md
+- A indexer/Dockerfile
+- A indexer/README.md
+- A indexer/pyproject.toml
+- A indexer/src/cortado_indexer/chunker.py
+- A indexer/src/cortado_indexer/cli.py
