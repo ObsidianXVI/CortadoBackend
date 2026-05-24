@@ -11,6 +11,7 @@ service WorkspaceAgentService {
   // Returns recent idle/activity info for this agent.
   // Used by the control plane to distinguish busy builds from idle sessions.
   rpc GetIdleStatus(GetIdleStatusRequest) returns (GetIdleStatusResponse);
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
   rpc FlushUsageWAL(FlushUsageWALRequest) returns (FlushUsageWALResponse);
   rpc ListDir(ListDirRequest) returns (ListDirResponse);
   rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
@@ -75,6 +76,12 @@ message GetIdleStatusResponse {
   // Average CPU usage percentage over the last 60 seconds, in the range [0, 100 * cpu_count].
   // The value accounts for container CPU quotas if detectable; otherwise it is based on host CPUs.
   double cpu_percent_over_sixty_seconds = 2;
+}
+
+message CreateSnapshotRequest {}
+
+message CreateSnapshotResponse {
+  string repository = 1;
 }
 
 message FlushUsageWALRequest {}

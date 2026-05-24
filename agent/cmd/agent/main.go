@@ -50,7 +50,11 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterWorkspaceAgentServiceServer(
 		grpcServer,
-		agentserver.NewAgentServer(&ptymanager.Manager{}, usageTracker),
+		agentserver.NewAgentServerWithConfig(&ptymanager.Manager{}, usageTracker, agentserver.AgentServerConfig{
+			SnapshotBucket:   os.Getenv("CORTADO_SNAPSHOT_BUCKET"),
+			SnapshotPassword: os.Getenv("CORTADO_SNAPSHOT_PASSWORD"),
+			WorkspaceID:      os.Getenv("CORTADO_WORKSPACE_ID"),
+		}),
 	)
 
 	go func() {

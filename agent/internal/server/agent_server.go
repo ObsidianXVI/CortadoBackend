@@ -21,9 +21,21 @@ const defaultWorkspaceRoot = "/workspace"
 type AgentServer struct {
 	pb.UnimplementedWorkspaceAgentServiceServer
 
-	ptyMgr        *ptymanager.Manager
-	usageTracker  usageTracker
-	workspaceRoot string
+	commandRunner    snapshotCommandRunner
+	ptyMgr           *ptymanager.Manager
+	snapshotBucket   string
+	snapshotPassword string
+	usageTracker     usageTracker
+	workspaceID      string
+	workspaceRoot    string
+}
+
+type AgentServerConfig struct {
+	CommandRunner    snapshotCommandRunner
+	SnapshotBucket   string
+	SnapshotPassword string
+	WorkspaceID      string
+	WorkspaceRoot    string
 }
 
 type usageTracker interface {
@@ -33,21 +45,32 @@ type usageTracker interface {
 }
 
 func NewAgentServer(ptyMgr *ptymanager.Manager, tracker usageTracker) *AgentServer {
-	return NewAgentServerWithWorkspaceRoot(ptyMgr, tracker, defaultWorkspaceRoot)
+	return NewAgentServerWithConfig(ptyMgr, tracker, AgentServerConfig{})
 }
 
 func NewAgentServerWithWorkspaceRoot(ptyMgr *ptymanager.Manager, tracker usageTracker, workspaceRoot string) *AgentServer {
+	return NewAgentServerWithConfig(ptyMgr, tracker, AgentServerConfig{WorkspaceRoot: workspaceRoot})
+}
+
+func NewAgentServerWithConfig(ptyMgr *ptymanager.Manager, tracker usageTracker, cfg AgentServerConfig) *AgentServer {
 	if ptyMgr == nil {
 		ptyMgr = &ptymanager.Manager{}
 	}
-	if strings.TrimSpace(workspaceRoot) == "" {
-		workspaceRoot = defaultWorkspaceRoot
+	if strings.TrimSpace(cfg.WorkspaceRoot) == "" {
+		cfg.WorkspaceRoot = defaultWorkspaceRoot
+	}
+	if cfg.CommandRunner == nil {
+		cfg.CommandRunner = runSnapshotCommand
 	}
 
 	return &AgentServer{
-		ptyMgr:        ptyMgr,
-		usageTracker:  tracker,
-		workspaceRoot: workspaceRoot,
+		commandRunner:    cfg.CommandRunner,
+		ptyMgr:           ptyMgr,
+		snapshotBucket:   strings.TrimSpace(cfg.SnapshotBucket),
+		snapshotPassword: cfg.SnapshotPassword,
+		usageTracker:     tracker,
+		workspaceID:      strings.TrimSpace(cfg.WorkspaceID),
+		workspaceRoot:    cfg.WorkspaceRoot,
 	}
 }
 

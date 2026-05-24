@@ -67,6 +67,21 @@ resource "google_cloud_run_v2_service" "control_plane" {
       }
 
       env {
+        name  = "CORTADO_SNAPSHOT_BUCKET"
+        value = var.snapshot_bucket_name
+      }
+
+      env {
+        name = "CORTADO_SNAPSHOT_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = var.snapshot_password_secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
         name  = "CORTADO_WORKSPACE_STORAGE_CLASS"
         value = "cortado-workspace"
       }

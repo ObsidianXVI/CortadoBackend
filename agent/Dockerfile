@@ -20,6 +20,7 @@ RUN apt-get update \
         file \
         git \
         python3 \
+        restic \
         vim \
         zsh \
     && rm -rf /var/lib/apt/lists/* \

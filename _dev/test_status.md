@@ -239,3 +239,15 @@
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+24/05/26 00:11
+- PASS `cd proto && buf lint`
+- PASS `cd proto && buf generate`
+- PASS `cd agent && GOTOOLCHAIN=local go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `terraform fmt -recursive terraform`
+- PASS `terraform -chdir=terraform/envs/dev init -backend=false -input=false`
+- PASS `terraform -chdir=terraform/envs/dev validate`
+- PASS `terraform -chdir=terraform/envs/prod init -backend=false -input=false`
+- PASS `terraform -chdir=terraform/envs/prod validate`

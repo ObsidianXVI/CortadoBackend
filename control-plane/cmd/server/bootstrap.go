@@ -47,6 +47,8 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 		PVCSize:          os.Getenv("CORTADO_WORKSPACE_PVC_SIZE"),
 		ProjectID:        projectID,
 		Region:           os.Getenv("CORTADO_GKE_CLUSTER_LOCATION"),
+		SnapshotBucket:   os.Getenv("CORTADO_SNAPSHOT_BUCKET"),
+		SnapshotPassword: os.Getenv("CORTADO_SNAPSHOT_PASSWORD"),
 		StorageClassName: os.Getenv("CORTADO_WORKSPACE_STORAGE_CLASS"),
 		UsageEventsTopic: os.Getenv("CORTADO_USAGE_EVENTS_TOPIC"),
 	})
@@ -56,6 +58,9 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 	})
 	podManager.SetStatusSink(service)
 	podManager.SetUsageFlusher(workspace.NewAgentUsageFlusher(workspace.AgentUsageFlusherConfig{
+		WorkspaceResolver: podManager,
+	}))
+	podManager.SetSnapshotter(workspace.NewAgentSnapshotter(workspace.AgentSnapshotterConfig{
 		WorkspaceResolver: podManager,
 	}))
 	podManager.Run(ctx)

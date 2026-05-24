@@ -13,6 +13,7 @@ locals {
     "redis.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
+    "storage.googleapis.com",
   ]
 
   common_labels = {
@@ -103,21 +104,23 @@ module "redis" {
 module "cloudrun" {
   source = "../../modules/cloudrun"
 
-  auth_cache_addr           = module.redis.address
-  cluster_dns_domain        = var.cluster_dns_domain
-  cluster_name              = module.gke.cluster_name
-  env                       = var.env
-  image_tag                 = var.control_plane_image_tag
-  jwt_private_key_secret_id = module.secrets.jwt_private_key_secret_id
-  labels                    = local.common_labels
-  network_name              = var.network_name
-  project_id                = var.project_id
-  region                    = var.region
-  repository_id             = module.gke.artifact_registry_repository_id
-  service_account_email     = module.iam.control_plane_service_account_email
-  subnetwork_name           = var.subnetwork_name
-  usage_events_topic_name   = module.billing_events.usage_events_topic_name
-  workspace_namespace       = var.workspace_namespace
+  auth_cache_addr             = module.redis.address
+  cluster_dns_domain          = var.cluster_dns_domain
+  cluster_name                = module.gke.cluster_name
+  env                         = var.env
+  image_tag                   = var.control_plane_image_tag
+  jwt_private_key_secret_id   = module.secrets.jwt_private_key_secret_id
+  labels                      = local.common_labels
+  network_name                = var.network_name
+  project_id                  = var.project_id
+  region                      = var.region
+  repository_id               = module.gke.artifact_registry_repository_id
+  service_account_email       = module.iam.control_plane_service_account_email
+  snapshot_bucket_name        = module.workspace_snapshots.bucket_name
+  snapshot_password_secret_id = module.secrets.snapshot_password_secret_id
+  subnetwork_name             = var.subnetwork_name
+  usage_events_topic_name     = module.billing_events.usage_events_topic_name
+  workspace_namespace         = var.workspace_namespace
 
   depends_on = [google_project_service.api]
 }
@@ -129,6 +132,18 @@ module "billing_events" {
   labels                                = local.common_labels
   project_id                            = var.project_id
   project_number                        = data.google_project.current.number
+  region                                = var.region
+  workspace_agent_service_account_email = module.iam.workspace_agent_service_account_email
+
+  depends_on = [google_project_service.api]
+}
+
+module "workspace_snapshots" {
+  source = "../../modules/workspace_snapshots"
+
+  env                                   = var.env
+  labels                                = local.common_labels
+  project_id                            = var.project_id
   region                                = var.region
   workspace_agent_service_account_email = module.iam.workspace_agent_service_account_email
 

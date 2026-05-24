@@ -39,15 +39,17 @@ type StatusSink interface {
 }
 
 const (
-	envGoogleCloudProject = "GOOGLE_CLOUD_PROJECT"
-	envTenantID           = "CORTADO_TENANT_ID"
-	envUsageEventsTopic   = "CORTADO_USAGE_EVENTS_TOPIC"
-	envWorkspaceCPU       = "CORTADO_WORKSPACE_CPU"
-	envWorkspaceID        = "CORTADO_WORKSPACE_ID"
-	envWorkspaceMemoryGB  = "CORTADO_WORKSPACE_MEMORY_GB"
-	envWorkspaceRegion    = "CORTADO_GCP_REGION"
-	envWorkspaceStorageGB = "CORTADO_WORKSPACE_STORAGE_GB"
-	envWorkspaceUserID    = "CORTADO_USER_ID"
+	envGoogleCloudProject        = "GOOGLE_CLOUD_PROJECT"
+	envTenantID                  = "CORTADO_TENANT_ID"
+	envUsageEventsTopic          = "CORTADO_USAGE_EVENTS_TOPIC"
+	envWorkspaceCPU              = "CORTADO_WORKSPACE_CPU"
+	envWorkspaceID               = "CORTADO_WORKSPACE_ID"
+	envWorkspaceMemoryGB         = "CORTADO_WORKSPACE_MEMORY_GB"
+	envWorkspaceRegion           = "CORTADO_GCP_REGION"
+	envWorkspaceSnapshotBucket   = "CORTADO_SNAPSHOT_BUCKET"
+	envWorkspaceSnapshotPassword = "CORTADO_SNAPSHOT_PASSWORD"
+	envWorkspaceStorageGB        = "CORTADO_WORKSPACE_STORAGE_GB"
+	envWorkspaceUserID           = "CORTADO_USER_ID"
 )
 
 type PodManagerConfig struct {
@@ -60,6 +62,9 @@ type PodManagerConfig struct {
 	ServiceAccountName        string
 	StorageClassName          string
 	StatusSink                StatusSink
+	SnapshotBucket            string
+	SnapshotPassword          string
+	Snapshotter               Snapshotter
 	UsageEventsTopic          string
 	VolumeReleasePollInterval time.Duration
 	VolumeReleaseTimeout      time.Duration
@@ -78,6 +83,9 @@ type PodManager struct {
 	runOnce                   sync.Once
 	serviceAccountName        string
 	services                  serviceClient
+	snapshotBucket            string
+	snapshotPassword          string
+	snapshotter               Snapshotter
 	storageClassName          string
 	statusSink                StatusSink
 	usageEventsTopic          string
@@ -127,6 +135,9 @@ func newPodManager(pods podClient, pvcs pvcClient, services serviceClient, cfg P
 		region:                    cfg.Region,
 		serviceAccountName:        cfg.ServiceAccountName,
 		services:                  services,
+		snapshotBucket:            cfg.SnapshotBucket,
+		snapshotPassword:          cfg.SnapshotPassword,
+		snapshotter:               cfg.Snapshotter,
 		storageClassName:          cfg.StorageClassName,
 		statusSink:                cfg.StatusSink,
 		usageEventsTopic:          cfg.UsageEventsTopic,
@@ -186,6 +197,10 @@ func (m *PodManager) SetStatusSink(statusSink StatusSink) {
 
 func (m *PodManager) SetUsageFlusher(usageFlusher UsageFlusher) {
 	m.usageFlusher = usageFlusher
+}
+
+func (m *PodManager) SetSnapshotter(snapshotter Snapshotter) {
+	m.snapshotter = snapshotter
 }
 
 func (m *PodManager) Create(workspace Workspace) error {
@@ -322,6 +337,12 @@ func (m *PodManager) Stop(workspaceID string) error {
 		return errors.New("workspaceID is required")
 	}
 
+	if m.snapshotter != nil {
+		if err := m.snapshotter.CreateSnapshot(context.Background(), workspaceID); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			return fmt.Errorf("create workspace snapshot %q: %w", workspaceID, err)
+		}
+	}
+
 	return m.deletePod(workspaceID)
 }
 
@@ -340,7 +361,7 @@ func (m *PodManager) Delete(workspaceID string) error {
 		return fmt.Errorf("get workspace pod %q before delete: %w", workspaceID, err)
 	}
 
-	if err := m.Stop(workspaceID); err != nil {
+	if err := m.deletePod(workspaceID); err != nil {
 		return err
 	}
 	if err := m.deleteService(workspaceID); err != nil {
@@ -507,7 +528,7 @@ func (m *PodManager) storageGB() float64 {
 }
 
 func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
-	return []corev1.EnvVar{
+	env := []corev1.EnvVar{
 		{Name: envGoogleCloudProject, Value: m.projectID},
 		{Name: envTenantID, Value: workspace.TenantID},
 		{Name: envUsageEventsTopic, Value: m.usageEventsTopic},
@@ -518,6 +539,14 @@ func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
 		{Name: envWorkspaceStorageGB, Value: strconv.FormatFloat(m.storageGB(), 'f', -1, 64)},
 		{Name: envWorkspaceUserID, Value: workspace.UserID},
 	}
+	if m.snapshotBucket != "" {
+		env = append(env, corev1.EnvVar{Name: envWorkspaceSnapshotBucket, Value: m.snapshotBucket})
+	}
+	if m.snapshotPassword != "" {
+		env = append(env, corev1.EnvVar{Name: envWorkspaceSnapshotPassword, Value: m.snapshotPassword})
+	}
+
+	return env
 }
 
 func ptr[T any](value T) *T {

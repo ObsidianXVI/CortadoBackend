@@ -91,6 +91,8 @@ func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 			PVCSize:          "10Gi",
 			ProjectID:        "cortado-ide",
 			Region:           "us-central1",
+			SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+			SnapshotPassword: "snapshot-secret",
 			UsageEventsTopic: "cortado-usage-events-dev",
 		},
 	)
@@ -122,6 +124,12 @@ func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 	}
 	if env[envUsageEventsTopic] != "cortado-usage-events-dev" {
 		t.Fatalf("unexpected topic env: %#v", env)
+	}
+	if env[envWorkspaceSnapshotBucket] != "cortado-snapshots-cortado-ide-dev" {
+		t.Fatalf("unexpected snapshot bucket env: %#v", env)
+	}
+	if env[envWorkspaceSnapshotPassword] != "snapshot-secret" {
+		t.Fatalf("unexpected snapshot password env: %#v", env)
 	}
 	if env[envWorkspaceID] != "ws-123" || env[envTenantID] != "tenant-1" || env[envWorkspaceUserID] != "user-1" {
 		t.Fatalf("unexpected workspace identity env: %#v", env)
@@ -256,12 +264,17 @@ func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
 	flusher := &usageFlusherStub{}
 	manager.SetUsageFlusher(flusher)
+	snapshotter := &snapshotterStub{}
+	manager.SetSnapshotter(snapshotter)
 
 	if err := manager.Delete("ws-123"); err != nil {
 		t.Fatalf("delete workspace resources: %v", err)
 	}
 	if flusher.workspaceID != "ws-123" {
 		t.Fatalf("unexpected flushed workspace: %q", flusher.workspaceID)
+	}
+	if snapshotter.workspaceID != "" {
+		t.Fatalf("delete should not create a snapshot, got workspace %q", snapshotter.workspaceID)
 	}
 
 	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
@@ -272,6 +285,48 @@ func TestPodManagerDeleteRemovesPodAndService(t *testing.T) {
 	}
 	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected pvc to be deleted, got %v", err)
+	}
+}
+
+func TestPodManagerStopCreatesSnapshotBeforeDeletingPod(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	snapshotter := &snapshotterStub{}
+	manager.SetSnapshotter(snapshotter)
+
+	if err := manager.Stop("ws-123"); err != nil {
+		t.Fatalf("stop workspace resources: %v", err)
+	}
+	if snapshotter.workspaceID != "ws-123" {
+		t.Fatalf("unexpected snapshot workspace: %q", snapshotter.workspaceID)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod to be deleted after stop, got %v", err)
+	}
+}
+
+func TestPodManagerStopIgnoresSnapshotTimeout(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager.SetSnapshotter(&snapshotterStub{err: context.DeadlineExceeded})
+
+	if err := manager.Stop("ws-123"); err != nil {
+		t.Fatalf("stop workspace with snapshot timeout: %v", err)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod deletion after snapshot timeout, got %v", err)
 	}
 }
 
@@ -385,6 +440,11 @@ type usageFlusherStub struct {
 	workspaceID string
 }
 
+type snapshotterStub struct {
+	err         error
+	workspaceID string
+}
+
 func (s *statusSinkStub) OnPodDeleted(_ context.Context, workspaceID string) error {
 	s.deleteCh <- workspaceID
 	return nil
@@ -402,6 +462,11 @@ func (s *statusSinkStub) OnPodStatus(_ context.Context, workspaceID string, phas
 func (u *usageFlusherStub) FlushUsageWAL(_ context.Context, workspaceID string) error {
 	u.workspaceID = workspaceID
 	return nil
+}
+
+func (s *snapshotterStub) CreateSnapshot(_ context.Context, workspaceID string) error {
+	s.workspaceID = workspaceID
+	return s.err
 }
 
 type memoryPodClient struct {

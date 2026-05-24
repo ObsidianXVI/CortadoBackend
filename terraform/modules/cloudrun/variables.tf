@@ -28,6 +28,16 @@ variable "jwt_private_key_secret_id" {
   type        = string
 }
 
+variable "snapshot_bucket_name" {
+  description = "Name of the workspace snapshots bucket."
+  type        = string
+}
+
+variable "snapshot_password_secret_id" {
+  description = "Secret Manager secret ID containing the workspace snapshot password."
+  type        = string
+}
+
 variable "labels" {
   description = "Common labels applied to supported resources."
   type        = map(string)

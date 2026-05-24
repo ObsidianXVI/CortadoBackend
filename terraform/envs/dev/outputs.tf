@@ -28,6 +28,16 @@ output "workspace_agent_service_account_email" {
   value       = module.iam.workspace_agent_service_account_email
 }
 
+output "workspace_snapshots_bucket_name" {
+  description = "Workspace snapshots bucket name for the dev environment."
+  value       = module.workspace_snapshots.bucket_name
+}
+
+output "workspace_snapshots_bucket_url" {
+  description = "Workspace snapshots bucket URL for the dev environment."
+  value       = module.workspace_snapshots.bucket_url
+}
+
 output "usage_events_subscription_name" {
   description = "Pub/Sub subscription name for usage-event export in the dev environment."
   value       = module.billing_events.usage_events_subscription_name

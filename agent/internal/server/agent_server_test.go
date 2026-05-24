@@ -157,6 +157,88 @@ func TestAgentServerFlushUsageWAL(t *testing.T) {
 	}
 }
 
+func TestAgentServerCreateSnapshot(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	var calls []snapshotCommandCall
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{
+		CommandRunner: func(_ context.Context, env []string, name string, args ...string) ([]byte, error) {
+			calls = append(calls, snapshotCommandCall{
+				args: append([]string{name}, args...),
+				env:  append([]string(nil), env...),
+			})
+			return []byte("ok"), nil
+		},
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+		WorkspaceID:      "ws-123",
+		WorkspaceRoot:    workspaceRoot,
+	})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	response, err := client.CreateSnapshot(ctx, &pb.CreateSnapshotRequest{})
+	if err != nil {
+		t.Fatalf("create snapshot: %v", err)
+	}
+	if response.GetRepository() != "gs:cortado-snapshots-cortado-ide-dev:/ws-123" {
+		t.Fatalf("unexpected repository: %q", response.GetRepository())
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected init and backup calls, got %d", len(calls))
+	}
+	if got := strings.Join(calls[0].args, " "); !strings.Contains(got, "restic -r gs:cortado-snapshots-cortado-ide-dev:/ws-123 init") {
+		t.Fatalf("unexpected init command: %q", got)
+	}
+	if got := strings.Join(calls[1].args, " "); !strings.Contains(got, "restic -r gs:cortado-snapshots-cortado-ide-dev:/ws-123 backup "+workspaceRoot) {
+		t.Fatalf("unexpected backup command: %q", got)
+	}
+	if !containsEnv(calls[0].env, "RESTIC_PASSWORD=snapshot-secret") {
+		t.Fatalf("missing restic password env: %#v", calls[0].env)
+	}
+}
+
+func TestAgentServerCreateSnapshotRequiresConfiguration(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{WorkspaceRoot: t.TempDir()})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := client.CreateSnapshot(ctx, &pb.CreateSnapshotRequest{})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected failed precondition, got %v", err)
+	}
+}
+
+func TestAgentServerCreateSnapshotMapsTimeout(t *testing.T) {
+	t.Parallel()
+
+	client, cleanup := newTestClientWithConfig(t, nil, AgentServerConfig{
+		CommandRunner: func(_ context.Context, _ []string, _ string, _ ...string) ([]byte, error) {
+			return nil, context.DeadlineExceeded
+		},
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+		WorkspaceID:      "ws-123",
+		WorkspaceRoot:    t.TempDir(),
+	})
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := client.CreateSnapshot(ctx, &pb.CreateSnapshotRequest{})
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("expected deadline exceeded, got %v", err)
+	}
+}
+
 func newTestClient(t *testing.T, tracker usageTracker) (pb.WorkspaceAgentServiceClient, func()) {
 	t.Helper()
 	return newTestClientWithWorkspaceRoot(t, tracker, t.TempDir())
@@ -165,11 +247,17 @@ func newTestClient(t *testing.T, tracker usageTracker) (pb.WorkspaceAgentService
 func newTestClientWithWorkspaceRoot(t *testing.T, tracker usageTracker, workspaceRoot string) (pb.WorkspaceAgentServiceClient, func()) {
 	t.Helper()
 
+	return newTestClientWithConfig(t, tracker, AgentServerConfig{WorkspaceRoot: workspaceRoot})
+}
+
+func newTestClientWithConfig(t *testing.T, tracker usageTracker, cfg AgentServerConfig) (pb.WorkspaceAgentServiceClient, func()) {
+	t.Helper()
+
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
 	pb.RegisterWorkspaceAgentServiceServer(
 		grpcServer,
-		NewAgentServerWithWorkspaceRoot(&ptymanager.Manager{}, tracker, workspaceRoot),
+		NewAgentServerWithConfig(&ptymanager.Manager{}, tracker, cfg),
 	)
 
 	go func() {
@@ -208,6 +296,11 @@ type usageTrackerStub struct {
 	started    []string
 }
 
+type snapshotCommandCall struct {
+	args []string
+	env  []string
+}
+
 func (u *usageTrackerStub) EndSession(string) {}
 
 func (u *usageTrackerStub) Flush(context.Context) error {
@@ -217,4 +310,13 @@ func (u *usageTrackerStub) Flush(context.Context) error {
 
 func (u *usageTrackerStub) StartSession(sessionID string) {
 	u.started = append(u.started, sessionID)
+}
+
+func containsEnv(env []string, target string) bool {
+	for _, entry := range env {
+		if entry == target {
+			return true
+		}
+	}
+	return false
 }
