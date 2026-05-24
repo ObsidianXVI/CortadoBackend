@@ -7,6 +7,8 @@ import '../cortado_client.dart';
 import '../cortado_workspace_provider.dart';
 import '../editor/editor_diagnostics.dart';
 import '../gen/agent/v1/agent.pb.dart' as agentpb;
+import '../local_daemon/cortado_local_daemon_bridge.dart';
+import '../local_daemon/local_daemon_models.dart';
 import '../mux_frame.dart';
 import '../workspace_manager.dart';
 import 'vfs_node.dart';
@@ -21,6 +23,7 @@ class CortadoFileTree extends ConsumerStatefulWidget {
     this.autoLoadRoot = true,
     this.autoWatch = true,
     this.indent = 16,
+    this.localDaemonBridge,
     this.selectedPath,
     this.onClosed,
     this.onError,
@@ -33,6 +36,7 @@ class CortadoFileTree extends ConsumerStatefulWidget {
   final bool autoLoadRoot;
   final bool autoWatch;
   final double indent;
+  final CortadoLocalDaemonBridge? localDaemonBridge;
   final String? selectedPath;
   final ValueChanged<String>? onClosed;
   final ValueChanged<String>? onError;
@@ -44,6 +48,7 @@ class CortadoFileTree extends ConsumerStatefulWidget {
 
 class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   StreamSubscription<MuxFrame>? _frameSubscription;
+  StreamSubscription<CortadoLocalDaemonSyncStatus>? _syncStatusSubscription;
   bool _watchOpen = false;
   String? _activePath;
   FocusNode? _renameFocusNode;
@@ -56,6 +61,7 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   void initState() {
     super.initState();
     _subscribeToFrames();
+    _subscribeToLocalDaemon();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -67,11 +73,16 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   @override
   void didUpdateWidget(CortadoFileTree oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.localDaemonBridge != widget.localDaemonBridge) {
+      _syncStatusSubscription?.cancel();
+      _subscribeToLocalDaemon();
+    }
     if (oldWidget.client == widget.client &&
         oldWidget.channelId == widget.channelId &&
         oldWidget.rootPath == widget.rootPath &&
         oldWidget.autoLoadRoot == widget.autoLoadRoot &&
-        oldWidget.autoWatch == widget.autoWatch) {
+        oldWidget.autoWatch == widget.autoWatch &&
+        oldWidget.localDaemonBridge == widget.localDaemonBridge) {
       return;
     }
 
@@ -90,6 +101,7 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   @override
   void dispose() {
     _frameSubscription?.cancel();
+    _syncStatusSubscription?.cancel();
     unawaited(_closeWatchChannel());
     _disposeRenameEditor();
     _treeFocusNode.dispose();
@@ -139,23 +151,11 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
                 labelWidget: _buildLabelWidget(node),
                 trailing: node is VfsDir
                     ? null
-                    : switch (diagnosticStatuses[node.path] ??
-                        CortadoFileDiagnosticStatus.none) {
-                        CortadoFileDiagnosticStatus.error => _FileDiagnosticDot(
-                            key: ValueKey(
-                              'file-tree-diagnostic-dot:${node.path}',
-                            ),
-                            color: Color(0xFFEF4444),
-                          ),
-                        CortadoFileDiagnosticStatus.warning =>
-                          _FileDiagnosticDot(
-                            key: ValueKey(
-                              'file-tree-diagnostic-dot:${node.path}',
-                            ),
-                            color: Color(0xFFF59E0B),
-                          ),
-                        CortadoFileDiagnosticStatus.none => null,
-                      },
+                    : _buildTrailingWidget(
+                        node,
+                        diagnosticStatuses[node.path] ??
+                            CortadoFileDiagnosticStatus.none,
+                      ),
                 selected: selectedPath == node.path,
                 onLongPressStart: (details) =>
                     _showContextMenu(node, details.globalPosition),
@@ -190,6 +190,23 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
   void _subscribeToFrames() {
     _frameSubscription =
         widget.client.framesForChannel(widget.channelId).listen(_handleFrame);
+  }
+
+  void _subscribeToLocalDaemon() {
+    final bridge = widget.localDaemonBridge;
+    if (bridge == null) {
+      return;
+    }
+
+    final notifier = ref.read(cortadoVfsProvider.notifier);
+    for (final status in bridge.currentSyncStatuses.values) {
+      notifier.applyLocalDaemonSyncStatus(status);
+    }
+
+    _syncStatusSubscription = bridge.syncStatuses.listen(
+      notifier.applyLocalDaemonSyncStatus,
+      onError: (Object error) => widget.onError?.call(error.toString()),
+    );
   }
 
   Future<void> _handleFrame(MuxFrame frame) async {
@@ -286,6 +303,72 @@ class _CortadoFileTreeState extends ConsumerState<CortadoFileTree> {
         fontSize: 13,
         fontWeight: FontWeight.w600,
       ),
+    );
+  }
+
+  Widget? _buildTrailingWidget(
+    VfsNode node,
+    CortadoFileDiagnosticStatus diagnosticStatus,
+  ) {
+    final children = <Widget>[];
+    switch (node.syncState) {
+      case VfsNodeSyncState.conflicted:
+        children.add(
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 8),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              key: ValueKey('file-tree-sync-conflict:${node.path}'),
+              color: const Color(0xFFD97706),
+              size: 14,
+            ),
+          ),
+        );
+        break;
+      case VfsNodeSyncState.syncing:
+        children.add(
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 8),
+            child: SizedBox(
+              key: ValueKey('file-tree-sync-spinner:${node.path}'),
+              width: 12,
+              height: 12,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+        break;
+      case VfsNodeSyncState.idle:
+        break;
+    }
+
+    switch (diagnosticStatus) {
+      case CortadoFileDiagnosticStatus.error:
+        children.add(
+          _FileDiagnosticDot(
+            key: ValueKey('file-tree-diagnostic-dot:${node.path}'),
+            color: const Color(0xFFEF4444),
+          ),
+        );
+        break;
+      case CortadoFileDiagnosticStatus.warning:
+        children.add(
+          _FileDiagnosticDot(
+            key: ValueKey('file-tree-diagnostic-dot:${node.path}'),
+            color: const Color(0xFFF59E0B),
+          ),
+        );
+        break;
+      case CortadoFileDiagnosticStatus.none:
+        break;
+    }
+
+    if (children.isEmpty) {
+      return null;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: children,
     );
   }
 

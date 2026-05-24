@@ -433,6 +433,91 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets('renders sync status indicators from VFS state',
+        (tester) async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'README.md',
+                size: 12,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 24, 10),
+                permissions: 420,
+              ),
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 24, 10),
+                permissions: 493,
+              ),
+            ],
+          ],
+          '/lib': <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 32,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 24, 10, 5),
+                permissions: 420,
+              ),
+            ],
+          ],
+        },
+      );
+      final client = _FakeCortadoClient();
+
+      await tester.pumpWidget(
+        _wrapTree(
+          client: client,
+          manager: manager,
+          child: CortadoFileTree(client: client),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CortadoFileTree)),
+      );
+      final notifier = container.read(cortadoVfsProvider.notifier);
+      notifier.applyLocalDaemonSyncStatus(
+        const CortadoLocalDaemonSyncStatus(
+          localPath: '/tmp/workspace',
+          state: CortadoLocalDaemonSyncState.syncing,
+          workspaceId: 'ws-123',
+          workspacePath: '/README.md',
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('file-tree-sync-spinner:/README.md')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('lib'));
+      await tester.pump();
+      await tester.pump();
+      notifier.applyLocalDaemonSyncStatus(
+        const CortadoLocalDaemonSyncStatus(
+          localPath: '/tmp/workspace',
+          message: 'manual merge required',
+          state: CortadoLocalDaemonSyncState.conflicted,
+          workspaceId: 'ws-123',
+          workspacePath: '/lib/main.dart',
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('file-tree-sync-conflict:/lib/main.dart')),
+        findsOneWidget,
+      );
+    });
   });
 }
 

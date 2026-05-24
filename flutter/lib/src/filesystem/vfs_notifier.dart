@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../cortado_workspace_provider.dart';
 import '../gen/agent/v1/agent.pb.dart' as agentpb;
+import '../local_daemon/local_daemon_models.dart';
 import '../workspace_manager.dart';
 import 'vfs_node.dart';
 
@@ -16,6 +17,9 @@ final cortadoVfsProvider =
 );
 
 class VfsNotifier extends AutoDisposeAsyncNotifier<Map<String, VfsNode>> {
+  final Map<String, CortadoLocalDaemonSyncStatus> _syncStatusesByPath =
+      <String, CortadoLocalDaemonSyncStatus>{};
+
   @override
   Map<String, VfsNode> build() => <String, VfsNode>{
         vfsRootPath: const VfsNode.directory(
@@ -98,6 +102,27 @@ class VfsNotifier extends AutoDisposeAsyncNotifier<Map<String, VfsNode>> {
     }
   }
 
+  void applyLocalDaemonSyncStatus(CortadoLocalDaemonSyncStatus status) {
+    final normalizedPath = normalizeVfsPath(status.workspacePath);
+    if (status.state == CortadoLocalDaemonSyncState.idle) {
+      _syncStatusesByPath.remove(normalizedPath);
+    } else {
+      _syncStatusesByPath[normalizedPath] = status.copyWith(
+        workspacePath: normalizedPath,
+      );
+    }
+
+    final current = state.value ?? build();
+    final node = current[normalizedPath];
+    if (node == null) {
+      return;
+    }
+
+    final updated = Map<String, VfsNode>.of(current);
+    updated[normalizedPath] = _applySyncState(node, normalizedPath);
+    state = AsyncData(updated);
+  }
+
   WorkspaceManager get _manager => ref.read(cortadoWorkspaceManagerProvider);
   String get _workspaceId => ref.read(cortadoWorkspaceIdProvider);
 
@@ -124,7 +149,7 @@ class VfsNotifier extends AutoDisposeAsyncNotifier<Map<String, VfsNode>> {
       if (!entry.isDir && existingNode is VfsDir) {
         _removeSubtree(updated, childPath);
       }
-      updated[childPath] = switch ((entry.isDir, existingNode)) {
+      final node = switch ((entry.isDir, existingNode)) {
         (true, VfsDir dir) => dir.copyWith(name: entry.name),
         (true, _) => VfsNode.directory(
             path: childPath,
@@ -138,18 +163,50 @@ class VfsNotifier extends AutoDisposeAsyncNotifier<Map<String, VfsNode>> {
             modTime: entry.modTime.toUtc(),
           ),
       };
+      updated[childPath] = _applySyncState(node, childPath);
     }
 
     if (listEquals(directory.childPaths, childPaths) && directory.loaded) {
-      updated[directory.path] = directory;
+      updated[directory.path] = _applySyncState(directory, directory.path);
     } else {
-      updated[directory.path] = directory.copyWith(
-        childPaths: childPaths,
-        loaded: true,
+      updated[directory.path] = _applySyncState(
+        directory.copyWith(
+          childPaths: childPaths,
+          loaded: true,
+        ),
+        directory.path,
       );
     }
 
     return updated;
+  }
+
+  VfsNode _applySyncState(VfsNode node, String path) {
+    final status = _syncStatusesByPath[normalizeVfsPath(path)];
+    if (status == null &&
+        node.syncState == VfsNodeSyncState.idle &&
+        node.syncMessage == null) {
+      return node;
+    }
+    final syncState = switch (status?.state) {
+      CortadoLocalDaemonSyncState.conflicted => VfsNodeSyncState.conflicted,
+      CortadoLocalDaemonSyncState.syncing => VfsNodeSyncState.syncing,
+      _ => VfsNodeSyncState.idle,
+    };
+
+    if (node case final VfsFile file) {
+      return file.copyWith(
+        syncMessage: status?.message,
+        syncState: syncState,
+      );
+    }
+    if (node case final VfsDir dir) {
+      return dir.copyWith(
+        syncMessage: status?.message,
+        syncState: syncState,
+      );
+    }
+    return node;
   }
 }
 

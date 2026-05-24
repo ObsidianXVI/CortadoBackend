@@ -18,31 +18,53 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$VfsNode {
   String get path => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
+  VfsNodeSyncState get syncState => throw _privateConstructorUsedError;
+  String? get syncMessage => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
-    required TResult Function(
-            String path, String name, int size, DateTime modTime)
+    required TResult Function(String path, String name, int size,
+            DateTime modTime, VfsNodeSyncState syncState, String? syncMessage)
         file,
-    required TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)
+    required TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)
         directory,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(String path, String name, int size, DateTime modTime)?
+    TResult? Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult? Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult? Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
-    TResult Function(String path, String name, int size, DateTime modTime)?
+    TResult Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
     required TResult orElse(),
   }) =>
@@ -78,7 +100,11 @@ abstract class $VfsNodeCopyWith<$Res> {
   factory $VfsNodeCopyWith(VfsNode value, $Res Function(VfsNode) then) =
       _$VfsNodeCopyWithImpl<$Res, VfsNode>;
   @useResult
-  $Res call({String path, String name});
+  $Res call(
+      {String path,
+      String name,
+      VfsNodeSyncState syncState,
+      String? syncMessage});
 }
 
 /// @nodoc
@@ -98,6 +124,8 @@ class _$VfsNodeCopyWithImpl<$Res, $Val extends VfsNode>
   $Res call({
     Object? path = null,
     Object? name = null,
+    Object? syncState = null,
+    Object? syncMessage = freezed,
   }) {
     return _then(_value.copyWith(
       path: null == path
@@ -108,6 +136,14 @@ class _$VfsNodeCopyWithImpl<$Res, $Val extends VfsNode>
           ? _value.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
+      syncState: null == syncState
+          ? _value.syncState
+          : syncState // ignore: cast_nullable_to_non_nullable
+              as VfsNodeSyncState,
+      syncMessage: freezed == syncMessage
+          ? _value.syncMessage
+          : syncMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ) as $Val);
   }
 }
@@ -119,7 +155,13 @@ abstract class _$$VfsFileImplCopyWith<$Res> implements $VfsNodeCopyWith<$Res> {
       __$$VfsFileImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String path, String name, int size, DateTime modTime});
+  $Res call(
+      {String path,
+      String name,
+      int size,
+      DateTime modTime,
+      VfsNodeSyncState syncState,
+      String? syncMessage});
 }
 
 /// @nodoc
@@ -139,6 +181,8 @@ class __$$VfsFileImplCopyWithImpl<$Res>
     Object? name = null,
     Object? size = null,
     Object? modTime = null,
+    Object? syncState = null,
+    Object? syncMessage = freezed,
   }) {
     return _then(_$VfsFileImpl(
       path: null == path
@@ -157,6 +201,14 @@ class __$$VfsFileImplCopyWithImpl<$Res>
           ? _value.modTime
           : modTime // ignore: cast_nullable_to_non_nullable
               as DateTime,
+      syncState: null == syncState
+          ? _value.syncState
+          : syncState // ignore: cast_nullable_to_non_nullable
+              as VfsNodeSyncState,
+      syncMessage: freezed == syncMessage
+          ? _value.syncMessage
+          : syncMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -168,7 +220,9 @@ class _$VfsFileImpl extends VfsFile {
       {required this.path,
       required this.name,
       required this.size,
-      required this.modTime})
+      required this.modTime,
+      this.syncState = VfsNodeSyncState.idle,
+      this.syncMessage})
       : super._();
 
   @override
@@ -179,10 +233,15 @@ class _$VfsFileImpl extends VfsFile {
   final int size;
   @override
   final DateTime modTime;
+  @override
+  @JsonKey()
+  final VfsNodeSyncState syncState;
+  @override
+  final String? syncMessage;
 
   @override
   String toString() {
-    return 'VfsNode.file(path: $path, name: $name, size: $size, modTime: $modTime)';
+    return 'VfsNode.file(path: $path, name: $name, size: $size, modTime: $modTime, syncState: $syncState, syncMessage: $syncMessage)';
   }
 
   @override
@@ -193,11 +252,16 @@ class _$VfsFileImpl extends VfsFile {
             (identical(other.path, path) || other.path == path) &&
             (identical(other.name, name) || other.name == name) &&
             (identical(other.size, size) || other.size == size) &&
-            (identical(other.modTime, modTime) || other.modTime == modTime));
+            (identical(other.modTime, modTime) || other.modTime == modTime) &&
+            (identical(other.syncState, syncState) ||
+                other.syncState == syncState) &&
+            (identical(other.syncMessage, syncMessage) ||
+                other.syncMessage == syncMessage));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, path, name, size, modTime);
+  int get hashCode => Object.hash(
+      runtimeType, path, name, size, modTime, syncState, syncMessage);
 
   /// Create a copy of VfsNode
   /// with the given fields replaced by the non-null parameter values.
@@ -210,40 +274,60 @@ class _$VfsFileImpl extends VfsFile {
   @override
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
-    required TResult Function(
-            String path, String name, int size, DateTime modTime)
+    required TResult Function(String path, String name, int size,
+            DateTime modTime, VfsNodeSyncState syncState, String? syncMessage)
         file,
-    required TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)
+    required TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)
         directory,
   }) {
-    return file(path, name, size, modTime);
+    return file(path, name, size, modTime, syncState, syncMessage);
   }
 
   @override
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(String path, String name, int size, DateTime modTime)?
+    TResult? Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult? Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult? Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
   }) {
-    return file?.call(path, name, size, modTime);
+    return file?.call(path, name, size, modTime, syncState, syncMessage);
   }
 
   @override
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
-    TResult Function(String path, String name, int size, DateTime modTime)?
+    TResult Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
     required TResult orElse(),
   }) {
     if (file != null) {
-      return file(path, name, size, modTime);
+      return file(path, name, size, modTime, syncState, syncMessage);
     }
     return orElse();
   }
@@ -285,7 +369,9 @@ abstract class VfsFile extends VfsNode {
       {required final String path,
       required final String name,
       required final int size,
-      required final DateTime modTime}) = _$VfsFileImpl;
+      required final DateTime modTime,
+      final VfsNodeSyncState syncState,
+      final String? syncMessage}) = _$VfsFileImpl;
   const VfsFile._() : super._();
 
   @override
@@ -294,6 +380,10 @@ abstract class VfsFile extends VfsNode {
   String get name;
   int get size;
   DateTime get modTime;
+  @override
+  VfsNodeSyncState get syncState;
+  @override
+  String? get syncMessage;
 
   /// Create a copy of VfsNode
   /// with the given fields replaced by the non-null parameter values.
@@ -315,7 +405,9 @@ abstract class _$$VfsDirImplCopyWith<$Res> implements $VfsNodeCopyWith<$Res> {
       String name,
       List<String> childPaths,
       bool expanded,
-      bool loaded});
+      bool loaded,
+      VfsNodeSyncState syncState,
+      String? syncMessage});
 }
 
 /// @nodoc
@@ -336,6 +428,8 @@ class __$$VfsDirImplCopyWithImpl<$Res>
     Object? childPaths = null,
     Object? expanded = null,
     Object? loaded = null,
+    Object? syncState = null,
+    Object? syncMessage = freezed,
   }) {
     return _then(_$VfsDirImpl(
       path: null == path
@@ -358,6 +452,14 @@ class __$$VfsDirImplCopyWithImpl<$Res>
           ? _value.loaded
           : loaded // ignore: cast_nullable_to_non_nullable
               as bool,
+      syncState: null == syncState
+          ? _value.syncState
+          : syncState // ignore: cast_nullable_to_non_nullable
+              as VfsNodeSyncState,
+      syncMessage: freezed == syncMessage
+          ? _value.syncMessage
+          : syncMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -370,7 +472,9 @@ class _$VfsDirImpl extends VfsDir {
       required this.name,
       required final List<String> childPaths,
       this.expanded = false,
-      this.loaded = false})
+      this.loaded = false,
+      this.syncState = VfsNodeSyncState.idle,
+      this.syncMessage})
       : _childPaths = childPaths,
         super._();
 
@@ -392,10 +496,15 @@ class _$VfsDirImpl extends VfsDir {
   @override
   @JsonKey()
   final bool loaded;
+  @override
+  @JsonKey()
+  final VfsNodeSyncState syncState;
+  @override
+  final String? syncMessage;
 
   @override
   String toString() {
-    return 'VfsNode.directory(path: $path, name: $name, childPaths: $childPaths, expanded: $expanded, loaded: $loaded)';
+    return 'VfsNode.directory(path: $path, name: $name, childPaths: $childPaths, expanded: $expanded, loaded: $loaded, syncState: $syncState, syncMessage: $syncMessage)';
   }
 
   @override
@@ -409,12 +518,23 @@ class _$VfsDirImpl extends VfsDir {
                 .equals(other._childPaths, _childPaths) &&
             (identical(other.expanded, expanded) ||
                 other.expanded == expanded) &&
-            (identical(other.loaded, loaded) || other.loaded == loaded));
+            (identical(other.loaded, loaded) || other.loaded == loaded) &&
+            (identical(other.syncState, syncState) ||
+                other.syncState == syncState) &&
+            (identical(other.syncMessage, syncMessage) ||
+                other.syncMessage == syncMessage));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, path, name,
-      const DeepCollectionEquality().hash(_childPaths), expanded, loaded);
+  int get hashCode => Object.hash(
+      runtimeType,
+      path,
+      name,
+      const DeepCollectionEquality().hash(_childPaths),
+      expanded,
+      loaded,
+      syncState,
+      syncMessage);
 
   /// Create a copy of VfsNode
   /// with the given fields replaced by the non-null parameter values.
@@ -427,40 +547,63 @@ class _$VfsDirImpl extends VfsDir {
   @override
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
-    required TResult Function(
-            String path, String name, int size, DateTime modTime)
+    required TResult Function(String path, String name, int size,
+            DateTime modTime, VfsNodeSyncState syncState, String? syncMessage)
         file,
-    required TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)
+    required TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)
         directory,
   }) {
-    return directory(path, name, childPaths, expanded, loaded);
+    return directory(
+        path, name, childPaths, expanded, loaded, syncState, syncMessage);
   }
 
   @override
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(String path, String name, int size, DateTime modTime)?
+    TResult? Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult? Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult? Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
   }) {
-    return directory?.call(path, name, childPaths, expanded, loaded);
+    return directory?.call(
+        path, name, childPaths, expanded, loaded, syncState, syncMessage);
   }
 
   @override
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
-    TResult Function(String path, String name, int size, DateTime modTime)?
+    TResult Function(String path, String name, int size, DateTime modTime,
+            VfsNodeSyncState syncState, String? syncMessage)?
         file,
-    TResult Function(String path, String name, List<String> childPaths,
-            bool expanded, bool loaded)?
+    TResult Function(
+            String path,
+            String name,
+            List<String> childPaths,
+            bool expanded,
+            bool loaded,
+            VfsNodeSyncState syncState,
+            String? syncMessage)?
         directory,
     required TResult orElse(),
   }) {
     if (directory != null) {
-      return directory(path, name, childPaths, expanded, loaded);
+      return directory(
+          path, name, childPaths, expanded, loaded, syncState, syncMessage);
     }
     return orElse();
   }
@@ -503,7 +646,9 @@ abstract class VfsDir extends VfsNode {
       required final String name,
       required final List<String> childPaths,
       final bool expanded,
-      final bool loaded}) = _$VfsDirImpl;
+      final bool loaded,
+      final VfsNodeSyncState syncState,
+      final String? syncMessage}) = _$VfsDirImpl;
   const VfsDir._() : super._();
 
   @override
@@ -513,6 +658,10 @@ abstract class VfsDir extends VfsNode {
   List<String> get childPaths;
   bool get expanded;
   bool get loaded;
+  @override
+  VfsNodeSyncState get syncState;
+  @override
+  String? get syncMessage;
 
   /// Create a copy of VfsNode
   /// with the given fields replaced by the non-null parameter values.

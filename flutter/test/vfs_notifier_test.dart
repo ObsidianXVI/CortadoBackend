@@ -11,7 +11,8 @@ void main() {
     test('starts with an unloaded root directory', () {
       final container = ProviderContainer(
         overrides: <Override>[
-          cortadoWorkspaceManagerProvider.overrideWith((ref) => _FakeWorkspaceManager()),
+          cortadoWorkspaceManagerProvider
+              .overrideWith((ref) => _FakeWorkspaceManager()),
           cortadoWorkspaceIdProvider.overrideWith((ref) => 'ws-123'),
         ],
       );
@@ -19,11 +20,13 @@ void main() {
 
       final state = container.read(cortadoVfsProvider).requireValue;
       expect(state.keys, contains(vfsRootPath));
-      expect(state[vfsRootPath], const VfsNode.directory(
-        path: vfsRootPath,
-        name: '',
-        childPaths: <String>[],
-      ));
+      expect(
+          state[vfsRootPath],
+          const VfsNode.directory(
+            path: vfsRootPath,
+            name: '',
+            childPaths: <String>[],
+          ));
     });
 
     test('loads directories lazily and preserves later expands', () async {
@@ -83,13 +86,15 @@ void main() {
       state = container.read(cortadoVfsProvider).requireValue;
       expect((state['/lib'] as VfsDir).loaded, isTrue);
       expect((state['/lib'] as VfsDir).expanded, isTrue);
-      expect((state['/lib'] as VfsDir).childPaths, const <String>['/lib/main.dart']);
+      expect((state['/lib'] as VfsDir).childPaths,
+          const <String>['/lib/main.dart']);
 
       await notifier.setDirectoryExpanded('/lib', true);
       expect(manager.requests, const <String>['ws-123:/', 'ws-123:/lib']);
     });
 
-    test('applyEvent removes deleted nodes and refreshes modified parents', () async {
+    test('applyEvent removes deleted nodes and refreshes modified parents',
+        () async {
       final manager = _FakeWorkspaceManager(
         responses: <String, List<List<WorkspaceDirectoryEntry>>>{
           vfsRootPath: <List<WorkspaceDirectoryEntry>>[
@@ -166,10 +171,13 @@ void main() {
       state = container.read(cortadoVfsProvider).requireValue;
       expect((state['/lib/main.dart'] as VfsFile).size, 2);
       expect(identical(state['/lib'], libBefore), isTrue);
-      expect(manager.requests, const <String>['ws-123:/', 'ws-123:/lib', 'ws-123:/lib']);
+      expect(manager.requests,
+          const <String>['ws-123:/', 'ws-123:/lib', 'ws-123:/lib']);
     });
 
-    test('loadDirectory removes stale descendants when a directory becomes a file', () async {
+    test(
+        'loadDirectory removes stale descendants when a directory becomes a file',
+        () async {
       final manager = _FakeWorkspaceManager(
         responses: <String, List<List<WorkspaceDirectoryEntry>>>{
           vfsRootPath: <List<WorkspaceDirectoryEntry>>[
@@ -229,12 +237,106 @@ void main() {
       expect(parentVfsPath('/lib/main.dart'), '/lib');
       expect(childVfsPath(vfsRootPath, 'lib'), '/lib');
     });
+
+    test('applies local daemon sync status to existing and later-loaded nodes',
+        () async {
+      final manager = _FakeWorkspaceManager(
+        responses: <String, List<List<WorkspaceDirectoryEntry>>>{
+          vfsRootPath: <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'lib',
+                size: 0,
+                isDir: true,
+                modTime: DateTime.utc(2026, 5, 24, 9),
+                permissions: 493,
+              ),
+            ],
+          ],
+          '/lib': <List<WorkspaceDirectoryEntry>>[
+            <WorkspaceDirectoryEntry>[
+              WorkspaceDirectoryEntry(
+                name: 'main.dart',
+                size: 42,
+                isDir: false,
+                modTime: DateTime.utc(2026, 5, 24, 9, 5),
+                permissions: 420,
+              ),
+            ],
+          ],
+        },
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          cortadoWorkspaceManagerProvider.overrideWith((ref) => manager),
+          cortadoWorkspaceIdProvider.overrideWith((ref) => 'ws-123'),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(cortadoVfsProvider.notifier);
+      await notifier.loadDirectory(vfsRootPath);
+
+      notifier.applyLocalDaemonSyncStatus(
+        const CortadoLocalDaemonSyncStatus(
+          localPath: '/tmp/workspace',
+          state: CortadoLocalDaemonSyncState.syncing,
+          workspaceId: 'ws-123',
+          workspacePath: '/lib/main.dart',
+        ),
+      );
+
+      await notifier.loadDirectory('/lib');
+
+      var state = container.read(cortadoVfsProvider).requireValue;
+      expect(
+        (state['/lib/main.dart'] as VfsFile).syncState,
+        VfsNodeSyncState.syncing,
+      );
+
+      notifier.applyLocalDaemonSyncStatus(
+        const CortadoLocalDaemonSyncStatus(
+          localPath: '/tmp/workspace',
+          message: 'manual merge required',
+          state: CortadoLocalDaemonSyncState.conflicted,
+          workspaceId: 'ws-123',
+          workspacePath: '/lib/main.dart',
+        ),
+      );
+
+      state = container.read(cortadoVfsProvider).requireValue;
+      expect(
+        (state['/lib/main.dart'] as VfsFile).syncState,
+        VfsNodeSyncState.conflicted,
+      );
+      expect(
+        (state['/lib/main.dart'] as VfsFile).syncMessage,
+        'manual merge required',
+      );
+
+      notifier.applyLocalDaemonSyncStatus(
+        const CortadoLocalDaemonSyncStatus(
+          localPath: '/tmp/workspace',
+          state: CortadoLocalDaemonSyncState.idle,
+          workspaceId: 'ws-123',
+          workspacePath: '/lib/main.dart',
+        ),
+      );
+
+      state = container.read(cortadoVfsProvider).requireValue;
+      expect(
+        (state['/lib/main.dart'] as VfsFile).syncState,
+        VfsNodeSyncState.idle,
+      );
+      expect((state['/lib/main.dart'] as VfsFile).syncMessage, isNull);
+    });
   });
 }
 
 class _FakeWorkspaceManager extends WorkspaceManager {
   _FakeWorkspaceManager({
-    Map<String, List<List<WorkspaceDirectoryEntry>>> responses = const <String, List<List<WorkspaceDirectoryEntry>>>{},
+    Map<String, List<List<WorkspaceDirectoryEntry>>> responses =
+        const <String, List<List<WorkspaceDirectoryEntry>>>{},
   })  : _responses = responses.map(
           (path, entries) => MapEntry(
             path,

@@ -39,6 +39,7 @@ func main() {
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	conflictBroadcaster := app.NewConflictBroadcaster()
+	syncRegistry := app.NewSyncRegistry()
 	if len(cfg.WatchRoots) > 0 {
 		manager, err := watch.NewManager(watch.ManagerConfig{
 			Logger:     logger,
@@ -76,6 +77,7 @@ func main() {
 		ListenAddr:          cfg.ListenAddr,
 		Logger:              logger,
 		StateStore:          store,
+		SyncRegistry:        syncRegistry,
 		Version:             version.Info(),
 	})
 	if err != nil {

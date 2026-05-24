@@ -101,9 +101,90 @@ func TestWebSocketUpgradeSendsHelloAndEchoesPayload(t *testing.T) {
 	}
 }
 
+func TestWebSocketUpgradeHandlesSyncCommands(t *testing.T) {
+	server := newHTTPTestServer(t)
+	defer server.Close()
+
+	dialer := websocket.Dialer{
+		Subprotocols: []string{"cortado-daemon-v1"},
+	}
+	conn, _, err := dialer.Dial(websocketURL(server.URL+"/"), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("read hello message: %v", err)
+	}
+
+	commandPayload, err := json.Marshal(map[string]string{
+		"type":        "start_sync",
+		"requestId":   "req-1",
+		"localPath":   "/tmp/workspace",
+		"workspaceId": "ws-123",
+	})
+	if err != nil {
+		t.Fatalf("marshal start sync command: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, commandPayload); err != nil {
+		t.Fatalf("write start sync command: %v", err)
+	}
+
+	_, responsePayload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read start sync response: %v", err)
+	}
+
+	var response map[string]any
+	if err := json.Unmarshal(responsePayload, &response); err != nil {
+		t.Fatalf("decode start sync response: %v", err)
+	}
+	if response["type"] != "sync_status" {
+		t.Fatalf("unexpected response type: got %#v want %q", response["type"], "sync_status")
+	}
+	if response["state"] != string(app.SyncStateSyncing) {
+		t.Fatalf("unexpected response state: got %#v want %q", response["state"], app.SyncStateSyncing)
+	}
+	if response["workspaceId"] != "ws-123" {
+		t.Fatalf("unexpected workspace id: %#v", response["workspaceId"])
+	}
+	if response["localPath"] != "/tmp/workspace" {
+		t.Fatalf("unexpected local path: %#v", response["localPath"])
+	}
+
+	commandPayload, err = json.Marshal(map[string]string{
+		"type":        "get_sync_status",
+		"requestId":   "req-2",
+		"localPath":   "/tmp/workspace",
+		"workspaceId": "ws-123",
+	})
+	if err != nil {
+		t.Fatalf("marshal get sync status command: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, commandPayload); err != nil {
+		t.Fatalf("write get sync status command: %v", err)
+	}
+
+	_, responsePayload, err = conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read get sync status response: %v", err)
+	}
+	if err := json.Unmarshal(responsePayload, &response); err != nil {
+		t.Fatalf("decode get sync status response: %v", err)
+	}
+	if response["state"] != string(app.SyncStateSyncing) {
+		t.Fatalf("unexpected tracked state: got %#v want %q", response["state"], app.SyncStateSyncing)
+	}
+}
+
 func TestWebSocketUpgradeForwardsConflictNoticeFrame(t *testing.T) {
 	broadcaster := app.NewConflictBroadcaster()
-	server := newHTTPTestServerWithBroadcaster(t, broadcaster)
+	registry := app.NewSyncRegistry()
+	if _, err := registry.StartSync("/tmp/workspace", "ws-123"); err != nil {
+		t.Fatalf("start sync in registry: %v", err)
+	}
+	server := newHTTPTestServerWithDependencies(t, broadcaster, registry)
 	defer server.Close()
 
 	dialer := websocket.Dialer{
@@ -153,6 +234,17 @@ func TestWebSocketUpgradeForwardsConflictNoticeFrame(t *testing.T) {
 	if notice.Path != "/tmp/workspace/main.txt" || notice.RemoteClock != 3 {
 		t.Fatalf("unexpected conflict notice payload: %#v", notice)
 	}
+
+	status, err := registry.GetSyncStatus("/tmp/workspace", "ws-123")
+	if err != nil {
+		t.Fatalf("get sync status after conflict: %v", err)
+	}
+	if status.State != app.SyncStateConflicted {
+		t.Fatalf("unexpected sync state after conflict: got %q want %q", status.State, app.SyncStateConflicted)
+	}
+	if status.WorkspacePath != "/main.txt" {
+		t.Fatalf("unexpected workspace path after conflict: got %q want %q", status.WorkspacePath, "/main.txt")
+	}
 }
 
 func TestRunShutsDownWhenContextCancels(t *testing.T) {
@@ -190,10 +282,19 @@ func TestRunShutsDownWhenContextCancels(t *testing.T) {
 
 func newHTTPTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	return newHTTPTestServerWithBroadcaster(t, nil)
+	return newHTTPTestServerWithDependencies(t, nil, app.NewSyncRegistry())
 }
 
 func newHTTPTestServerWithBroadcaster(t *testing.T, broadcaster *app.ConflictBroadcaster) *httptest.Server {
+	t.Helper()
+	return newHTTPTestServerWithDependencies(t, broadcaster, app.NewSyncRegistry())
+}
+
+func newHTTPTestServerWithDependencies(
+	t *testing.T,
+	broadcaster *app.ConflictBroadcaster,
+	registry *app.SyncRegistry,
+) *httptest.Server {
 	t.Helper()
 
 	store := mustOpenStore(t)
@@ -206,6 +307,7 @@ func newHTTPTestServerWithBroadcaster(t *testing.T, broadcaster *app.ConflictBro
 		ListenAddr:          "127.0.0.1:9731",
 		Logger:              log.New(io.Discard, "", 0),
 		StateStore:          store,
+		SyncRegistry:        registry,
 		Version:             version.Info(),
 	})
 	if err != nil {

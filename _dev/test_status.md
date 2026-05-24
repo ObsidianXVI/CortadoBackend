@@ -238,6 +238,12 @@
 24/05/26 00:02
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+24/05/26 04:37
+- PASS `cd daemon && go test ./...`
+- PASS `cd daemon && CGO_ENABLED=0 go build ./...`
+- PASS `cd flutter && dart run build_runner build --delete-conflicting-outputs`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
 24/05/26 01:45
 - PASS `cd demo_app/web && npm test`
 - PASS `cd demo_app/web && npm run build`

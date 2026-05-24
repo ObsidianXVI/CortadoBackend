@@ -18,11 +18,31 @@ import (
 
 const daemonSubprotocol = "cortado-daemon-v1"
 
+type daemonCommand struct {
+	LocalPath   string `json:"localPath"`
+	RequestID   string `json:"requestId"`
+	Type        string `json:"type"`
+	WorkspaceID string `json:"workspaceId"`
+}
+
+type daemonErrorResponse struct {
+	Message   string `json:"message"`
+	RequestID string `json:"requestId,omitempty"`
+	Type      string `json:"type"`
+}
+
+type daemonSyncStatusResponse struct {
+	SyncStatus
+	RequestID string `json:"requestId,omitempty"`
+	Type      string `json:"type"`
+}
+
 type ServerConfig struct {
 	ConflictBroadcaster *ConflictBroadcaster
 	ListenAddr          string
 	Logger              *log.Logger
 	StateStore          *state.Store
+	SyncRegistry        *SyncRegistry
 	Version             version.BuildInfo
 }
 
@@ -32,6 +52,7 @@ type Server struct {
 	logger              *log.Logger
 	server              *http.Server
 	stateStore          *state.Store
+	syncRegistry        *SyncRegistry
 	version             version.BuildInfo
 }
 
@@ -58,6 +79,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		listenAddr:          cfg.ListenAddr,
 		logger:              logger,
 		stateStore:          cfg.StateStore,
+		syncRegistry:        cfg.SyncRegistry,
 		version:             cfg.Version,
 	}
 	server.server = &http.Server{
@@ -202,11 +224,91 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if handled, err := s.handleWebSocketMessage(messageType, payload, writeMessage); err != nil {
+			s.logger.Printf("handle local daemon websocket payload: %v", err)
+			return
+		} else if handled {
+			continue
+		}
+
 		if err := writeMessage(messageType, payload); err != nil {
 			s.logger.Printf("echo local daemon websocket payload: %v", err)
 			return
 		}
 	}
+}
+
+func (s *Server) handleWebSocketMessage(
+	messageType int,
+	payload []byte,
+	writeMessage func(int, []byte) error,
+) (bool, error) {
+	if messageType != websocket.TextMessage {
+		return false, nil
+	}
+
+	var command daemonCommand
+	if err := json.Unmarshal(payload, &command); err != nil {
+		return false, nil
+	}
+
+	if command.Type != "start_sync" && command.Type != "stop_sync" && command.Type != "get_sync_status" {
+		return false, nil
+	}
+	if s.syncRegistry == nil {
+		return true, s.writeErrorResponse(
+			writeMessage,
+			command.RequestID,
+			"sync registry is unavailable",
+		)
+	}
+
+	var (
+		status SyncStatus
+		err    error
+	)
+	switch command.Type {
+	case "start_sync":
+		status, err = s.syncRegistry.StartSync(command.LocalPath, command.WorkspaceID)
+	case "stop_sync":
+		status, err = s.syncRegistry.StopSync(command.LocalPath, command.WorkspaceID)
+	case "get_sync_status":
+		status, err = s.syncRegistry.GetSyncStatus(command.LocalPath, command.WorkspaceID)
+	}
+	if err != nil {
+		return true, s.writeErrorResponse(writeMessage, command.RequestID, err.Error())
+	}
+
+	responsePayload, err := json.Marshal(daemonSyncStatusResponse{
+		SyncStatus: status,
+		RequestID:  command.RequestID,
+		Type:       "sync_status",
+	})
+	if err != nil {
+		return true, fmt.Errorf("marshal daemon sync status response: %w", err)
+	}
+	if err := writeMessage(websocket.TextMessage, responsePayload); err != nil {
+		return true, fmt.Errorf("write daemon sync status response: %w", err)
+	}
+	return true, nil
+}
+
+func (s *Server) writeErrorResponse(
+	writeMessage func(int, []byte) error,
+	requestID, message string,
+) error {
+	payload, err := json.Marshal(daemonErrorResponse{
+		Message:   message,
+		RequestID: requestID,
+		Type:      "error",
+	})
+	if err != nil {
+		return fmt.Errorf("marshal daemon error response: %w", err)
+	}
+	if err := writeMessage(websocket.TextMessage, payload); err != nil {
+		return fmt.Errorf("write daemon error response: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) forwardConflicts(
@@ -221,6 +323,9 @@ func (s *Server) forwardConflicts(
 		case notice, ok := <-conflicts:
 			if !ok {
 				return
+			}
+			if s.syncRegistry != nil {
+				s.syncRegistry.MarkConflict(notice)
 			}
 
 			payload, err := json.Marshal(notice)

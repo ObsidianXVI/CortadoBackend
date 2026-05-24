@@ -225,6 +225,25 @@
 - M _dev/test_status.md
 - M flutter/lib/src/terminal/cortado_terminal.dart
 - M flutter/test/cortado_terminal_test.dart
+24/05/26 04:37 [FEAT] `dev-pro-large` Completed Task 6.1.5 by wiring a localhost daemon bridge end to end: the daemon now answers sync status commands and tracks conflict state, while the Flutter package exposes `CortadoLocalDaemonBridge`, propagates daemon sync/conflict status into VFS state, and renders minimal file-tree sync indicators with focused daemon and Flutter coverage kept green.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M daemon/cmd/daemon/main.go
+- M daemon/internal/app/server.go
+- A daemon/internal/app/sync_registry.go
+- M daemon/internal/filesync/engine.go
+- M flutter/lib/cortado.dart
+- M flutter/lib/src/filesystem/cortado_file_tree.dart
+- M flutter/lib/src/filesystem/vfs_node.dart
+- M flutter/lib/src/filesystem/vfs_notifier.dart
+- A flutter/lib/src/local_daemon/cortado_local_daemon_bridge.dart
+- A flutter/lib/src/local_daemon/local_daemon_models.dart
+- M flutter/lib/src/mux_frame.dart
+- A flutter/test/cortado_local_daemon_bridge_test.dart
+- M flutter/test/cortado_file_tree_test.dart
+- M flutter/test/vfs_notifier_test.dart
 23/05/26 13:00 [FEAT] (2e457a3) `dev-pro-large` Completed Task 2.3.1 by introducing a shared Terraform billing-events module that provisions the usage-events Pub/Sub topic, DLQ topic, billing dataset/table, BigQuery export subscription, and Pub/Sub service-agent dataset IAM for both environments, then advanced the release pointer to Task 2.3.2 after validating both env roots.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md

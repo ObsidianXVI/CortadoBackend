@@ -58,11 +58,11 @@ type ApplyResult struct {
 }
 
 type ConflictNotice struct {
-	LastSyncedClock int64
-	LocalClock      int64
-	Path            string
-	Reason          string
-	RemoteClock     int64
+	LastSyncedClock int64  `json:"lastSyncedClock"`
+	LocalClock      int64  `json:"localClock"`
+	Path            string `json:"path"`
+	Reason          string `json:"reason"`
+	RemoteClock     int64  `json:"remoteClock"`
 }
 
 type ConflictSink interface {
