@@ -1,4 +1,4 @@
 # Decisions Needed
 
-- Should the daemon-to-control-plane FileSync stream ship as authenticated TLS/gRPC immediately, or is an h2c/dev-auth transport acceptable until Task 6.1.5 wires the daemon client and host-app bridge?
-  Context: Task 6.1.3 now exposes the control-plane FileSyncService and keeps the relay/proto slice moving, but the feature spec/technical report call out an auth'd TLS stream while the current repo only has HTTP auth patterns and the daemon client is not implemented yet.
+- Should unresolved local-sync `ConflictNotice` messages on mux channel `0x0600` be emitted on the local daemon WebSocket (`ws://127.0.0.1:9731`) or on the control-plane workspace mux (`/v1/workspaces/{id}/connect`)?
+  Context: Task 6.1.4 now has daemon-side conflict detection, merge attempts, and merge logging, but the feature spec only says "emit on WS mux channel `0x0600`" without clarifying which WebSocket transport owns that channel before Task 6.1.5 lands the daemon bridge.

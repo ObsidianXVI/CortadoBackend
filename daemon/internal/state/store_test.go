@@ -57,6 +57,8 @@ func TestUpsertAndLookupFileState(t *testing.T) {
 		Checksum:    "abc123",
 		ModTimeUnix: 42,
 		SyncedClock: 7,
+		LocalClock:  8,
+		RemoteClock: 9,
 	}
 	if err := store.UpsertFileState(input); err != nil {
 		t.Fatalf("upsert file state: %v", err)
@@ -80,5 +82,17 @@ func TestUpsertAndLookupFileState(t *testing.T) {
 		t.Fatalf("lookup deleted file state: %v", err)
 	} else if found {
 		t.Fatal("expected deleted file state to be absent")
+	}
+}
+
+func TestNextLogicalClockUsesHighestKnownClock(t *testing.T) {
+	input := state.FileState{
+		SyncedClock: 4,
+		LocalClock:  7,
+		RemoteClock: 5,
+	}
+
+	if got := state.NextLogicalClock(input); got != 8 {
+		t.Fatalf("unexpected next clock: got %d want %d", got, 8)
 	}
 }

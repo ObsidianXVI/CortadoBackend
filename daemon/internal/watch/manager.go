@@ -302,6 +302,8 @@ func (m *Manager) processPath(
 		Checksum:    finalChecksum,
 		ModTimeUnix: info.ModTime().UnixMilli(),
 		SyncedClock: previous.SyncedClock,
+		LocalClock:  state.NextLogicalClock(previous),
+		RemoteClock: previous.RemoteClock,
 	}
 	if err := m.stateStore.UpsertFileState(nextState); err != nil {
 		return err

@@ -701,3 +701,11 @@
 - A control-plane/internal/filesync/http.go
 - A control-plane/internal/filesync/service.go
 - A proto/filesync/v1/filesync.proto
+24/05/26 04:10 [FEAT] (pending) `dev-pro-large` Advanced Task 6.1.4 by exposing daemon-side local/remote clock state, incrementing watcher-driven local clocks, and adding a conflict-resolution engine with base snapshots, `diff3` merge attempts, binary last-write-wins handling, and merge/conflict log coverage, while leaving the final `0x0600` conflict-notice WebSocket target explicitly open for confirmation before closing the task.
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M DECISIONS_NEEDED.md
+- M _dev/test_status.md
+- A daemon/internal/filesync/engine.go
+- M daemon/internal/state/store.go
+- M daemon/internal/watch/manager.go

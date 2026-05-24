@@ -71,6 +71,12 @@ func TestManagerEmitsStableModifiedEventAndUpdatesState(t *testing.T) {
 	if fileState.Checksum == "" {
 		t.Fatal("expected non-empty persisted checksum")
 	}
+	if fileState.LocalClock != 1 {
+		t.Fatalf("unexpected local clock: got %d want %d", fileState.LocalClock, 1)
+	}
+	if fileState.RemoteClock != 0 || fileState.SyncedClock != 0 {
+		t.Fatalf("unexpected remote/synced clocks: %#v", fileState)
+	}
 
 	cancel()
 	if err := <-done; err != nil {

@@ -21,6 +21,8 @@ type FileState struct {
 	Checksum    string
 	ModTimeUnix int64
 	SyncedClock int64
+	LocalClock  int64
+	RemoteClock int64
 }
 
 func Open(path string) (*Store, error) {
@@ -66,16 +68,20 @@ func (s *Store) SchemaVersion() int {
 
 func (s *Store) UpsertFileState(fileState FileState) error {
 	_, err := s.db.Exec(
-		`INSERT INTO file_state (path, checksum, mod_time, synced_clock)
-		 VALUES (?, ?, ?, ?)
+		`INSERT INTO file_state (path, checksum, mod_time, synced_clock, local_clock, remote_clock)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET
 		   checksum = excluded.checksum,
 		   mod_time = excluded.mod_time,
-		   synced_clock = excluded.synced_clock`,
+		   synced_clock = excluded.synced_clock,
+		   local_clock = excluded.local_clock,
+		   remote_clock = excluded.remote_clock`,
 		fileState.Path,
 		fileState.Checksum,
 		fileState.ModTimeUnix,
 		fileState.SyncedClock,
+		fileState.LocalClock,
+		fileState.RemoteClock,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert file state for %s: %w", fileState.Path, err)
@@ -93,13 +99,15 @@ func (s *Store) DeleteFileState(path string) error {
 func (s *Store) LookupFileState(path string) (FileState, bool, error) {
 	var fileState FileState
 	err := s.db.QueryRow(
-		`SELECT path, checksum, mod_time, synced_clock FROM file_state WHERE path = ?`,
+		`SELECT path, checksum, mod_time, synced_clock, local_clock, remote_clock FROM file_state WHERE path = ?`,
 		path,
 	).Scan(
 		&fileState.Path,
 		&fileState.Checksum,
 		&fileState.ModTimeUnix,
 		&fileState.SyncedClock,
+		&fileState.LocalClock,
+		&fileState.RemoteClock,
 	)
 	if err == sql.ErrNoRows {
 		return FileState{}, false, nil
@@ -109,6 +117,17 @@ func (s *Store) LookupFileState(path string) (FileState, bool, error) {
 	}
 
 	return fileState, true, nil
+}
+
+func NextLogicalClock(fileState FileState) int64 {
+	next := fileState.SyncedClock
+	if fileState.LocalClock > next {
+		next = fileState.LocalClock
+	}
+	if fileState.RemoteClock > next {
+		next = fileState.RemoteClock
+	}
+	return next + 1
 }
 
 func (s *Store) ensureSchema() error {

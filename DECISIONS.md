@@ -54,3 +54,6 @@
 
 - Feature 5.3 (AI Chat Panel) is deferred beyond the core roadmap, and v0.6 plus v0.7 are treated as the remaining essential feature releases for now.
   Rationale: the user explicitly chose to skip the next feature for the current shipping sequence so work can continue from Feature 5.2 into the local-sync and port-forwarding milestones without planning Task 5.3 as the next core deliverable.
+
+- The daemon-to-control-plane FileSync transport stays on the simple local-development path for now, while production hardening is deferred and explicitly tracked as follow-up work.
+  Rationale: the user chose to keep the dev setup lightweight rather than forcing authenticated TLS/gRPC before the daemon bridge exists. The later production path should add daemon authentication plus TLS-capable transport and any associated deployment/runtime changes before the local-sync flow is treated as production-ready.

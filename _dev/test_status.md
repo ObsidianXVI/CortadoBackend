@@ -337,3 +337,6 @@
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd agent && CGO_ENABLED=0 go build ./...`
+24/05/26 04:10
+- PASS `cd daemon && go test ./...`
+- PASS `cd daemon && CGO_ENABLED=0 go build ./...`
