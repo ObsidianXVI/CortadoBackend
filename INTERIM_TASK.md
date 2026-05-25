@@ -133,6 +133,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: used `code_forge_web` for the CodeForge page because upstream `code_forge` does not support Flutter Web and explicitly points web users to the companion package.
 - 25/05/26: the demo app currently assumes `flutter create --platforms=web .` is run at workspace root and then loads `lib/main.dart`.
 - 25/05/26: validated the current `demo_app` implementation with `/home/OBSiDIAN/tools/flutter/bin/flutter analyze` and `/home/OBSiDIAN/tools/flutter/bin/flutter test`; both passed and the branch is ready for an implementation commit on `demos`.
+- 25/05/26: implemented the missing Cortado Flutter package workspace helpers (`listWorkspaces`, `getWorkspace`, `deleteWorkspace`), aligned the package to `freezed_annotation/freezed ^3.1.0`, removed the demo-local dependency override and direct workspace HTTP workaround, and fixed the demo refresh path so authenticate/start/stop flows now refresh workspace state inside the same action.
 
 ## Decisions
 - 25/05/26: keep this interim effort scoped to `demo_app/` first and avoid touching the main Cortado package/backend unless a concrete integration gap is proven during demo implementation.
@@ -148,6 +149,6 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: no extra editor packages should be researched for this interim demo.
 - 25/05/26: the CodeForge showcase page should use `code_forge_web` in the web demo app, while the README should clearly note that the upstream `code_forge` package itself is non-web.
 
-## Cortado Changes Needed
-- 25/05/26: the Flutter package `WorkspaceManager` lacks public `get`, `list`, and `delete workspace` helpers, so the demo app had to call those control-plane endpoints directly for refresh and delete behavior. A future Cortado Flutter package update should expose these workspace lifecycle methods directly.
-- 25/05/26: the local Cortado Flutter package still constrains `freezed_annotation` to `^2.4.0`, while current `flutter_monaco` releases depend on `^3.1.0`. The demo app currently resolves this with a local `dependency_overrides` entry only. A future Cortado package update should reconcile or upgrade that dependency so current Monaco integrations do not require a demo-local override.
+## Cortado Changes Completed
+- 25/05/26: `WorkspaceManager` now exposes public `listWorkspaces`, `getWorkspace`, and `deleteWorkspace` helpers, so the demo app no longer calls the workspace collection/item endpoints directly.
+- 25/05/26: the Cortado Flutter package now aligns on `freezed_annotation/freezed ^3.1.0`, so current `flutter_monaco` releases no longer require a demo-local `dependency_overrides` entry.

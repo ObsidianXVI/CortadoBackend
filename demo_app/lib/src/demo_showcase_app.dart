@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert' show utf8;
 
 import 'package:code_forge_web/code_forge_web.dart' as code_forge;
 import 'package:cortado/cortado.dart';
@@ -9,7 +9,6 @@ import 'package:flutter_code_editor/flutter_code_editor.dart'
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:flutter_monaco/flutter_monaco.dart';
 import 'package:highlight/languages/dart.dart' as highlight_dart;
-import 'package:http/http.dart' as http;
 import 'package:lite_code_editor/lite_code_editor.dart' as lite_code_editor;
 import 'package:re_highlight/languages/dart.dart' as re_highlight_dart;
 
@@ -136,8 +135,6 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   late final TextEditingController _memoryController =
       TextEditingController(text: widget.initialConfig.memoryGb.toString());
 
-  final http.Client _httpClient = http.Client();
-
   CortadoAuthSession? _authSession;
   WorkspaceManager? _workspaceManager;
   CortadoClient? _client;
@@ -182,7 +179,6 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     unawaited(_client?.dispose() ?? Future<void>.value());
     unawaited(_workspaceManager?.dispose() ?? Future<void>.value());
     unawaited(_authSession?.dispose() ?? Future<void>.value());
-    _httpClient.close();
     super.dispose();
   }
 
@@ -609,7 +605,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       _setInfoMessage('Session established for $userId.');
 
       if (_workspaceId.isNotEmpty) {
-        await _refreshWorkspace();
+        await _refreshWorkspaceState();
       }
     });
   }
@@ -657,17 +653,10 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     }
 
     await _runBusy('Refreshing workspace status', () async {
-      final workspace = await _fetchWorkspace(_workspaceId);
-      if (workspace == null) {
-        throw StateError('Workspace $_workspaceId was not found.');
-      }
-
-      _workspace = workspace;
-      _workspaceStatus = workspace.toStatus();
-      await _watchWorkspace(workspace.id);
-      await _maybeConnectWorkspaceSocket();
+      await _refreshWorkspaceState();
       _setInfoMessage(
-        'Attached to workspace ${workspace.id} in ${workspace.status.name.toUpperCase()}.',
+        'Attached to workspace $_workspaceId in '
+        '${_workspaceStatus?.status.name.toUpperCase()}.',
       );
     });
   }
@@ -683,7 +672,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
     await _runBusy('Starting workspace', () async {
       await _workspaceManager!.start(_workspaceId);
-      await _refreshWorkspace();
+      await _refreshWorkspaceState();
+      _setInfoMessage('Start requested for workspace $_workspaceId.');
     });
   }
 
@@ -699,7 +689,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     await _runBusy('Stopping workspace', () async {
       await _workspaceManager!.stop(_workspaceId);
       await _disconnectWorkspaceSocket();
-      await _refreshWorkspace();
+      await _refreshWorkspaceState();
+      _setInfoMessage('Stop requested for workspace $_workspaceId.');
     });
   }
 
@@ -713,11 +704,9 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     }
 
     await _runBusy('Deleting workspace', () async {
-      final response = await _httpClient.delete(
-        _buildUri(<String>['v1', 'workspaces', _workspaceId]),
-        headers: await _authorizedHeaders(),
+      final deletedWorkspace = await _workspaceManager!.deleteWorkspace(
+        _workspaceId,
       );
-      _throwIfHttpError(response);
 
       await _statusSubscription?.cancel();
       _statusSubscription = null;
@@ -730,7 +719,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
         _clearLoadedFile();
       });
 
-      _setInfoMessage('Workspace deleted.');
+      _setInfoMessage('Workspace ${deletedWorkspace.id} deleted.');
     });
   }
 
@@ -808,6 +797,21 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     );
   }
 
+  Future<void> _refreshWorkspaceState() async {
+    final workspace = await _workspaceManager!.getWorkspace(_workspaceId);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _workspace = workspace;
+      _workspaceStatus = workspace.toStatus();
+    });
+
+    await _watchWorkspace(workspace.id);
+    await _maybeConnectWorkspaceSocket();
+  }
+
   Future<void> _maybeConnectWorkspaceSocket() async {
     if (_client == null || _workspaceId.isEmpty) {
       return;
@@ -840,61 +844,6 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     setState(() {
       _connectedWorkspaceId = null;
     });
-  }
-
-  Future<Workspace?> _fetchWorkspace(String id) async {
-    final response = await _httpClient.get(
-      _buildUri(<String>['v1', 'workspaces', id]),
-      headers: await _authorizedHeaders(),
-    );
-
-    if (response.statusCode == 404) {
-      return null;
-    }
-    _throwIfHttpError(response);
-
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Expected workspace response object.');
-    }
-    final workspaceJson = decoded['workspace'];
-    if (workspaceJson is! Map<String, dynamic>) {
-      throw const FormatException('Workspace payload missing workspace.');
-    }
-    return Workspace.fromJson(workspaceJson);
-  }
-
-  Uri _buildUri(List<String> segments) {
-    final baseUri = Uri.parse(_baseUrlController.text.trim());
-    return baseUri.replace(
-      pathSegments: <String>[
-        ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
-        ...segments,
-      ],
-      queryParameters:
-          baseUri.queryParameters.isEmpty ? null : baseUri.queryParameters,
-    );
-  }
-
-  Future<Map<String, String>> _authorizedHeaders({String? contentType}) async {
-    final accessToken = await _authSession?.accessTokenForHttpRequest();
-    if (accessToken == null || accessToken.isEmpty) {
-      throw StateError('Authenticate first.');
-    }
-
-    return <String, String>{
-      'Authorization': 'Bearer $accessToken',
-      if (contentType != null) 'Content-Type': contentType,
-    };
-  }
-
-  void _throwIfHttpError(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return;
-    }
-    throw StateError(
-      'HTTP ${response.statusCode}: ${utf8.decode(response.bodyBytes).trim()}',
-    );
   }
 
   Future<void> _disposeTransports() async {

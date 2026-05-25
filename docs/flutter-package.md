@@ -45,7 +45,7 @@ Important details:
 
 `WorkspaceManager` is the HTTP-facing workspace API wrapper. It provides:
 
-- workspace CRUD and lifecycle transitions
+- workspace create/list/get/delete and lifecycle transitions
 - directory listing
 - file read/write
 - create directory
@@ -63,6 +63,8 @@ The file APIs normalize paths before sending them to the control plane:
 Example:
 
 ```dart
+manager.listWorkspaces();
+manager.getWorkspace('ws-123');
 manager.listDirectory('ws-123', path: '/');
 manager.readFile('ws-123', path: '/lib/main.dart');
 manager.renamePath('ws-123', oldPath: '/lib/main.dart', newPath: '/lib/app.dart');

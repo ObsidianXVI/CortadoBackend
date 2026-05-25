@@ -780,3 +780,13 @@
 - A demo_app/lib/src/demo_showcase_app.dart
 - M demo_app/pubspec.yaml
 - M demo_app/pubspec.lock
+25/05/26 02:25 [FEAT] (pending) `dev-pro-large` Closed the interim Cortado Flutter package gaps by adding first-class workspace list/get/delete helpers and lifting `freezed_annotation/freezed` to 3.1.0, then integrated the demo back onto the package surface by removing the direct workspace HTTP workaround, dropping the demo-local override, fixing the stale refresh path, and updating the package/demo docs to match.
+- M INTERIM_TASK.md
+- M demo_app/README.md
+- M demo_app/lib/src/demo_showcase_app.dart
+- M demo_app/pubspec.lock
+- M demo_app/pubspec.yaml
+- M docs/flutter-package.md
+- M flutter/lib/src/workspace_manager.dart
+- M flutter/pubspec.yaml
+- M flutter/test/workspace_manager_test.dart

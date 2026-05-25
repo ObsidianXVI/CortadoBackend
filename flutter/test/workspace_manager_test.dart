@@ -171,6 +171,79 @@ void main() {
       expect(request.headers['X-Cortado-Dev-Token'], 'dev-bypass');
     });
 
+    test('list/get/delete workspace helpers use collection and item endpoints',
+        () async {
+      final requests = <RecordedRequest>[];
+      final client = RecordingClient((request, body) async {
+        requests.add(RecordedRequest(DateTime.now(), request, body));
+
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/v1/workspaces')) {
+          return _stringResponse(
+            200,
+            jsonEncode({
+              'workspaces': <Object?>[
+                _sampleWorkspaceJson(
+                  id: 'ws-older',
+                  state: WorkspaceLifecycleState.stopped,
+                ),
+                _sampleWorkspaceJson(id: 'ws-123'),
+              ],
+            }),
+            headers: const <String, String>{'Content-Type': 'application/json'},
+          );
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123')) {
+          return _workspaceResponse('ws-123', WorkspaceLifecycleState.running);
+        }
+        if (request.method == 'DELETE' &&
+            request.url.path.endsWith('/v1/workspaces/ws-123')) {
+          return _workspaceResponse('ws-123', WorkspaceLifecycleState.deleted);
+        }
+
+        return _stringResponse(404, 'not found');
+      });
+
+      final manager = WorkspaceManager(
+        baseUrl: 'http://localhost:8080/api?foo=bar',
+        httpClient: client,
+        useBrowserAuth: false,
+      );
+
+      final workspaces = await manager.listWorkspaces();
+      final workspace = await manager.getWorkspace('ws-123');
+      final deleted = await manager.deleteWorkspace('ws-123');
+
+      expect(workspaces, hasLength(2));
+      expect(workspaces.first.id, 'ws-older');
+      expect(workspaces.last.id, 'ws-123');
+      expect(workspace.id, 'ws-123');
+      expect(workspace.status, WorkspaceLifecycleState.running);
+      expect(deleted.status, WorkspaceLifecycleState.deleted);
+
+      expect(requests, hasLength(3));
+      expect(
+        requests[0].request.url,
+        Uri.parse('http://localhost:8080/api/v1/workspaces?foo=bar'),
+      );
+      expect(
+        requests[1].request.url,
+        Uri.parse('http://localhost:8080/api/v1/workspaces/ws-123?foo=bar'),
+      );
+      expect(
+        requests[2].request.url,
+        Uri.parse('http://localhost:8080/api/v1/workspaces/ws-123?foo=bar'),
+      );
+      expect(
+        requests.every(
+          (request) =>
+              request.request.headers['X-Cortado-Dev-Token'] == 'dev-bypass',
+        ),
+        isTrue,
+      );
+    });
+
     test('file content and mutation helpers use the expected endpoints',
         () async {
       final requests = <RecordedRequest>[];

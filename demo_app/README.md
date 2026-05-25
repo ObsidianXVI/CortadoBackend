@@ -98,12 +98,11 @@ Optional query params can override the env-backed defaults:
 
 ## Technical Notes
 
-- `demo_app` uses a local `dependency_overrides` entry for
-  `freezed_annotation: ^3.1.0` so current `flutter_monaco` can coexist with the
-  current local Cortado Flutter package.
-- The Cortado Flutter package does not currently expose public workspace
-  `get/list/delete` helpers, so this app calls those control-plane endpoints
-  directly where needed.
+- `demo_app` now relies entirely on the Cortado Flutter package for workspace
+  create/get/start/stop/delete plus file load/save behavior.
+- The local Cortado Flutter package now aligns on
+  `freezed_annotation/freezed: ^3.1.0`, so the Monaco integration no longer
+  needs a demo-local dependency override.
 - `demo_app/web/index.html` still carries the xterm.js assets used by
   `CortadoTerminal`.
 

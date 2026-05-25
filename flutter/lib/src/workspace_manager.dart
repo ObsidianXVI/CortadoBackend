@@ -60,6 +60,53 @@ class WorkspaceManager {
     await _transition(id, 'stop');
   }
 
+  Future<List<Workspace>> listWorkspaces() async {
+    final response = await _client.get(
+      _collectionUri(),
+      headers: await _headers(),
+    );
+
+    _throwIfError(response);
+    final body = _decodeJsonObject(response.bodyBytes);
+    final workspaces = body['workspaces'];
+    if (workspaces is! List<Object?>) {
+      throw const FormatException(
+        'Workspace list response payload must contain a workspaces list.',
+      );
+    }
+
+    return workspaces.map((workspace) {
+      if (workspace is! Map<String, dynamic>) {
+        throw const FormatException(
+          'Each workspace entry must be a JSON object.',
+        );
+      }
+      return Workspace.fromJson(workspace);
+    }).toList(growable: false);
+  }
+
+  Future<Workspace> getWorkspace(String id) async {
+    _validateWorkspaceId(id);
+
+    final response = await _client.get(
+      _workspaceUri(id),
+      headers: await _headers(),
+    );
+
+    return _decodeWorkspace(response);
+  }
+
+  Future<Workspace> deleteWorkspace(String id) async {
+    _validateWorkspaceId(id);
+
+    final response = await _client.delete(
+      _workspaceUri(id),
+      headers: await _headers(),
+    );
+
+    return _decodeWorkspace(response);
+  }
+
   Future<List<WorkspaceDirectoryEntry>> listDirectory(
     String workspaceId, {
     String path = '/',
@@ -211,7 +258,7 @@ class WorkspaceManager {
       }
 
       try {
-        final workspace = await _getWorkspace(id);
+        final workspace = await getWorkspace(id);
         if (cancelled || controller.isClosed) {
           return;
         }
@@ -261,17 +308,6 @@ class WorkspaceManager {
     if (_ownsClient) {
       _client.close();
     }
-  }
-
-  Future<Workspace> _getWorkspace(String id) async {
-    _validateWorkspaceId(id);
-
-    final response = await _client.get(
-      _workspaceUri(id),
-      headers: await _headers(),
-    );
-
-    return _decodeWorkspace(response);
   }
 
   Future<void> _transition(String id, String action) async {
