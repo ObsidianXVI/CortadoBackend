@@ -16,6 +16,8 @@ Also upgraded `demo_app` so the localhost showcase can register or log into Fire
 
 Extended that localhost demo bootstrap again so brand-new Firebase users can self-assign the development tenant claim through a dev-only control-plane route, then mint a Cortado API key without leaving the app.
 
+Drafted the next production auth direction into the planning docs: browser-driven OIDC token exchange as the first no-server path, with tenant-backend server-to-server minting explicitly deferred. Added the new feature spec, release-timeline entry, and technical-report architecture notes without changing the active implementation milestone.
+
 ## Remaining work this session
 Task 7.1.3:
 - add a Flutter "Run Preview" flow that drives `flutter build web`

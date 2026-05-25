@@ -842,3 +842,9 @@
 - M demo_app/lib/src/demo_firebase_bootstrap.dart
 - M demo_app/lib/src/demo_showcase_app.dart
 - M docs/control-plane.md
+25/05/26 06:18 [DOCS] (pending) `dev-pro-large` Drafted the first production no-server auth path as a future browser OIDC session-exchange feature, updated the technical report and release timeline to position it ahead of deferred server-to-server minting, and added a dedicated Feature 8.4 spec with concrete subtasks while leaving the active v0.7 implementation tracker unchanged.
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/docs/release_timeline.md
+- M _dev/docs/technical_report.md
+- A _dev/features/feat-8-4.md

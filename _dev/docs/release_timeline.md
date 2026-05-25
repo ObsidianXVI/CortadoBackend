@@ -35,9 +35,9 @@ Each **Task** is a 2–6 hour block of work (~1–2 days at 3h/day).
 | v0.5 | AI Completion | 20–24 | Inline ghost text, codebase chat, RAG index |
 | v0.6 | Local Mirror & Sync | 25–30 | Local daemon, bidirectional file sync |
 | v0.7 | Port Forwarding | 31–34 | HTTP/WS port forward, Flutter web preview |
-| v0.8 | Public Beta | 35–39 | Multi-tenant, Stripe billing, pub.dev publish |
+| v0.8 | Public Beta | 35–40 | Multi-tenant, direct browser auth exchange, Stripe billing, pub.dev publish |
 
-Total: ~39 weeks (~9–10 months at 3h/day).
+Total: ~40 weeks (~9–10 months at 3h/day).
 
 ---
 
@@ -1659,8 +1659,8 @@ build-daemon:
 ---
 
 # RELEASE v0.8 — "Public Beta"
-### Weeks 35–39 | ~75 hours
-**Exit criterion**: Multi-tenant. Stripe billing charges users. Package published on pub.dev.
+### Weeks 35–40 | ~87 hours
+**Exit criterion**: Multi-tenant. Direct browser OIDC exchange works without a tenant backend. Stripe billing charges users. Package published on pub.dev.
 
 ---
 
@@ -1737,7 +1737,7 @@ resource "stripe_price" "cpu_per_second" {
 ---
 
 ## Feature 8.3 — Hardening & Observability
-**Duration**: Weeks 38–39 (3 tasks, ~4 days)
+**Duration**: Week 39 (3 tasks, ~4 days)
 
 ### Task 8.3.1 — OpenTelemetry (Terraform-managed sink)
 ```hcl
@@ -1775,6 +1775,32 @@ Instrument control plane and agent with OTel spans. Key metrics: terminal RTT, c
 
 ---
 
+## Feature 8.4 — Direct OIDC Session Exchange
+**Duration**: Week 40 (3 tasks, ~4 days)
+
+### Task 8.4.1 — Tenant auth-provider configuration
+- Add tenant-scoped config for OIDC discovery or explicit issuer + JWKS.
+- Store allowed audience / client IDs, accepted algorithms, and claim mapping for `user_id`.
+- Validate provider metadata on write so broken tenant config fails early.
+
+---
+
+### Task 8.4.2 — `POST /v1/sessions/exchange`
+- Accept a tenant-managed external JWT from the browser and exchange it for Cortado `{access_token, refresh_token}`.
+- Validate `iss`, `aud`, `exp`, `nbf`, algorithm, and signature against the tenant's configured OIDC metadata.
+- Map provider claims into Cortado's internal `tenant_id` + `user_id`, then reuse the existing Cortado session issuance path.
+
+**Challenge**: keep the first cut strict and JWT-only. Do not try to support opaque access tokens or provider-specific introspection APIs in the same milestone.
+
+---
+
+### Task 8.4.3 — Flutter exchange client + docs
+- Add a Flutter package auth helper for exchanging an externally obtained OIDC token for a Cortado session.
+- Document the no-server browser exchange flow as the first production auth path.
+- Explicitly defer tenant-backend server-to-server minting as the follow-up enterprise path.
+
+---
+
 ---
 
 ## Summary Table
@@ -1802,8 +1828,9 @@ Instrument control plane and agent with OTel spans. Key metrics: terminal RTT, c
 | 33–34 | v0.7 | Flutter web preview (Xvfb / build+serve) | 9 |
 | 35 | v0.8 | Multi-tenancy (Terraform namespaces + RBAC) | 12 |
 | 36–37 | v0.8 | Package polish, example app, pub.dev publish | 12 |
-| 38–39 | v0.8 | OTel dashboards, error audit, load test | 12 |
+| 39 | v0.8 | OTel dashboards, error audit, load test | 12 |
+| 40 | v0.8 | Direct browser OIDC session exchange | 12 |
 
-**Total: ~291 hours over 39 weeks (~7.5h/week effective)**
+**Total: ~303 hours over 40 weeks (~7.5h/week effective)**
 
 *The remaining ~7.5h/week covers debugging production issues, reading unfamiliar API docs, Terraform state conflicts, and reviewing your own code after a day away.*

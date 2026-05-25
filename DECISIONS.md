@@ -74,3 +74,6 @@
 
 - Self-service Firebase tenant-claim assignment exists only on a dedicated development-only endpoint, with the assigned tenant defaulting to `CORTADO_FIREBASE_DEV_TENANT_ID` and falling back to `demo-tenant`.
   Rationale: the user wanted localhost demo bootstrap to be fully self-service, but broad claim assignment would be too permissive for production. Scoping the route to `CORTADO_ENV=development` keeps the convenience path local to dev/demo environments while letting the app recover brand-new Firebase users automatically before minting Cortado API keys.
+
+- The first production-grade identity integration after the current JWT/API-key system will be browser-driven OIDC token exchange, while tenant-backend server-to-server session minting is explicitly deferred.
+  Rationale: the user confirmed server-to-server is the correct long-term industry-standard model, but asked to start with the best no-server developer experience. A direct `sessions/exchange` flow against tenant-configured OIDC discovery/JWKS keeps Cortado out of tenant identity databases while avoiding a mandatory tenant backend for early adopters.

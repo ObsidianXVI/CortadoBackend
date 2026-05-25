@@ -1828,6 +1828,39 @@ spec:
 6. Control plane and workspace agent both validate JWTs using shared JWKS
 ```
 
+**Direct browser OIDC exchange (planned no-server DX path):**
+
+```
+1. Consuming IDE app signs the user in with its own OIDC provider using PKCE
+2. Browser receives an ID token (or another JWT-like user assertion) from the tenant's provider
+3. Flutter package calls POST /v1/sessions/exchange with that external token
+4. Cortado resolves the tenant's configured OIDC discovery or JWKS metadata
+5. Cortado validates iss, aud, exp, alg, and signature against that tenant config
+6. Cortado maps provider claims into Cortado's internal {tenant_id, user_id} actor
+7. Cortado returns its own access_token + refresh_token pair
+8. Flutter package uses the Cortado JWT for all subsequent HTTP and WebSocket calls
+```
+
+**Why this path exists:** server-to-server session minting from a tenant backend remains the long-term best-practice path for production SaaS, but it forces every developer to operate a trusted backend before they can adopt Cortado. A browser exchange flow gives a much better zero-backend developer experience while still keeping Cortado out of tenant identity databases and avoiding tenant-specific Firebase Admin access in production.
+
+**Tenant auth-provider configuration (planned):**
+
+- `issuer` or OIDC discovery URL
+- optional explicit `jwks_uri`
+- allowed audiences / client IDs
+- accepted signing algorithms
+- `user_id` claim mapping (`sub` by default, with configurable override)
+- optional tenant/group/org membership claim rules
+
+**Security constraints for the exchange endpoint:**
+
+- Cortado must reject tokens unless `iss`, `aud`, `exp`, `nbf`, and signature all validate against the tenant's stored provider config.
+- The exchange endpoint should only accept JWT-capable providers with stable discovery/JWKS metadata; it should not become a generic opaque-token introspection proxy.
+- Provider claims should be mapped into Cortado's own JWT immediately so downstream workspace APIs never depend on third-party token formats.
+- The no-server exchange path should not require Cortado to mutate tenant identity state or hold tenant admin credentials.
+
+**Deferred path:** a tenant-backend server-to-server session minting flow is still the preferred enterprise architecture, but it is intentionally deferred until after the browser exchange path lands.
+
 **mTLS for pod-to-control-plane communication:**
 
 ```go
@@ -1994,7 +2027,7 @@ Cortado (you, the platform operator)
             └── Workspace
 ```
 
-The Cortado API key is per-tenant. Tenants configure their workspace images, resource limits, and billing plans. End users are authenticated by the tenant's IDE app; Cortado only needs a stable user identifier.
+The Cortado API key is per-tenant. Tenants configure their workspace images, resource limits, and billing plans. End users are authenticated by the tenant's IDE app; Cortado only needs a stable user identifier. For the planned browser exchange flow, the tenant's OIDC provider remains the identity source of truth and Cortado only consumes a validated user assertion long enough to mint its own session token.
 
 ### 14.2 Namespace Isolation in GKE
 
