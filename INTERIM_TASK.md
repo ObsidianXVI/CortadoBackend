@@ -41,7 +41,7 @@ Current repo state:
 ## Changes Needed Before Implementation
 
 1. Refactor `demo_app` from a single terminal screen into a small Flutter Web showcase app with one standalone page per editor package.
-2. Introduce a shared demo shell in `demo_app` for common state: base URL, auth/dev-bypass mode, shared workspace ID, shell command, selected demo file, and workspace lifecycle status.
+2. Introduce a shared demo shell in `demo_app` for common state: base URL, real session bootstrap inputs, workspace image, shared workspace ID, shell command, selected demo file, and workspace lifecycle status.
 3. Reuse one shared terminal panel across all pages using `CortadoTerminal` as the fallback terminal experience when a package does not ship its own terminal UI.
 4. Add one editor integration page per target package:
    - `flutter_monaco`
@@ -55,11 +55,11 @@ Current repo state:
    - no workspace tabs, file tabs, or extra IDE chrome unless the package itself requires it
 6. Add a shared workspace/demo control strip that demonstrates:
    - workspace status polling
+   - create/provision workspace
    - start/resume
    - stop/hibernate
    - delete/de-provision
-   - any scale/cost story should be simulated in UI copy or fake timeline events unless you explicitly want real extra provisioning
-7. Add a shared file-loading/saving flow so every page opens content from the same Cortado workspace and writes back through `WorkspaceManager`.
+7. Add a shared file-loading/saving flow so every page opens content from the same Cortado workspace and writes back through `WorkspaceManager`, targeting the generated Flutter app's `lib/main.dart`.
 8. Decide package-by-package how much Cortado functionality each editor can realistically demonstrate:
    - best case: load/save, syntax highlighting, maybe LSP or diagnostics hooks
    - minimum acceptable: load/save plus terminal-driven edits and shell commands that demonstrate the backend
@@ -86,15 +86,34 @@ Files that should stay untouched for the first pass unless a real integration ga
 - `control-plane/`
 - `terraform/`
 
+## Required Backend / Environment Prerequisites
+
+These are not changes I am allowed to implement in this task, but they are prerequisites or gaps that affect the requested real-resource demo:
+
+1. Real session flow in Flutter Web currently means the browser must call `POST /v1/sessions` with a raw `api_key` and `user_id`.
+   - Practical caveat: if `demo_app` does this directly in the browser, the bootstrap API key is exposed to the user.
+   - This is acceptable only if you intentionally provision a tightly scoped demo API key/tenant for public or semi-public use.
+   - If that is not acceptable, you need a trusted server-side bootstrap layer outside `demo_app` before I should wire real sessions into the web app.
+2. Real workspace creation already exists, but it requires a workspace image value.
+   - The demo app will need either a fixed approved image or a constrained image selector.
+3. The requested "create a Flutter web app in the workspace and open `main.dart`" flow assumes the chosen workspace image already contains a working Flutter SDK and enough tooling to run `flutter create --platforms=web`.
+   - I have not verified that from the current docs.
+   - If the workspace image does not include Flutter tooling, you need to prepare that image first.
+4. The current control-plane API exposes real session and workspace lifecycle routes, but I did not find any corresponding real project-provisioning API surface.
+   - If the demo must show real user/project/workspace provisioning end-to-end, project provisioning is a backend gap that needs to be implemented outside this task first.
+   - If you only need real session plus real workspace lifecycle, the demo app can proceed once the auth/bootstrap and workspace-image prerequisites are settled.
+
 ## Work You Should Do First
 
-Before I implement the demo app, I need you to decide or confirm these points:
+Before I implement the demo app, you should handle or confirm these prerequisites first:
 
-1. Confirm the required package list is fixed at the four named packages above, or tell me which ones to drop if any of them are not worth integrating.
-2. Confirm whether workspace create/delete must hit the real backend, or whether the demo should only operate against one pre-existing workspace and simulate the broader provisioning lifecycle in UI copy.
-3. Confirm whether I should use dev-bypass auth only for the demo, or wire a real session flow into `demo_app`.
-4. Confirm the primary demo file/path that every editor page should open first in the shared workspace.
-5. Confirm whether you want any additional package researched for inclusion. I have not added extra editor packages yet because you asked me not to guess.
+1. Provision and share the demo auth bootstrap approach:
+   - either a dedicated demo API key/user flow that you are comfortable exposing to the browser
+   - or a separate trusted bootstrap service if you do not want the API key exposed client-side
+2. Confirm the exact workspace image the demo app should create, and verify that it includes Flutter tooling for `flutter create --platforms=web`.
+3. Confirm whether the missing real project-provisioning backend is intentionally out of scope for the demo, or whether you plan to add that backend capability before I build the demo flow.
+4. Confirm the exact generated file path to target after bootstrap.
+   - My current assumption is `lib/main.dart` inside a newly created Flutter web app generated in the workspace root.
 
 # Context
 
@@ -103,8 +122,14 @@ Before I implement the demo app, I need you to decide or confirm these points:
 - 25/05/26: confirmed `demo_app` currently serves as a terminal smoke harness only; it does not yet implement the multi-page editor showcase required by this interim task.
 - 25/05/26: created and switched to the `demos` git branch for this interim work.
 - 25/05/26: no Cortado source code was modified; this pass only records the required demo-app work and the prerequisite decisions.
+- 25/05/26: user confirmed the fixed package list, requested real resource-backed actions, chose real session flow unless caveats make that inappropriate, requested generating a Flutter web app in the workspace and opening `main.dart`, and declined extra package research.
+- 25/05/26: verified from local docs/code that real session bootstrap currently requires browser-side submission of `api_key` and `user_id` to `POST /v1/sessions`, workspace CRUD exists in the control-plane API, and no separate project-provisioning API surface was found.
 
 ## Decisions
 - 25/05/26: keep this interim effort scoped to `demo_app/` first and avoid touching the main Cortado package/backend unless a concrete integration gap is proven during demo implementation.
 - 25/05/26: treat the existing `CortadoTerminal` widget as the common terminal fallback across all package pages, since the interim brief explicitly allows a shared custom terminal when packages do not provide one.
-- 25/05/26: do not nominate extra editor packages yet; wait for explicit user confirmation before expanding beyond the four named packages.
+- 25/05/26: the demo package list is fixed to `flutter_monaco`, `flutter_code_editor`, `code_forge`, and `lite_code_editor`.
+- 25/05/26: the demo should use real resource-backed actions rather than simulated lifecycle actions.
+- 25/05/26: the preferred auth path is a real session flow, with the caveat that direct Flutter Web session bootstrap exposes the bootstrap API key to the browser unless a separate trusted bootstrap service exists.
+- 25/05/26: the target editor file should be `lib/main.dart` inside a Flutter web app created within the workspace.
+- 25/05/26: no extra editor packages should be researched for this interim demo.
