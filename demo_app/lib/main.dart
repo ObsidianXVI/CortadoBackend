@@ -5,6 +5,7 @@ import 'src/demo_bootstrap_config.dart';
 import 'src/demo_showcase_app.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(isOptional: true);
 
   runApp(

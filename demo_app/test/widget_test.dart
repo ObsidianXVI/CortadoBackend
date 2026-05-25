@@ -18,6 +18,11 @@ void main() {
         'CORTADO_DEMO_API_KEY': 'local-demo-key',
         'CORTADO_DEMO_USER_ID': 'demo-user',
         'CORTADO_WORKSPACE_IMAGE': 'ubuntu:24.04',
+        'CORTADO_FIREBASE_API_KEY': 'firebase-api-key',
+        'CORTADO_FIREBASE_PROJECT_ID': 'demo-firebase-project',
+        'CORTADO_FIREBASE_APP_ID': '1:123:web:abc',
+        'CORTADO_FIREBASE_MESSAGING_SENDER_ID': '123',
+        'CORTADO_FIREBASE_EMAIL': 'demo@example.com',
       },
     );
 
@@ -30,6 +35,12 @@ void main() {
     expect(config.filePath, 'lib/main.dart');
     expect(config.cpu, 1.5);
     expect(config.memoryGb, 3);
+    expect(config.firebaseApiKey, 'firebase-api-key');
+    expect(config.firebaseProjectId, 'demo-firebase-project');
+    expect(config.firebaseAppId, '1:123:web:abc');
+    expect(config.firebaseMessagingSenderId, '123');
+    expect(config.firebaseEmail, 'demo@example.com');
+    expect(config.hasFirebaseBootstrapConfig, isTrue);
   });
 
   testWidgets('renders showcase shell', (WidgetTester tester) async {
@@ -46,13 +57,21 @@ void main() {
             filePath: 'lib/main.dart',
             cpu: 1,
             memoryGb: 2,
+            firebaseApiKey: '',
+            firebaseAuthDomain: '',
+            firebaseProjectId: '',
+            firebaseAppId: '',
+            firebaseMessagingSenderId: '',
+            firebaseStorageBucket: '',
+            firebaseMeasurementId: '',
+            firebaseEmail: '',
+            firebasePassword: '',
           ),
         ),
       ),
     );
 
     expect(find.text('Cortado Package Showcase'), findsOneWidget);
-    expect(find.text('Workspace Shell'), findsOneWidget);
-    expect(find.text('Authenticate'), findsOneWidget);
+    expect(find.text('Identity Bootstrap'), findsOneWidget);
   });
 }

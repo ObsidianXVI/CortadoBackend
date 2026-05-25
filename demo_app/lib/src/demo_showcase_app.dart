@@ -3,6 +3,7 @@ import 'dart:convert' show utf8;
 
 import 'package:code_forge_web/code_forge_web.dart' as code_forge;
 import 'package:cortado/cortado.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart'
     as flutter_code_editor;
@@ -13,6 +14,7 @@ import 'package:lite_code_editor/lite_code_editor.dart' as lite_code_editor;
 import 'package:re_highlight/languages/dart.dart' as re_highlight_dart;
 
 import 'demo_bootstrap_config.dart';
+import 'demo_firebase_bootstrap.dart';
 
 enum DemoEditorPackage {
   flutterCodeEditor,
@@ -118,6 +120,10 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
   late final TextEditingController _baseUrlController =
       TextEditingController(text: widget.initialConfig.baseUrl);
+  late final TextEditingController _firebaseEmailController =
+      TextEditingController(text: widget.initialConfig.firebaseEmail);
+  late final TextEditingController _firebasePasswordController =
+      TextEditingController(text: widget.initialConfig.firebasePassword);
   late final TextEditingController _apiKeyController =
       TextEditingController(text: widget.initialConfig.apiKey);
   late final TextEditingController _userIdController =
@@ -139,8 +145,13 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   WorkspaceManager? _workspaceManager;
   CortadoClient? _client;
   StreamSubscription<WorkspaceStatus>? _statusSubscription;
+  late final DemoFirebaseBootstrap _firebaseBootstrap =
+      DemoFirebaseBootstrap(widget.initialConfig);
 
   DemoEditorPackage _selectedPackage = DemoEditorPackage.flutterCodeEditor;
+  User? _firebaseUser;
+  DemoIssuedApiKey? _issuedApiKey;
+  List<DemoApiKeyRecord> _issuedApiKeys = const <DemoApiKeyRecord>[];
   Workspace? _workspace;
   WorkspaceStatus? _workspaceStatus;
   String _draftCode = '';
@@ -167,6 +178,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   @override
   void dispose() {
     _baseUrlController.dispose();
+    _firebaseEmailController.dispose();
+    _firebasePasswordController.dispose();
     _apiKeyController.dispose();
     _userIdController.dispose();
     _workspaceIdController.dispose();
@@ -209,6 +222,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                 children: <Widget>[
                   _buildHeader(context),
                   const SizedBox(height: 20),
+                  _buildIdentityCard(context),
+                  const SizedBox(height: 16),
                   _buildWorkspaceCard(context),
                   const SizedBox(height: 16),
                   if (stacked)
@@ -267,19 +282,187 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     );
   }
 
+  Widget _buildIdentityCard(BuildContext context) {
+    final bootstrapReady = widget.initialConfig.hasFirebaseBootstrapConfig;
+    final userLabel = _firebaseUser?.email?.trim().isNotEmpty == true
+        ? _firebaseUser!.email!
+        : (_firebaseUser?.uid ?? 'No Firebase user signed in');
+
+    return _SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('Identity Bootstrap',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Register or sign in with Firebase email/password, mint a Cortado API key from the control plane, then use the existing session and workspace buttons below.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFFB8C4D2),
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Minting requires the Firebase user to already have a `tenant_id` custom claim. Registration alone does not assign that claim.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF8898AA),
+                ),
+          ),
+          const SizedBox(height: 16),
+          if (bootstrapReady)
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                _buildField(_firebaseEmailController, 'Firebase Email', 280),
+                _buildField(
+                  _firebasePasswordController,
+                  'Firebase Password',
+                  220,
+                  obscure: true,
+                ),
+              ],
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF121B25),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF243343)),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                  'Firebase bootstrap is disabled. Add the Firebase Web config values to demo_app/.env to enable register/login and in-app API key minting.',
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed:
+                    !bootstrapReady || _isBusy ? null : _registerFirebaseUser,
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Register User'),
+              ),
+              FilledButton.icon(
+                onPressed:
+                    !bootstrapReady || _isBusy ? null : _loginFirebaseUser,
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Login'),
+              ),
+              OutlinedButton.icon(
+                onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
+                    ? null
+                    : _signOutFirebaseUser,
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Sign Out'),
+              ),
+              FilledButton.icon(
+                onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
+                    ? null
+                    : _mintApiKey,
+                icon: const Icon(Icons.vpn_key_outlined),
+                label: const Text('Mint API Key'),
+              ),
+              OutlinedButton.icon(
+                onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
+                    ? null
+                    : _refreshIssuedApiKeys,
+                icon: const Icon(Icons.key_rounded),
+                label: const Text('List My Keys'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              Chip(
+                  label: Text(bootstrapReady
+                      ? 'Firebase ${widget.initialConfig.firebaseProjectId}'
+                      : 'Firebase bootstrap disabled')),
+              Chip(label: Text(userLabel)),
+              if (_firebaseUser != null)
+                Chip(label: Text('UID ${_firebaseUser!.uid}')),
+            ],
+          ),
+          if (_issuedApiKey != null) ...<Widget>[
+            const SizedBox(height: 16),
+            Text(
+              'Latest Minted API Key',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF091119),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF213042)),
+              ),
+              child: SelectionArea(
+                child: Text(
+                  _issuedApiKey!.apiKey,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (_issuedApiKeys.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 16),
+            Text(
+              'Issued API Keys',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            for (final apiKey in _issuedApiKeys.take(4)) ...<Widget>[
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(apiKey.id),
+                subtitle: Text(
+                  '${apiKey.tenantId} · ${apiKey.userId} · '
+                  '${apiKey.createdAt?.toIso8601String() ?? 'unknown time'}',
+                ),
+                trailing: Chip(
+                  label: Text(apiKey.revoked ? 'Revoked' : 'Active'),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildWorkspaceCard(BuildContext context) {
     return _SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Workspace Shell', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Session + Workspace',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: <Widget>[
               _buildField(_baseUrlController, 'Control Plane Base URL', 360),
-              _buildField(_apiKeyController, 'Demo API Key', 280, obscure: true),
+              _buildField(_apiKeyController, 'Demo API Key', 280,
+                  obscure: true),
               _buildField(_userIdController, 'Demo User ID', 220),
               _buildField(_workspaceIdController, 'Workspace ID', 220),
               _buildField(_imageController, 'Workspace Image', 260),
@@ -297,7 +480,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               FilledButton.icon(
                 onPressed: _isBusy ? null : _authenticate,
                 icon: const Icon(Icons.key_rounded),
-                label: const Text('Authenticate'),
+                label: const Text('New Session'),
               ),
               FilledButton.icon(
                 onPressed: _isBusy ? null : _createWorkspace,
@@ -363,7 +546,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                     '${_workspace!.resources.memoryGb.toStringAsFixed(1)} GB',
                   ),
                 ),
-              if (_connectedWorkspaceId == _workspaceId && _workspaceId.isNotEmpty)
+              if (_connectedWorkspaceId == _workspaceId &&
+                  _workspaceId.isNotEmpty)
                 const Chip(label: Text('Terminal socket attached')),
             ],
           ),
@@ -499,8 +683,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   }
 
   Widget _buildTerminalCard(BuildContext context) {
-    final canShowTerminal =
-        _client != null &&
+    final canShowTerminal = _client != null &&
         _workspaceManager != null &&
         _workspaceId.isNotEmpty &&
         _connectedWorkspaceId == _workspaceId;
@@ -530,7 +713,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                 borderRadius: BorderRadius.circular(16),
                 child: canShowTerminal
                     ? CortadoTerminal(
-                        key: ValueKey<String>('terminal-$_connectedWorkspaceId'),
+                        key:
+                            ValueKey<String>('terminal-$_connectedWorkspaceId'),
                         client: _client!,
                         workspaceManager: _workspaceManager!,
                         workspaceId: _workspaceId,
@@ -575,6 +759,122 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
         decoration: InputDecoration(labelText: label),
       ),
     );
+  }
+
+  Future<void> _registerFirebaseUser() async {
+    await _runBusy('Registering Firebase user', () async {
+      final credential = await _firebaseBootstrap.register(
+        email: _firebaseEmailController.text.trim(),
+        password: _firebasePasswordController.text,
+      );
+      await _afterFirebaseCredential(
+        credential,
+        successMessage:
+            'Registered ${credential.user?.email ?? credential.user?.uid ?? 'Firebase user'}.',
+      );
+    });
+  }
+
+  Future<void> _loginFirebaseUser() async {
+    await _runBusy('Logging into Firebase', () async {
+      final credential = await _firebaseBootstrap.login(
+        email: _firebaseEmailController.text.trim(),
+        password: _firebasePasswordController.text,
+      );
+      await _afterFirebaseCredential(
+        credential,
+        successMessage:
+            'Logged in as ${credential.user?.email ?? credential.user?.uid ?? 'Firebase user'}.',
+      );
+    });
+  }
+
+  Future<void> _signOutFirebaseUser() async {
+    await _runBusy('Signing out', () async {
+      await _firebaseBootstrap.signOut();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _firebaseUser = null;
+        _issuedApiKey = null;
+        _issuedApiKeys = const <DemoApiKeyRecord>[];
+      });
+      _setInfoMessage('Firebase user signed out.');
+    });
+  }
+
+  Future<void> _mintApiKey() async {
+    await _runBusy('Minting Cortado API key', () async {
+      final issued = await _firebaseBootstrap.mintApiKey(
+        _baseUrlController.text.trim(),
+      );
+      final listed = await _firebaseBootstrap.listApiKeys(
+        _baseUrlController.text.trim(),
+      );
+
+      _apiKeyController.text = issued.apiKey;
+      _userIdController.text = issued.record.userId;
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _issuedApiKey = issued;
+        _issuedApiKeys = listed;
+      });
+      _setInfoMessage(
+        'Minted Cortado API key for ${issued.record.userId}. The session form was updated automatically.',
+      );
+    });
+  }
+
+  Future<void> _refreshIssuedApiKeys() async {
+    await _runBusy('Loading issued API keys', () async {
+      final listed = await _firebaseBootstrap.listApiKeys(
+        _baseUrlController.text.trim(),
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _issuedApiKeys = listed;
+      });
+      _setInfoMessage('Loaded ${listed.length} issued API key record(s).');
+    });
+  }
+
+  Future<void> _afterFirebaseCredential(
+    UserCredential credential, {
+    required String successMessage,
+  }) async {
+    final user = credential.user;
+    if (user == null) {
+      throw StateError('Firebase did not return a user.');
+    }
+
+    _userIdController.text = user.uid;
+    List<DemoApiKeyRecord> listed = _issuedApiKeys;
+    try {
+      listed = await _firebaseBootstrap.listApiKeys(
+        _baseUrlController.text.trim(),
+      );
+    } catch (_) {
+      listed = const <DemoApiKeyRecord>[];
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _firebaseUser = user;
+      _issuedApiKeys = listed;
+    });
+    _setInfoMessage(successMessage);
   }
 
   Future<void> _authenticate() async {
@@ -1061,9 +1361,9 @@ class _FlutterCodeEditorPane extends StatefulWidget {
 class _FlutterCodeEditorPaneState extends State<_FlutterCodeEditorPane> {
   late final flutter_code_editor.CodeController _controller =
       flutter_code_editor.CodeController(
-        text: widget.initialCode,
-        language: highlight_dart.dart,
-      );
+    text: widget.initialCode,
+    language: highlight_dart.dart,
+  );
 
   @override
   void dispose() {
@@ -1111,9 +1411,9 @@ class _LiteCodeEditorPane extends StatefulWidget {
 class _LiteCodeEditorPaneState extends State<_LiteCodeEditorPane> {
   late final lite_code_editor.CodeEditorController _controller =
       lite_code_editor.CodeEditorController(
-        initialCode: widget.initialCode,
-        language: lite_code_editor.CodeLanguage.dart,
-      );
+    initialCode: widget.initialCode,
+    language: lite_code_editor.CodeLanguage.dart,
+  );
 
   @override
   void dispose() {

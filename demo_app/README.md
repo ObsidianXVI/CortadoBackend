@@ -3,11 +3,14 @@
 This app is the Flutter Web showcase harness for Cortado's embedded editor and
 terminal story. It provisions one real Ubuntu workspace through the Cortado
 control plane, opens the same workspace file through multiple editor packages,
-and reuses one shared Cortado terminal for the shell/bootstrap flow.
+and reuses one shared Cortado terminal for the shell/bootstrap flow. It now
+also supports Firebase email/password sign-up and sign-in inside the app so you
+can mint a Cortado API key without leaving the demo UI.
 
 ## What It Demonstrates
 
 - real session creation through `POST /v1/sessions`
+- Firebase-backed API key minting through `POST /v1/api-keys`
 - real workspace provisioning/start/stop/delete against the current backend
 - one shared Ubuntu workspace image: `ubuntu:24.04`
 - manual bootstrap of Flutter inside the workspace terminal
@@ -25,6 +28,15 @@ Create a local `.env` file in `demo_app/` using `.env.example` as the base:
 CORTADO_BASE_URL=http://localhost:8080
 CORTADO_DEMO_API_KEY=your-local-demo-key
 CORTADO_DEMO_USER_ID=demo-user
+CORTADO_FIREBASE_API_KEY=your-firebase-web-api-key
+CORTADO_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+CORTADO_FIREBASE_PROJECT_ID=your-firebase-project
+CORTADO_FIREBASE_APP_ID=1:1234567890:web:abcdef
+CORTADO_FIREBASE_MESSAGING_SENDER_ID=1234567890
+CORTADO_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+CORTADO_FIREBASE_MEASUREMENT_ID=
+CORTADO_FIREBASE_EMAIL=demo@example.com
+CORTADO_FIREBASE_PASSWORD=change-me
 CORTADO_WORKSPACE_IMAGE=ubuntu:24.04
 CORTADO_WORKSPACE_CPU=1
 CORTADO_WORKSPACE_MEMORY_GB=2
@@ -38,6 +50,9 @@ Notes:
 - this is only safe for the agreed localhost-only recording workflow
 - the API key is still bundled client-side at runtime and must remain a narrow,
   low-scope demo credential
+- Firebase API-key minting requires the signed-in Firebase user to already have
+  the `tenant_id` custom claim. Registering a user in the app does not assign
+  that claim by itself.
 
 ## Run
 
@@ -54,10 +69,14 @@ Optional query params can override the env-backed defaults:
 
 ## Demo Flow
 
-1. Press `Authenticate`.
-2. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
-3. Wait for the workspace to reach `RUNNING`.
-4. Use the shared terminal to run the bootstrap commands shown in the UI:
+1. Use `Register User` or `Login` in the `Identity Bootstrap` panel.
+2. Press `Mint API Key` if the signed-in Firebase user already has the
+   `tenant_id` custom claim. This auto-fills the Cortado API key and user ID
+   fields below.
+3. Press `New Session`.
+4. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
+5. Wait for the workspace to reach `RUNNING`.
+6. Use the shared terminal to run the bootstrap commands shown in the UI:
 
    ```bash
    apt-get update
@@ -68,9 +87,9 @@ Optional query params can override the env-backed defaults:
    flutter create --platforms=web .
    ```
 
-5. Press `Load File` to open `lib/main.dart`.
-6. Switch between the editor package pages and edit the same file.
-7. Press `Save File` to write the current draft back to the workspace.
+7. Press `Load File` to open `lib/main.dart`.
+8. Switch between the editor package pages and edit the same file.
+9. Press `Save File` to write the current draft back to the workspace.
 
 ## Package Notes
 
@@ -100,6 +119,9 @@ Optional query params can override the env-backed defaults:
 
 - `demo_app` now relies entirely on the Cortado Flutter package for workspace
   create/get/start/stop/delete plus file load/save behavior.
+- Firebase sign-up/sign-in stays inside the demo app, but the tenant binding
+  still comes from the Firebase `tenant_id` custom claim required by the
+  control-plane API-key routes.
 - The local Cortado Flutter package now aligns on
   `freezed_annotation/freezed: ^3.1.0`, so the Monaco integration no longer
   needs a demo-local dependency override.

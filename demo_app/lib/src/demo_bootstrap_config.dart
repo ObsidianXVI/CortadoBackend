@@ -9,6 +9,15 @@ class DemoBootstrapConfig {
     required this.filePath,
     required this.cpu,
     required this.memoryGb,
+    required this.firebaseApiKey,
+    required this.firebaseAuthDomain,
+    required this.firebaseProjectId,
+    required this.firebaseAppId,
+    required this.firebaseMessagingSenderId,
+    required this.firebaseStorageBucket,
+    required this.firebaseMeasurementId,
+    required this.firebaseEmail,
+    required this.firebasePassword,
   });
 
   static const String defaultBaseUrl = 'http://localhost:8080';
@@ -27,6 +36,21 @@ class DemoBootstrapConfig {
   final String filePath;
   final double cpu;
   final double memoryGb;
+  final String firebaseApiKey;
+  final String firebaseAuthDomain;
+  final String firebaseProjectId;
+  final String firebaseAppId;
+  final String firebaseMessagingSenderId;
+  final String firebaseStorageBucket;
+  final String firebaseMeasurementId;
+  final String firebaseEmail;
+  final String firebasePassword;
+
+  bool get hasFirebaseBootstrapConfig =>
+      firebaseApiKey.isNotEmpty &&
+      firebaseProjectId.isNotEmpty &&
+      firebaseAppId.isNotEmpty &&
+      firebaseMessagingSenderId.isNotEmpty;
 
   factory DemoBootstrapConfig.fromSources({
     required Uri uri,
@@ -35,8 +59,7 @@ class DemoBootstrapConfig {
     final query = uri.queryParameters;
 
     return DemoBootstrapConfig(
-      baseUrl:
-          _firstNonEmpty(
+      baseUrl: _firstNonEmpty(
             query,
             const <String>[
               'baseUrl',
@@ -46,44 +69,37 @@ class DemoBootstrapConfig {
             ],
           ) ??
           _envOrEmpty(env, 'CORTADO_BASE_URL', fallback: defaultBaseUrl),
-      apiKey:
-          _firstNonEmpty(
+      apiKey: _firstNonEmpty(
             query,
             const <String>['apiKey', 'api_key', 'demoApiKey', 'demo_api_key'],
           ) ??
           _envOrEmpty(env, 'CORTADO_DEMO_API_KEY'),
-      userId:
-          _firstNonEmpty(
+      userId: _firstNonEmpty(
             query,
             const <String>['userId', 'user_id', 'demoUserId', 'demo_user_id'],
           ) ??
           _envOrEmpty(env, 'CORTADO_DEMO_USER_ID'),
-      workspaceId:
-          _firstNonEmpty(query, const <String>['workspaceId', 'workspace_id']) ??
+      workspaceId: _firstNonEmpty(
+              query, const <String>['workspaceId', 'workspace_id']) ??
           _envOrEmpty(env, 'CORTADO_WORKSPACE_ID'),
-      shell:
-          _firstNonEmpty(query, const <String>['shell']) ??
+      shell: _firstNonEmpty(query, const <String>['shell']) ??
           _envOrEmpty(env, 'CORTADO_SHELL', fallback: defaultShell),
-      image:
-          _firstNonEmpty(
+      image: _firstNonEmpty(
             query,
             const <String>['image', 'workspaceImage', 'workspace_image'],
           ) ??
           _envOrEmpty(env, 'CORTADO_WORKSPACE_IMAGE', fallback: defaultImage),
-      filePath:
-          _firstNonEmpty(
+      filePath: _firstNonEmpty(
             query,
             const <String>['filePath', 'file_path', 'path'],
           ) ??
           _envOrEmpty(env, 'CORTADO_FILE_PATH', fallback: defaultFilePath),
-      cpu:
-          _parseDouble(
+      cpu: _parseDouble(
             _firstNonEmpty(query, const <String>['cpu']) ??
                 env['CORTADO_WORKSPACE_CPU'],
           ) ??
           defaultCpu,
-      memoryGb:
-          _parseDouble(
+      memoryGb: _parseDouble(
             _firstNonEmpty(
                   query,
                   const <String>['memoryGb', 'memory_gb', 'memory'],
@@ -91,6 +107,54 @@ class DemoBootstrapConfig {
                 env['CORTADO_WORKSPACE_MEMORY_GB'],
           ) ??
           defaultMemoryGb,
+      firebaseApiKey: _firstNonEmpty(
+            query,
+            const <String>['firebaseApiKey', 'firebase_api_key'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_API_KEY'),
+      firebaseAuthDomain: _firstNonEmpty(
+            query,
+            const <String>['firebaseAuthDomain', 'firebase_auth_domain'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_AUTH_DOMAIN'),
+      firebaseProjectId: _firstNonEmpty(
+            query,
+            const <String>['firebaseProjectId', 'firebase_project_id'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_PROJECT_ID'),
+      firebaseAppId: _firstNonEmpty(
+            query,
+            const <String>['firebaseAppId', 'firebase_app_id'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_APP_ID'),
+      firebaseMessagingSenderId: _firstNonEmpty(
+            query,
+            const <String>[
+              'firebaseMessagingSenderId',
+              'firebase_messaging_sender_id',
+            ],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_MESSAGING_SENDER_ID'),
+      firebaseStorageBucket: _firstNonEmpty(
+            query,
+            const <String>['firebaseStorageBucket', 'firebase_storage_bucket'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_STORAGE_BUCKET'),
+      firebaseMeasurementId: _firstNonEmpty(
+            query,
+            const <String>['firebaseMeasurementId', 'firebase_measurement_id'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_MEASUREMENT_ID'),
+      firebaseEmail: _firstNonEmpty(
+            query,
+            const <String>['firebaseEmail', 'firebase_email'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_EMAIL'),
+      firebasePassword: _firstNonEmpty(
+            query,
+            const <String>['firebasePassword', 'firebase_password'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_PASSWORD'),
     );
   }
 
@@ -104,6 +168,15 @@ class DemoBootstrapConfig {
     String? filePath,
     double? cpu,
     double? memoryGb,
+    String? firebaseApiKey,
+    String? firebaseAuthDomain,
+    String? firebaseProjectId,
+    String? firebaseAppId,
+    String? firebaseMessagingSenderId,
+    String? firebaseStorageBucket,
+    String? firebaseMeasurementId,
+    String? firebaseEmail,
+    String? firebasePassword,
   }) {
     return DemoBootstrapConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -115,6 +188,18 @@ class DemoBootstrapConfig {
       filePath: filePath ?? this.filePath,
       cpu: cpu ?? this.cpu,
       memoryGb: memoryGb ?? this.memoryGb,
+      firebaseApiKey: firebaseApiKey ?? this.firebaseApiKey,
+      firebaseAuthDomain: firebaseAuthDomain ?? this.firebaseAuthDomain,
+      firebaseProjectId: firebaseProjectId ?? this.firebaseProjectId,
+      firebaseAppId: firebaseAppId ?? this.firebaseAppId,
+      firebaseMessagingSenderId:
+          firebaseMessagingSenderId ?? this.firebaseMessagingSenderId,
+      firebaseStorageBucket:
+          firebaseStorageBucket ?? this.firebaseStorageBucket,
+      firebaseMeasurementId:
+          firebaseMeasurementId ?? this.firebaseMeasurementId,
+      firebaseEmail: firebaseEmail ?? this.firebaseEmail,
+      firebasePassword: firebasePassword ?? this.firebasePassword,
     );
   }
 

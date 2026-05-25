@@ -810,3 +810,14 @@
 - M control-plane/internal/auth/service.go
 - A control-plane/internal/middleware/firebase_auth.go
 - M control-plane/internal/store/firestore_auth_store.go
+25/05/26 05:55 [FEAT] (pending) `dev-pro-large` Extended `demo_app` with an in-app Firebase bootstrap panel so the localhost demo can register or sign in with Firebase email/password, mint and inspect Cortado API keys from the new control-plane endpoints, auto-fill the session form from the latest minted key, and still fall back to a manual `.env` Cortado API key when needed.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/main.dart
+- M demo_app/lib/src/demo_bootstrap_config.dart
+- A demo_app/lib/src/demo_firebase_bootstrap.dart
+- M demo_app/lib/src/demo_showcase_app.dart
+- M demo_app/pubspec.yaml

@@ -12,7 +12,7 @@ Completed Task 7.1.2 by adding the dedicated `cortado-portforward` Cloud Run gat
 ## What was done this session
 Completed a user-directed auth maintenance slice in the control plane by adding Firebase-authenticated API key issuance/list/revoke endpoints, binding issued API keys to the Firebase UID, and extending cached API key validation to carry both tenant and user identity so session creation cannot impersonate a different user with a user-bound key.
 
-The active feature pointer remains on Task 7.1.3; the Flutter preview work has not advanced during this interruption.
+Also upgraded `demo_app` so the localhost showcase can register or log into Firebase, mint a Cortado API key in-app, and feed that key back into the existing session/workspace flow while keeping the manual `.env` API key path as a fallback. The active feature pointer remains on Task 7.1.3; the Flutter preview work has not advanced during this interruption.
 
 ## Remaining work this session
 Task 7.1.3:
