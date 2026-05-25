@@ -129,6 +129,10 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: user clarified that the demo should use a browser-side API key kept in a non-versioned `.env` file, provision a lightweight Ubuntu/Linux workspace, rely on shell commands during the demo to install Flutter and dependencies, and that "provisioning" refers to user-tied workspace provisioning rather than a separate project resource concept.
 - 25/05/26: user confirmed the demo app will only be run on localhost for UI recording, so browser exposure of the demo API key is accepted for this workflow.
 - 25/05/26: user chose an Ubuntu base image from Docker for the workspace image; implementation should treat this as the Docker Official Ubuntu image pinned to `ubuntu:24.04` unless overridden later.
+- 25/05/26: implemented the first `demo_app` showcase pass: optional `.env` bootstrap config loading, shared session/workspace shell, real workspace create/start/stop/delete/load/save flows, shared Cortado terminal attachment, package selector pages for Monaco / Flutter Code Editor / CodeForge Web / Lite Code Editor, updated README/test coverage, and local `.env` handling via `.env.example` plus `.gitignore`.
+- 25/05/26: used `code_forge_web` for the CodeForge page because upstream `code_forge` does not support Flutter Web and explicitly points web users to the companion package.
+- 25/05/26: the demo app currently assumes `flutter create --platforms=web .` is run at workspace root and then loads `lib/main.dart`.
+- 25/05/26: validated the current `demo_app` implementation with `/home/OBSiDIAN/tools/flutter/bin/flutter analyze` and `/home/OBSiDIAN/tools/flutter/bin/flutter test`; both passed and the branch is ready for an implementation commit on `demos`.
 
 ## Decisions
 - 25/05/26: keep this interim effort scoped to `demo_app/` first and avoid touching the main Cortado package/backend unless a concrete integration gap is proven during demo implementation.
@@ -142,3 +146,8 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: "provisioning" in this interim task refers to user-tied workspace provisioning on the Cortado backend, not to a separate project resource.
 - 25/05/26: unless the user overrides it later, implementation should assume the Flutter app is created in the workspace root and the target editor file is `lib/main.dart`.
 - 25/05/26: no extra editor packages should be researched for this interim demo.
+- 25/05/26: the CodeForge showcase page should use `code_forge_web` in the web demo app, while the README should clearly note that the upstream `code_forge` package itself is non-web.
+
+## Cortado Changes Needed
+- 25/05/26: the Flutter package `WorkspaceManager` lacks public `get`, `list`, and `delete workspace` helpers, so the demo app had to call those control-plane endpoints directly for refresh and delete behavior. A future Cortado Flutter package update should expose these workspace lifecycle methods directly.
+- 25/05/26: the local Cortado Flutter package still constrains `freezed_annotation` to `^2.4.0`, while current `flutter_monaco` releases depend on `^3.1.0`. The demo app currently resolves this with a local `dependency_overrides` entry only. A future Cortado package update should reconcile or upgrade that dependency so current Monaco integrations do not require a demo-local override.

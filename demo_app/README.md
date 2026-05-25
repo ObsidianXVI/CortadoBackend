@@ -1,105 +1,116 @@
 # demo_app
 
-This app is the manual smoke harness for the Flutter terminal package work in
-Feature 1.4.
+This app is the Flutter Web showcase harness for Cortado's embedded editor and
+terminal story. It provisions one real Ubuntu workspace through the Cortado
+control plane, opens the same workspace file through multiple editor packages,
+and reuses one shared Cortado terminal for the shell/bootstrap flow.
+
+## What It Demonstrates
+
+- real session creation through `POST /v1/sessions`
+- real workspace provisioning/start/stop/delete against the current backend
+- one shared Ubuntu workspace image: `ubuntu:24.04`
+- manual bootstrap of Flutter inside the workspace terminal
+- the same `lib/main.dart` file edited through:
+  - `flutter_monaco`
+  - `flutter_code_editor`
+  - `code_forge_web` for the CodeForge web page
+  - `lite_code_editor`
+
+## Local Env Setup
+
+Create a local `.env` file in `demo_app/` using `.env.example` as the base:
+
+```dotenv
+CORTADO_BASE_URL=http://localhost:8080
+CORTADO_DEMO_API_KEY=your-local-demo-key
+CORTADO_DEMO_USER_ID=demo-user
+CORTADO_WORKSPACE_IMAGE=ubuntu:24.04
+CORTADO_WORKSPACE_CPU=1
+CORTADO_WORKSPACE_MEMORY_GB=2
+CORTADO_FILE_PATH=lib/main.dart
+CORTADO_SHELL=/bin/bash
+```
+
+Notes:
+
+- `.env` is intentionally ignored by git.
+- this is only safe for the agreed localhost-only recording workflow
+- the API key is still bundled client-side at runtime and must remain a narrow,
+  low-scope demo credential
 
 ## Run
 
-1. Start the app in Chrome:
+```bash
+cd demo_app
+/home/OBSiDIAN/tools/flutter/bin/flutter run -d chrome
+```
+
+Optional query params can override the env-backed defaults:
+
+```text
+?baseUrl=http://localhost:8080&workspaceId=ws-123&filePath=lib/main.dart
+```
+
+## Demo Flow
+
+1. Press `Authenticate`.
+2. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
+3. Wait for the workspace to reach `RUNNING`.
+4. Use the shared terminal to run the bootstrap commands shown in the UI:
 
    ```bash
-   /home/OBSiDIAN/tools/flutter/bin/flutter run -d chrome
+   apt-get update
+   apt-get install -y curl git unzip xz-utils zip libglu1-mesa
+   git clone https://github.com/flutter/flutter.git -b stable /opt/flutter
+   export PATH="/opt/flutter/bin:$PATH"
+   flutter doctor
+   flutter create --platforms=web .
    ```
 
-2. Provide a control-plane base URL and workspace ID in the form fields, or
-   launch with query parameters:
+5. Press `Load File` to open `lib/main.dart`.
+6. Switch between the editor package pages and edit the same file.
+7. Press `Save File` to write the current draft back to the workspace.
 
-   ```text
-   ?baseUrl=https://control-plane.example.run.app&workspaceId=ws-123&shell=/bin/bash
-   ```
+## Package Notes
 
-3. Press `Connect` to open the terminal widget.
+### `flutter_monaco`
 
-## Smoke checklist
+- Best "familiar IDE" feel in the demo.
+- Good page for showing Monaco-backed syntax editing with Cortado doing file
+  persistence and terminal transport.
 
-- Run `echo hello_v0_1` and verify the echoed line renders in the terminal.
-- Run `vim` and verify the full-screen TUI redraw works.
-- Run `python3` and verify the REPL prompt accepts input without broken echo.
-- Drag the resize handle below the terminal, then run `tput cols` to confirm
-  the shell sees the new width.
-- Measure keystroke round-trip timing in Chrome DevTools via the WebSocket
-  frames inspector.
+### `flutter_code_editor`
 
-## Notes
+- Pure-Flutter editor with highlighting, folding, and gutter support.
+- Good middle ground between simple text editing and richer IDE behavior.
 
-- `demo_app/web/index.html` supplies the xterm.js CSS/JS includes required by
-  the package on Flutter Web.
-- The package still requires a live workspace ID from the broader Cortado
-  environment; this app only provides the browser-side smoke harness.
+### `code_forge_web`
 
-### Editor bridge bundle (CodeMirror 6)
+- Used instead of `code_forge` because the upstream `code_forge` package does
+  not support Flutter Web.
+- This page demonstrates the CodeForge family in the required web-only demo app.
 
-- The host page now also loads `cortado_editor.js`, a locally bundled
-  CodeMirror 6 bridge used by the Flutter editor widget integration.
-- Build/update the bundle when developing:
+### `lite_code_editor`
 
-  ```bash
-  cd demo_app/web
-  npm install   # or: npm ci
-  npm run build # outputs cortado_editor.js
-  ```
+- Lowest-overhead page in the demo.
+- Good for showing the minimal "edit-save-verify in terminal" path.
 
-- Included language modes: JavaScript/TypeScript, JSON, Python, Go, YAML.
-  Dart currently falls back to plain text until we add a stable CM6 Dart mode.
-- The bundle exposes a global `window.CortadoEditor` object with methods used
-  by the Flutter `HtmlElementView` side:
-  - `init(container, id, languageOrOptions, onChangeHash?, onSave?)`
-  - `setContent(id, text, preserveSelection?)`
-  - `getContent(id)` / `setLanguage(id, lang)` / `setReadOnly(id, readOnly)` / `dispose(id)`
+## Technical Notes
 
-#### LSP completion bridge (Task 4.2.2)
+- `demo_app` uses a local `dependency_overrides` entry for
+  `freezed_annotation: ^3.1.0` so current `flutter_monaco` can coexist with the
+  current local Cortado Flutter package.
+- The Cortado Flutter package does not currently expose public workspace
+  `get/list/delete` helpers, so this app calls those control-plane endpoints
+  directly where needed.
+- `demo_app/web/index.html` still carries the xterm.js assets used by
+  `CortadoTerminal`.
 
-- Dart registers a global completion request handler: window._cortadoLSPRequest
-- JS calls it from a CodeMirror completion source after a 150ms debounce and resolves results when Dart calls window._cortadoLSPResult(requestId, items).
-- Stale results are ignored if the cursor moved before the async result arrives.
-- Request params shape:
-  _cortadoLSPRequest({ editorId: string, requestId: number, position: { line: number; character: number }, lineText?: string, prefix?: string })
-- Dart returns via: _cortadoLSPResult(requestId: number, items: Completion[])
-  where Completion is a CodeMirror 6 completion entry.
-#### Diagnostics bridge (Task 4.2.3)
+## Validation
 
-- Replace diagnostics for an editor via:
-
-      window.CortadoEditor.setDiagnostics(editorId, [
-        // Either absolute offsets…
-        { from: 10, to: 15, severity: 'error', message: 'Example', source: 'lsp' },
-        // …or LSP-style ranges (0-based lines/characters)
-        {
-          range: { start: { line: 3, character: 5 }, end: { line: 3, character: 12 } },
-          severity: 2, // 1..4 -> error, warning, info, hint
-          message: 'Oops',
-          source: 'lsp',
-        },
-      ]);
-
-- Implementation uses CodeMirror setDiagnostics and lintGutter(); calling with
-  an empty array clears previous diagnostics. This API replaces diagnostics
-  rather than appending.
-
-#### Hover and Go-to-Definition (Task 4.2.4)
-
-- JS adds CodeMirror hover UI with a 500ms delay and Ctrl+click go-to-definition.
-- Dart registers two new globals to handle requests from the browser:
-  - window._cortadoLSPHoverRequest({ editorId, requestId, position })
-  - window._cortadoLSPDefinitionRequest({ editorId, requestId, position })
-- Dart answers via result sinks called by JS to complete the UI action:
-  - window._cortadoLSPHoverResult(requestId, { markdown?: string, plaintext?: string })
-    - If markdown is provided, it is rendered to HTML and sanitized with DOMPurify before insertion.
-    - If only plaintext is provided, it is shown as raw text.
-  - window._cortadoLSPDefinitionResult(requestId, locationOrArray)
-    - Minimal shape supported: { editorId?: string, range?: { start: { line, character } } } or an array of the same (first item used).
-    - If editorId matches the current editor, JS moves the caret to range.start and scrolls it into view. Cross-file navigation is expected to be handled by the Dart host.
-
-Notes
-- Existing completion and diagnostics behavior is preserved.
-- No changes to the Dart API surface are required beyond the new request/result globals above.
+```bash
+cd demo_app
+/home/OBSiDIAN/tools/flutter/bin/flutter analyze
+/home/OBSiDIAN/tools/flutter/bin/flutter test
+```

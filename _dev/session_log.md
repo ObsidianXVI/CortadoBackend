@@ -771,3 +771,12 @@
 - A scripts/dev_portforward_probe.sh
 - A scripts/dev_workspace.sh
 - A scripts/lib/cortado_dev_smoke.sh
+25/05/26 02:17 [FEAT] (pending) `dev-pro-large` Reworked `demo_app` from the old terminal smoke harness into a Cortado showcase app with real session bootstrap, real workspace lifecycle controls, a shared terminal/bootstrap flow, standalone editor package panes for Monaco / Flutter Code Editor / CodeForge Web / Lite Code Editor, and refreshed demo docs plus validation coverage while keeping all non-demo Cortado code untouched.
+- M INTERIM_TASK.md
+- A demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/main.dart
+- A demo_app/lib/src/demo_bootstrap_config.dart
+- A demo_app/lib/src/demo_showcase_app.dart
+- M demo_app/pubspec.yaml
+- M demo_app/pubspec.lock
