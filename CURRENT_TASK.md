@@ -14,6 +14,8 @@ Completed a user-directed auth maintenance slice in the control plane by adding 
 
 Also upgraded `demo_app` so the localhost showcase can register or log into Firebase, mint a Cortado API key in-app, and feed that key back into the existing session/workspace flow while keeping the manual `.env` API key path as a fallback. The active feature pointer remains on Task 7.1.3; the Flutter preview work has not advanced during this interruption.
 
+Extended that localhost demo bootstrap again so brand-new Firebase users can self-assign the development tenant claim through a dev-only control-plane route, then mint a Cortado API key without leaving the app.
+
 ## Remaining work this session
 Task 7.1.3:
 - add a Flutter "Run Preview" flow that drives `flutter build web`

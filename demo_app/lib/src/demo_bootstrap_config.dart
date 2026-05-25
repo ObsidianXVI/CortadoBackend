@@ -18,6 +18,7 @@ class DemoBootstrapConfig {
     required this.firebaseMeasurementId,
     required this.firebaseEmail,
     required this.firebasePassword,
+    required this.firebaseDevTenantId,
   });
 
   static const String defaultBaseUrl = 'http://localhost:8080';
@@ -45,6 +46,7 @@ class DemoBootstrapConfig {
   final String firebaseMeasurementId;
   final String firebaseEmail;
   final String firebasePassword;
+  final String firebaseDevTenantId;
 
   bool get hasFirebaseBootstrapConfig =>
       firebaseApiKey.isNotEmpty &&
@@ -155,6 +157,11 @@ class DemoBootstrapConfig {
             const <String>['firebasePassword', 'firebase_password'],
           ) ??
           _envOrEmpty(env, 'CORTADO_FIREBASE_PASSWORD'),
+      firebaseDevTenantId: _firstNonEmpty(
+            query,
+            const <String>['firebaseDevTenantId', 'firebase_dev_tenant_id'],
+          ) ??
+          _envOrEmpty(env, 'CORTADO_FIREBASE_DEV_TENANT_ID'),
     );
   }
 
@@ -177,6 +184,7 @@ class DemoBootstrapConfig {
     String? firebaseMeasurementId,
     String? firebaseEmail,
     String? firebasePassword,
+    String? firebaseDevTenantId,
   }) {
     return DemoBootstrapConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -200,6 +208,7 @@ class DemoBootstrapConfig {
           firebaseMeasurementId ?? this.firebaseMeasurementId,
       firebaseEmail: firebaseEmail ?? this.firebaseEmail,
       firebasePassword: firebasePassword ?? this.firebasePassword,
+      firebaseDevTenantId: firebaseDevTenantId ?? this.firebaseDevTenantId,
     );
   }
 

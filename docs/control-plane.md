@@ -30,6 +30,10 @@ The router is assembled in [`control-plane/internal/api/router.go`](../control-p
 - `GET /v1/api-keys`
 - `DELETE /v1/api-keys/{id}`
 
+### Development-only Firebase bootstrap route
+
+- `POST /v1/dev/firebase/tenant-claim`
+
 ### Authenticated workspace routes
 
 - `GET /v1/workspaces`
@@ -57,6 +61,8 @@ Requests normally authenticate with an RS256 JWT access token. The token contain
 The middleware in [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go) also supports the development bypass when `CORTADO_ENV=development` and the request carries `X-Cortado-Dev-Token: dev-bypass` or `?dev_token=dev-bypass` for WebSocket upgrades.
 
 The API key issuance routes use a separate middleware in [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go). That middleware verifies a Firebase ID token from `Authorization: Bearer ...`, extracts the tenant from the `tenant_id` custom claim by default, and injects the Firebase UID as the request user.
+
+In development, the control plane also exposes a Firebase-authenticated bootstrap route that verifies the Firebase token without requiring an existing tenant claim, then uses the Firebase Admin SDK to assign the configured development tenant claim to that Firebase user.
 
 ## Session Flow
 
@@ -101,10 +107,32 @@ If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds w
 
 The raw key is never stored in Firestore. The control plane stores only the bcrypt hash plus `tenantId`, `userId`, `revoked`, and `createdAt`. `GET /v1/api-keys` lists the current Firebase user's keys for that tenant, and `DELETE /v1/api-keys/{id}` marks a matching key revoked.
 
+## Development Firebase Bootstrap
+
+`POST /v1/dev/firebase/tenant-claim` is only mounted when `CORTADO_ENV=development`. It accepts a Firebase ID token in `Authorization: Bearer ...` and optionally a JSON body:
+
+```json
+{
+  "tenantId": "demo-tenant"
+}
+```
+
+If `tenantId` is omitted, the route uses `CORTADO_FIREBASE_DEV_TENANT_ID`, falling back to `demo-tenant`. The control plane merges that tenant into the user's existing Firebase custom claims and returns the assignment:
+
+```json
+{
+  "assignment": {
+    "tenantId": "demo-tenant",
+    "userId": "firebase-user-1"
+  }
+}
+```
+
 ### Firebase env knobs
 
 - `CORTADO_FIREBASE_PROJECT_ID` overrides the Firebase project used by the Admin SDK. It defaults to the same GCP project ID as the control plane.
 - `CORTADO_FIREBASE_TENANT_CLAIM` overrides the custom claim name. It defaults to `tenant_id`.
+- `CORTADO_FIREBASE_DEV_TENANT_ID` sets the default tenant assigned by the development-only bootstrap route. It defaults to `demo-tenant`.
 
 ## Workspace Lifecycle
 
@@ -181,6 +209,7 @@ File listing:
 - API router: [`control-plane/internal/api/router.go`](../control-plane/internal/api/router.go)
 - Auth middleware: [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go)
 - Firebase auth middleware: [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go)
+- Dev bootstrap handler: [`control-plane/internal/api/dev_bootstrap.go`](../control-plane/internal/api/dev_bootstrap.go)
 - API key service: [`control-plane/internal/auth/api_keys.go`](../control-plane/internal/auth/api_keys.go)
 - Workspace service: [`control-plane/internal/workspace/service.go`](../control-plane/internal/workspace/service.go)
 - WebSocket mux: [`control-plane/internal/gateway/mux.go`](../control-plane/internal/gateway/mux.go)

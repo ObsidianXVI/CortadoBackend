@@ -23,6 +23,7 @@ void main() {
         'CORTADO_FIREBASE_APP_ID': '1:123:web:abc',
         'CORTADO_FIREBASE_MESSAGING_SENDER_ID': '123',
         'CORTADO_FIREBASE_EMAIL': 'demo@example.com',
+        'CORTADO_FIREBASE_DEV_TENANT_ID': 'demo-tenant',
       },
     );
 
@@ -40,6 +41,7 @@ void main() {
     expect(config.firebaseAppId, '1:123:web:abc');
     expect(config.firebaseMessagingSenderId, '123');
     expect(config.firebaseEmail, 'demo@example.com');
+    expect(config.firebaseDevTenantId, 'demo-tenant');
     expect(config.hasFirebaseBootstrapConfig, isTrue);
   });
 
@@ -66,6 +68,7 @@ void main() {
             firebaseMeasurementId: '',
             firebaseEmail: '',
             firebasePassword: '',
+            firebaseDevTenantId: '',
           ),
         ),
       ),

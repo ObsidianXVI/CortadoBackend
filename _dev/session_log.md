@@ -821,3 +821,24 @@
 - A demo_app/lib/src/demo_firebase_bootstrap.dart
 - M demo_app/lib/src/demo_showcase_app.dart
 - M demo_app/pubspec.yaml
+25/05/26 06:12 [FEAT] (pending) `dev-pro-large` Completed the self-service localhost auth loop by adding a development-only Firebase tenant-claim assignment endpoint to the control plane, exposing that flow through the demo app so brand-new Firebase users can assign the dev tenant and retry API-key minting in one UI, and documenting the new dev bootstrap route and env knobs without advancing the paused Feature 7.1 tracker.
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/api/dev_bootstrap.go
+- A control-plane/internal/api/dev_bootstrap_test.go
+- M control-plane/internal/api/router.go
+- A control-plane/internal/auth/dev_bootstrap.go
+- A control-plane/internal/auth/dev_bootstrap_test.go
+- M control-plane/internal/auth/firebase.go
+- M control-plane/internal/middleware/auth.go
+- M control-plane/internal/middleware/firebase_auth.go
+- M demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/src/demo_bootstrap_config.dart
+- M demo_app/lib/src/demo_firebase_bootstrap.dart
+- M demo_app/lib/src/demo_showcase_app.dart
+- M docs/control-plane.md

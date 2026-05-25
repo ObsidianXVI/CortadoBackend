@@ -32,6 +32,23 @@ class DemoApiKeyRecord {
   }
 }
 
+class DemoTenantAssignment {
+  const DemoTenantAssignment({
+    required this.tenantId,
+    required this.userId,
+  });
+
+  final String tenantId;
+  final String userId;
+
+  factory DemoTenantAssignment.fromJson(Map<String, dynamic> json) {
+    return DemoTenantAssignment(
+      tenantId: (json['tenantId'] as String? ?? '').trim(),
+      userId: (json['userId'] as String? ?? '').trim(),
+    );
+  }
+}
+
 class DemoIssuedApiKey {
   const DemoIssuedApiKey({
     required this.apiKey,
@@ -156,6 +173,33 @@ class DemoFirebaseBootstrap {
         .whereType<Map<Object?, Object?>>()
         .map((json) => DemoApiKeyRecord.fromJson(json.cast<String, dynamic>()))
         .toList(growable: false);
+  }
+
+  Future<DemoTenantAssignment> assignDevelopmentTenant(
+    String baseUrl, {
+    String tenantId = '',
+  }) async {
+    final idToken = await _currentIdToken(forceRefresh: true);
+    final response = await http.post(
+      _endpoint(baseUrl, '/v1/dev/firebase/tenant-claim'),
+      headers: <String, String>{
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, String>{
+        'tenantId': tenantId.trim(),
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_errorMessage(response));
+    }
+
+    final payload = _decodeObject(response.body);
+    return DemoTenantAssignment.fromJson(
+      (payload['assignment'] as Map<Object?, Object?>? ??
+              const <Object?, Object?>{})
+          .cast<String, dynamic>(),
+    );
   }
 
   Future<String> _currentIdToken({required bool forceRefresh}) async {

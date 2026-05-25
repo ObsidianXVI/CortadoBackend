@@ -37,6 +37,7 @@ CORTADO_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 CORTADO_FIREBASE_MEASUREMENT_ID=
 CORTADO_FIREBASE_EMAIL=demo@example.com
 CORTADO_FIREBASE_PASSWORD=change-me
+CORTADO_FIREBASE_DEV_TENANT_ID=demo-tenant
 CORTADO_WORKSPACE_IMAGE=ubuntu:24.04
 CORTADO_WORKSPACE_CPU=1
 CORTADO_WORKSPACE_MEMORY_GB=2
@@ -50,9 +51,11 @@ Notes:
 - this is only safe for the agreed localhost-only recording workflow
 - the API key is still bundled client-side at runtime and must remain a narrow,
   low-scope demo credential
-- Firebase API-key minting requires the signed-in Firebase user to already have
-  the `tenant_id` custom claim. Registering a user in the app does not assign
-  that claim by itself.
+- In `CORTADO_ENV=development`, the app can call the dev-only
+  `/v1/dev/firebase/tenant-claim` route to self-assign the Firebase `tenant_id`
+  custom claim before minting a Cortado API key.
+- `CORTADO_FIREBASE_DEV_TENANT_ID` controls which dev tenant the app asks the
+  control plane to assign. If omitted, the backend falls back to `demo-tenant`.
 
 ## Run
 
@@ -70,13 +73,14 @@ Optional query params can override the env-backed defaults:
 ## Demo Flow
 
 1. Use `Register User` or `Login` in the `Identity Bootstrap` panel.
-2. Press `Mint API Key` if the signed-in Firebase user already has the
-   `tenant_id` custom claim. This auto-fills the Cortado API key and user ID
-   fields below.
-3. Press `New Session`.
-4. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
-5. Wait for the workspace to reach `RUNNING`.
-6. Use the shared terminal to run the bootstrap commands shown in the UI:
+2. Press `Assign Dev Tenant` if you want to force the development tenant claim
+   immediately, or go straight to `Mint API Key`.
+3. `Mint API Key` now auto-assigns the development tenant claim and retries once
+   if the Firebase user is brand new and missing `tenant_id`.
+4. Press `New Session`.
+5. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
+6. Wait for the workspace to reach `RUNNING`.
+7. Use the shared terminal to run the bootstrap commands shown in the UI:
 
    ```bash
    apt-get update
@@ -87,9 +91,9 @@ Optional query params can override the env-backed defaults:
    flutter create --platforms=web .
    ```
 
-7. Press `Load File` to open `lib/main.dart`.
-8. Switch between the editor package pages and edit the same file.
-9. Press `Save File` to write the current draft back to the workspace.
+8. Press `Load File` to open `lib/main.dart`.
+9. Switch between the editor package pages and edit the same file.
+10. Press `Save File` to write the current draft back to the workspace.
 
 ## Package Notes
 
@@ -122,6 +126,8 @@ Optional query params can override the env-backed defaults:
 - Firebase sign-up/sign-in stays inside the demo app, but the tenant binding
   still comes from the Firebase `tenant_id` custom claim required by the
   control-plane API-key routes.
+- In development, the demo can assign that claim itself through the
+  control-plane dev bootstrap route before retrying API-key minting.
 - The local Cortado Flutter package now aligns on
   `freezed_annotation/freezed: ^3.1.0`, so the Monaco integration no longer
   needs a demo-local dependency override.

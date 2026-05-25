@@ -10,8 +10,9 @@ import (
 )
 
 type FirebaseAuthConfig struct {
-	TenantClaim string
-	Verifier    auth.FirebaseTokenVerifier
+	AllowMissingTenantClaim bool
+	TenantClaim             string
+	Verifier                auth.FirebaseTokenVerifier
 }
 
 func NewFirebaseAuthMiddleware(cfg FirebaseAuthConfig) func(http.Handler) http.Handler {
@@ -33,8 +34,16 @@ func NewFirebaseAuthMiddleware(cfg FirebaseAuthConfig) func(http.Handler) http.H
 				return
 			}
 
+			ctx := context.WithValue(r.Context(), ctxKeyFirebaseToken, verified)
+			ctx = context.WithValue(ctx, ctxKeyUserID, strings.TrimSpace(verified.UID))
+
 			tenantID, err := auth.TenantIDFromFirebaseClaims(verified.Claims, cfg.TenantClaim)
 			if err != nil {
+				if cfg.AllowMissingTenantClaim && errors.Is(err, auth.ErrTenantClaimMissing) {
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+
 				status := http.StatusUnauthorized
 				if errors.Is(err, auth.ErrTenantClaimMissing) {
 					status = http.StatusForbidden
@@ -43,8 +52,7 @@ func NewFirebaseAuthMiddleware(cfg FirebaseAuthConfig) func(http.Handler) http.H
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), ctxKeyTenantID, tenantID)
-			ctx = context.WithValue(ctx, ctxKeyUserID, strings.TrimSpace(verified.UID))
+			ctx = context.WithValue(ctx, ctxKeyTenantID, tenantID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

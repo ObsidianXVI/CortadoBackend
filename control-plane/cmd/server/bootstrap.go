@@ -108,6 +108,26 @@ func newFirebaseVerifier(ctx context.Context, projectID string) (*auth.FirebaseV
 	return verifier, nil
 }
 
+func newDevFirebaseBootstrapService(
+	manager auth.FirebaseClaimsManager,
+) (*auth.DevFirebaseBootstrapService, error) {
+	service, err := auth.NewDevFirebaseBootstrapService(
+		auth.DevFirebaseBootstrapConfig{
+			DefaultTenantID: envOrDefault(
+				"CORTADO_FIREBASE_DEV_TENANT_ID",
+				"demo-tenant",
+			),
+			Enabled:     os.Getenv("CORTADO_ENV") == "development",
+			Manager:     manager,
+			TenantClaim: envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create dev firebase bootstrap service: %w", err)
+	}
+	return service, nil
+}
+
 func newAIService(projectID string, resolver ai.WorkspaceResolver) (*ai.Service, error) {
 	embedder, err := ai.NewVertexEmbedder(ai.VertexEmbedderConfig{
 		Dimensions: envInt("CORTADO_VERTEX_DIMENSIONS", aiDefaultVertexDimensions()),

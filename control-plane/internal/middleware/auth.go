@@ -18,8 +18,9 @@ import (
 type contextKey string
 
 const (
-	ctxKeyTenantID contextKey = "tenant_id"
-	ctxKeyUserID   contextKey = "user_id"
+	ctxKeyTenantID      contextKey = "tenant_id"
+	ctxKeyUserID        contextKey = "user_id"
+	ctxKeyFirebaseToken contextKey = "firebase_token"
 )
 
 type AuthConfig struct {
@@ -34,6 +35,11 @@ func TenantID(ctx context.Context) (string, bool) {
 func UserID(ctx context.Context) (string, bool) {
 	value, ok := ctx.Value(ctxKeyUserID).(string)
 	return value, ok
+}
+
+func FirebaseToken(ctx context.Context) (*auth.VerifiedFirebaseToken, bool) {
+	value, ok := ctx.Value(ctxKeyFirebaseToken).(*auth.VerifiedFirebaseToken)
+	return value, ok && value != nil
 }
 
 func NewAuthMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {

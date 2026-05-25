@@ -66,6 +66,44 @@ func TestFirebaseAuthMiddlewareRejectsMissingTenantClaim(t *testing.T) {
 	}
 }
 
+func TestFirebaseAuthMiddlewareAllowsMissingTenantClaimWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	handler := NewFirebaseAuthMiddleware(FirebaseAuthConfig{
+		AllowMissingTenantClaim: true,
+		TenantClaim:             "tenant_id",
+		Verifier: firebaseVerifierStub{
+			token: &auth.VerifiedFirebaseToken{
+				UID:    "firebase-user-1",
+				Claims: map[string]any{"role": "tester"},
+			},
+		},
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := TenantID(r.Context()); ok {
+			t.Fatal("did not expect tenant id in context")
+		}
+		userID, userOK := UserID(r.Context())
+		token, tokenOK := FirebaseToken(r.Context())
+		if !userOK || userID != "firebase-user-1" {
+			t.Fatalf("unexpected user context: %q", userID)
+		}
+		if !tokenOK || token.UID != "firebase-user-1" {
+			t.Fatalf("unexpected firebase token context: %+v", token)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dev/firebase/tenant-claim", nil)
+	req.Header.Set("Authorization", "Bearer firebase-id-token")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
 type firebaseVerifierStub struct {
 	err   error
 	token *auth.VerifiedFirebaseToken

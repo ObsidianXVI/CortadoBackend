@@ -150,6 +150,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
   DemoEditorPackage _selectedPackage = DemoEditorPackage.flutterCodeEditor;
   User? _firebaseUser;
+  DemoTenantAssignment? _tenantAssignment;
   DemoIssuedApiKey? _issuedApiKey;
   List<DemoApiKeyRecord> _issuedApiKeys = const <DemoApiKeyRecord>[];
   Workspace? _workspace;
@@ -303,7 +304,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Minting requires the Firebase user to already have a `tenant_id` custom claim. Registration alone does not assign that claim.',
+            'In development, the app can assign the `tenant_id` custom claim for you before minting a Cortado API key.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: const Color(0xFF8898AA),
                 ),
@@ -364,6 +365,13 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               FilledButton.icon(
                 onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
                     ? null
+                    : _assignDevelopmentTenant,
+                icon: const Icon(Icons.verified_user_outlined),
+                label: const Text('Assign Dev Tenant'),
+              ),
+              FilledButton.icon(
+                onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
+                    ? null
                     : _mintApiKey,
                 icon: const Icon(Icons.vpn_key_outlined),
                 label: const Text('Mint API Key'),
@@ -387,9 +395,19 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                   label: Text(bootstrapReady
                       ? 'Firebase ${widget.initialConfig.firebaseProjectId}'
                       : 'Firebase bootstrap disabled')),
+              if (widget.initialConfig.firebaseDevTenantId.isNotEmpty)
+                Chip(
+                  label: Text(
+                    'Dev tenant ${widget.initialConfig.firebaseDevTenantId}',
+                  ),
+                ),
               Chip(label: Text(userLabel)),
               if (_firebaseUser != null)
                 Chip(label: Text('UID ${_firebaseUser!.uid}')),
+              if (_tenantAssignment != null)
+                Chip(
+                  label: Text('Assigned ${_tenantAssignment!.tenantId}'),
+                ),
             ],
           ),
           if (_issuedApiKey != null) ...<Widget>[
@@ -798,6 +816,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
       setState(() {
         _firebaseUser = null;
+        _tenantAssignment = null;
         _issuedApiKey = null;
         _issuedApiKeys = const <DemoApiKeyRecord>[];
       });
@@ -807,11 +826,19 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
   Future<void> _mintApiKey() async {
     await _runBusy('Minting Cortado API key', () async {
-      final issued = await _firebaseBootstrap.mintApiKey(
-        _baseUrlController.text.trim(),
-      );
+      final baseUrl = _baseUrlController.text.trim();
+      DemoIssuedApiKey issued;
+      try {
+        issued = await _firebaseBootstrap.mintApiKey(baseUrl);
+      } on StateError catch (error) {
+        if (!error.toString().contains('firebase tenant claim is required')) {
+          rethrow;
+        }
+        await _assignDevelopmentTenantInternal(baseUrl);
+        issued = await _firebaseBootstrap.mintApiKey(baseUrl);
+      }
       final listed = await _firebaseBootstrap.listApiKeys(
-        _baseUrlController.text.trim(),
+        baseUrl,
       );
 
       _apiKeyController.text = issued.apiKey;
@@ -827,6 +854,17 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       });
       _setInfoMessage(
         'Minted Cortado API key for ${issued.record.userId}. The session form was updated automatically.',
+      );
+    });
+  }
+
+  Future<void> _assignDevelopmentTenant() async {
+    await _runBusy('Assigning development tenant', () async {
+      final assignment = await _assignDevelopmentTenantInternal(
+        _baseUrlController.text.trim(),
+      );
+      _setInfoMessage(
+        'Assigned dev tenant ${assignment.tenantId} to ${assignment.userId}.',
       );
     });
   }
@@ -875,6 +913,23 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       _issuedApiKeys = listed;
     });
     _setInfoMessage(successMessage);
+  }
+
+  Future<DemoTenantAssignment> _assignDevelopmentTenantInternal(
+    String baseUrl,
+  ) async {
+    final assignment = await _firebaseBootstrap.assignDevelopmentTenant(
+      baseUrl,
+      tenantId: widget.initialConfig.firebaseDevTenantId,
+    );
+    if (!mounted) {
+      return assignment;
+    }
+
+    setState(() {
+      _tenantAssignment = assignment;
+    });
+    return assignment;
   }
 
   Future<void> _authenticate() async {

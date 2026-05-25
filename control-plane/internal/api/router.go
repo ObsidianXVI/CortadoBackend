@@ -18,6 +18,8 @@ type RouterConfig struct {
 	APIKeySvc        APIKeyService
 	AICompletionSvc  AICompletionService
 	ConnectHandler   http.Handler
+	DevBootstrapAuth func(http.Handler) http.Handler
+	DevBootstrapSvc  DevFirebaseBootstrapService
 	JWKSProvider     JWKSProvider
 	SessionSvc       SessionService
 	WorkspaceFileSvc WorkspaceFileService
@@ -82,6 +84,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				firebaseProtected.Post("/api-keys", handler.issue)
 				firebaseProtected.Get("/api-keys", handler.list)
 				firebaseProtected.Delete("/api-keys/{id}", handler.revoke)
+			})
+		}
+		if cfg.DevBootstrapSvc != nil && cfg.DevBootstrapAuth != nil {
+			r.Group(func(devFirebaseProtected chi.Router) {
+				devFirebaseProtected.Use(cfg.DevBootstrapAuth)
+				handler := newDevBootstrapHandler(cfg.DevBootstrapSvc)
+				devFirebaseProtected.Post(
+					"/dev/firebase/tenant-claim",
+					handler.assignTenantClaim,
+				)
 			})
 		}
 		r.Group(func(protected chi.Router) {

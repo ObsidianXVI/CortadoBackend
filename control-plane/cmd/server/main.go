@@ -69,6 +69,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize firebase verifier: %v", err)
 	}
+	devFirebaseBootstrapService, err := newDevFirebaseBootstrapService(firebaseVerifier)
+	if err != nil {
+		log.Fatalf("initialize dev firebase bootstrap service: %v", err)
+	}
 	resolver := gateway.StaticWorkspaceResolver{
 		Namespace: workspaceNamespace,
 		DNSDomain: clusterDNSDomain,
@@ -115,7 +119,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	filesyncpb.RegisterFileSyncServiceServer(grpcServer, fileSyncService)
 
-	httpHandler := api.NewRouter(api.RouterConfig{
+	routerConfig := api.RouterConfig{
 		APIKeyAuth: cpmiddleware.NewFirebaseAuthMiddleware(cpmiddleware.FirebaseAuthConfig{
 			TenantClaim: envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
 			Verifier:    firebaseVerifier,
@@ -127,7 +131,19 @@ func main() {
 		SessionSvc:       authService,
 		WorkspaceFileSvc: fileService,
 		WorkspaceSvc:     workspaceService,
-	})
+	}
+	if os.Getenv("CORTADO_ENV") == "development" {
+		routerConfig.DevBootstrapAuth = cpmiddleware.NewFirebaseAuthMiddleware(
+			cpmiddleware.FirebaseAuthConfig{
+				AllowMissingTenantClaim: true,
+				TenantClaim:             envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
+				Verifier:                firebaseVerifier,
+			},
+		)
+		routerConfig.DevBootstrapSvc = devFirebaseBootstrapService
+	}
+
+	httpHandler := api.NewRouter(routerConfig)
 
 	server := &http.Server{
 		Addr:              ":" + port,

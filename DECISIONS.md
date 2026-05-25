@@ -71,3 +71,6 @@
 
 - API keys issued through the Firebase flow are bound to the Firebase UID that created them, and `POST /v1/sessions` rejects any `user_id` that does not match a bound key's stored owner.
   Rationale: without binding the key to the verified Firebase user, any holder of the raw key could choose an arbitrary `user_id` when creating a session. Persisting and caching both tenant and user identity closes that impersonation gap while staying compatible with older tenant-scoped keys that have no stored `userId`.
+
+- Self-service Firebase tenant-claim assignment exists only on a dedicated development-only endpoint, with the assigned tenant defaulting to `CORTADO_FIREBASE_DEV_TENANT_ID` and falling back to `demo-tenant`.
+  Rationale: the user wanted localhost demo bootstrap to be fully self-service, but broad claim assignment would be too permissive for production. Scoping the route to `CORTADO_ENV=development` keeps the convenience path local to dev/demo environments while letting the app recover brand-new Firebase users automatically before minting Cortado API keys.

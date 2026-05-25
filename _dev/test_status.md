@@ -377,3 +377,10 @@
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter pub get`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+25/05/26 06:12
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/auth ./internal/api ./internal/middleware`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
