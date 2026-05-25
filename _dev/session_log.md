@@ -848,3 +848,6 @@
 - M _dev/docs/release_timeline.md
 - M _dev/docs/technical_report.md
 - A _dev/features/feat-8-4.md
+25/05/26 06:29 [DOCS] (pending) `dev-pro-large` Repointed the active tracker to v0.8 Feature 8.4 Task 8.4.1 for the approved OIDC exchange work, and explicitly preserved the previously active v0.7 Feature 7.1 Task 7.1.3 preview slice as the next task to resume afterward so it does not get skipped.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
