@@ -96,7 +96,7 @@ These are not changes I am allowed to implement in this task, but they are prere
    - For the currently intended localhost-only recording workflow, the user explicitly accepts this tradeoff.
    - Even so, the key should still be a deliberately low-scope demo credential and must stay out of version control.
 2. Real workspace creation already exists, but it requires a workspace image value.
-   - The demo app will need either a fixed approved image or a constrained image selector.
+   - The demo app will use a fixed approved image: Docker Official Image `ubuntu:24.04`.
 3. The requested "create a Flutter web app in the workspace and open `main.dart`" flow now assumes the workspace starts as a lightweight Linux environment and Flutter is installed manually through shell commands during the demo.
    - That means the demo app should not assume Flutter tooling is preinstalled in the workspace image.
    - The terminal flow should make room for manual setup commands before the editor pages expect `lib/main.dart` to exist.
@@ -113,6 +113,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
    - current user direction is a browser-exposed demo API key stored outside version control
    - this is explicitly accepted for localhost-only recording use, but the key still needs to be a deliberately low-scope demo credential
 2. Confirm the exact lightweight Linux workspace image the demo app should create.
+   - current implementation assumption: Docker Official Image `ubuntu:24.04`
 3. Confirm the generated app location if workspace-root creation is not desired.
    - current implementation assumption: run `flutter create --platforms=web .` in the workspace root and then open `lib/main.dart`
 
@@ -127,6 +128,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: verified from local docs/code that real session bootstrap currently requires browser-side submission of `api_key` and `user_id` to `POST /v1/sessions`, workspace CRUD exists in the control-plane API, and no separate project-provisioning API surface was found.
 - 25/05/26: user clarified that the demo should use a browser-side API key kept in a non-versioned `.env` file, provision a lightweight Ubuntu/Linux workspace, rely on shell commands during the demo to install Flutter and dependencies, and that "provisioning" refers to user-tied workspace provisioning rather than a separate project resource concept.
 - 25/05/26: user confirmed the demo app will only be run on localhost for UI recording, so browser exposure of the demo API key is accepted for this workflow.
+- 25/05/26: user chose an Ubuntu base image from Docker for the workspace image; implementation should treat this as the Docker Official Ubuntu image pinned to `ubuntu:24.04` unless overridden later.
 
 ## Decisions
 - 25/05/26: keep this interim effort scoped to `demo_app/` first and avoid touching the main Cortado package/backend unless a concrete integration gap is proven during demo implementation.
@@ -136,6 +138,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: the preferred auth path is a real session flow using a browser-side demo API key kept outside version control, with the caveat that this still exposes the key to the browser at runtime and therefore requires a deliberately low-scope demo credential.
 - 25/05/26: localhost-only demo recording makes the browser-exposed demo API key acceptable for this interim task, provided it remains out of version control and scoped narrowly.
 - 25/05/26: the demo should provision a lightweight Linux workspace and rely on terminal-driven installation of Flutter/tooling rather than assuming a prebuilt Flutter-ready image.
+- 25/05/26: the workspace image should be the Docker Official Ubuntu image pinned to `ubuntu:24.04` rather than an unpinned `latest` tag.
 - 25/05/26: "provisioning" in this interim task refers to user-tied workspace provisioning on the Cortado backend, not to a separate project resource.
 - 25/05/26: unless the user overrides it later, implementation should assume the Flutter app is created in the workspace root and the target editor file is `lib/main.dart`.
 - 25/05/26: no extra editor packages should be researched for this interim demo.
