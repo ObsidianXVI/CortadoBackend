@@ -15,6 +15,7 @@ import (
 	"github.com/your-org/cortado/control-plane/internal/ai"
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	"github.com/your-org/cortado/control-plane/internal/store"
+	"github.com/your-org/cortado/control-plane/internal/tenant"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -77,6 +78,12 @@ func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {
 	})
 }
 
+func newTenantStore(firestoreClient *firestore.Client) *store.FirestoreTenantStore {
+	return store.NewFirestoreTenantStore(firestoreClient, store.FirestoreTenantStoreConfig{
+		Collection: os.Getenv("CORTADO_TENANTS_COLLECTION"),
+	})
+}
+
 func newSessionService(repository auth.Repository) (*auth.Service, error) {
 	service, err := auth.NewService(auth.ServiceConfig{
 		Cache:         auth.NewValidationCacheFromEnv(),
@@ -85,6 +92,16 @@ func newSessionService(repository auth.Repository) (*auth.Service, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create auth service: %w", err)
+	}
+	return service, nil
+}
+
+func newTenantAuthProviderService(repository tenant.Repository) (*tenant.Service, error) {
+	service, err := tenant.NewService(tenant.ServiceConfig{
+		Repository: repository,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create tenant auth provider service: %w", err)
 	}
 	return service, nil
 }

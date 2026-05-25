@@ -52,6 +52,7 @@ func main() {
 		log.Fatalf("initialize workspace service: %v", err)
 	}
 	authStore := newAuthStore(firestoreClient)
+	tenantStore := newTenantStore(firestoreClient)
 	authService, err := newSessionService(authStore)
 	if err != nil {
 		log.Fatalf("initialize auth service: %v", err)
@@ -64,6 +65,10 @@ func main() {
 	apiKeyService, err := newAPIKeyService(authStore)
 	if err != nil {
 		log.Fatalf("initialize api key service: %v", err)
+	}
+	tenantAuthProviderService, err := newTenantAuthProviderService(tenantStore)
+	if err != nil {
+		log.Fatalf("initialize tenant auth provider service: %v", err)
 	}
 	firebaseVerifier, err := newFirebaseVerifier(ctx, projectID)
 	if err != nil {
@@ -129,6 +134,7 @@ func main() {
 		ConnectHandler:   connectHandler,
 		JWKSProvider:     authService,
 		SessionSvc:       authService,
+		TenantAuthSvc:    tenantAuthProviderService,
 		WorkspaceFileSvc: fileService,
 		WorkspaceSvc:     workspaceService,
 	}

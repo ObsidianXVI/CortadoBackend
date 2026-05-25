@@ -258,6 +258,10 @@
 - PASS `cd flutter && flutter analyze`
 24/05/26 05:00
 - PASS `cd proto && buf lint`
+25/05/26 06:39
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd proto && buf generate`
 - PASS `cd agent && go test ./...`
 - PASS `cd agent && CGO_ENABLED=0 go build ./...`

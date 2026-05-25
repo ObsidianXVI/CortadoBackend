@@ -851,3 +851,13 @@
 25/05/26 06:29 [DOCS] (pending) `dev-pro-large` Repointed the active tracker to v0.8 Feature 8.4 Task 8.4.1 for the approved OIDC exchange work, and explicitly preserved the previously active v0.7 Feature 7.1 Task 7.1.3 preview slice as the next task to resume afterward so it does not get skipped.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
+25/05/26 06:39 [FEAT] (pending) `dev-pro-large` Completed Task 8.4.1 for direct OIDC session exchange by adding Firestore-backed tenant auth-provider persistence, strict write-time validation for discovery or explicit issuer/JWKS metadata plus audience and claim rules, and Firebase-protected tenant self-service CRUD endpoints that the later session-exchange flow can reuse directly.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- M control-plane/internal/api/router.go
+- A control-plane/internal/api/tenant_auth_provider.go
+- A control-plane/internal/store/firestore_tenant_store.go
+- A control-plane/internal/tenant/service.go
