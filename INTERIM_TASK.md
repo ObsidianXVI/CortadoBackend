@@ -93,8 +93,8 @@ These are not changes I am allowed to implement in this task, but they are prere
 1. Real session flow in Flutter Web currently means the browser must call `POST /v1/sessions` with a raw `api_key` and `user_id`.
    - Practical caveat: if `demo_app` does this directly in the browser, the bootstrap API key is exposed to the user.
    - Storing the key in a `.env` file that is not checked into version control keeps it out of git, but does not hide it from the browser at runtime because Flutter Web bundles client-side configuration into assets/JS delivered to the user.
-   - This is acceptable only if you intentionally provision a tightly scoped demo API key/tenant for public or semi-public use.
-   - If that is not acceptable, you need a trusted server-side bootstrap layer outside `demo_app` before I should wire real sessions into the web app.
+   - For the currently intended localhost-only recording workflow, the user explicitly accepts this tradeoff.
+   - Even so, the key should still be a deliberately low-scope demo credential and must stay out of version control.
 2. Real workspace creation already exists, but it requires a workspace image value.
    - The demo app will need either a fixed approved image or a constrained image selector.
 3. The requested "create a Flutter web app in the workspace and open `main.dart`" flow now assumes the workspace starts as a lightweight Linux environment and Flutter is installed manually through shell commands during the demo.
@@ -111,7 +111,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 
 1. Provision and share the demo auth bootstrap approach:
    - current user direction is a browser-exposed demo API key stored outside version control
-   - note: this still exposes the key to the browser at runtime, so it must be a deliberately low-scope demo credential
+   - this is explicitly accepted for localhost-only recording use, but the key still needs to be a deliberately low-scope demo credential
 2. Confirm the exact lightweight Linux workspace image the demo app should create.
 3. Confirm the generated app location if workspace-root creation is not desired.
    - current implementation assumption: run `flutter create --platforms=web .` in the workspace root and then open `lib/main.dart`
@@ -126,6 +126,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: user confirmed the fixed package list, requested real resource-backed actions, chose real session flow unless caveats make that inappropriate, requested generating a Flutter web app in the workspace and opening `main.dart`, and declined extra package research.
 - 25/05/26: verified from local docs/code that real session bootstrap currently requires browser-side submission of `api_key` and `user_id` to `POST /v1/sessions`, workspace CRUD exists in the control-plane API, and no separate project-provisioning API surface was found.
 - 25/05/26: user clarified that the demo should use a browser-side API key kept in a non-versioned `.env` file, provision a lightweight Ubuntu/Linux workspace, rely on shell commands during the demo to install Flutter and dependencies, and that "provisioning" refers to user-tied workspace provisioning rather than a separate project resource concept.
+- 25/05/26: user confirmed the demo app will only be run on localhost for UI recording, so browser exposure of the demo API key is accepted for this workflow.
 
 ## Decisions
 - 25/05/26: keep this interim effort scoped to `demo_app/` first and avoid touching the main Cortado package/backend unless a concrete integration gap is proven during demo implementation.
@@ -133,6 +134,7 @@ Before I implement the demo app, you should handle or confirm these prerequisite
 - 25/05/26: the demo package list is fixed to `flutter_monaco`, `flutter_code_editor`, `code_forge`, and `lite_code_editor`.
 - 25/05/26: the demo should use real resource-backed actions rather than simulated lifecycle actions.
 - 25/05/26: the preferred auth path is a real session flow using a browser-side demo API key kept outside version control, with the caveat that this still exposes the key to the browser at runtime and therefore requires a deliberately low-scope demo credential.
+- 25/05/26: localhost-only demo recording makes the browser-exposed demo API key acceptable for this interim task, provided it remains out of version control and scoped narrowly.
 - 25/05/26: the demo should provision a lightweight Linux workspace and rely on terminal-driven installation of Flutter/tooling rather than assuming a prebuilt Flutter-ready image.
 - 25/05/26: "provisioning" in this interim task refers to user-tied workspace provisioning on the Cortado backend, not to a separate project resource.
 - 25/05/26: unless the user overrides it later, implementation should assume the Flutter app is created in the workspace root and the target editor file is `lib/main.dart`.
