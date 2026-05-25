@@ -60,7 +60,14 @@ func TestServiceCreateSessionIssuesTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new jwks verifier: %v", err)
 	}
-	token, err := jwt.ParseWithClaims(tokens.AccessToken, &AccessClaims{}, verifier.Keyfunc, jwt.WithValidMethods([]string{"RS256"}))
+	token, err := jwt.ParseWithClaims(
+		tokens.AccessToken,
+		&AccessClaims{},
+		verifier.Keyfunc,
+		jwt.WithValidMethods([]string{"RS256"}),
+		jwt.WithTimeFunc(func() time.Time { return now }),
+		jwt.WithoutClaimsValidation(),
+	)
 	if err != nil {
 		t.Fatalf("parse access token: %v", err)
 	}
@@ -93,7 +100,7 @@ func TestServiceCreateSessionUsesValidationCache(t *testing.T) {
 		t.Fatalf("hash api key: %v", err)
 	}
 
-	cache := &cacheStub{entries: map[string]string{}}
+	cache := &cacheStub{entries: map[string]APIKeyIdentity{}}
 	repository := &repositoryStub{
 		apiKeys: []APIKeyRecord{
 			{Hash: string(hash), TenantID: "tenant-1"},
@@ -122,6 +129,71 @@ func TestServiceCreateSessionUsesValidationCache(t *testing.T) {
 	}
 	if cache.putCalls != 1 || cache.getCalls < 2 {
 		t.Fatalf("unexpected cache calls: gets=%d puts=%d", cache.getCalls, cache.putCalls)
+	}
+}
+
+func TestServiceCreateSessionRejectsMismatchedBoundUser(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := NewService(ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &repositoryStub{
+			apiKeys: []APIKeyRecord{
+				{
+					Hash:     string(hash),
+					TenantID: "tenant-1",
+					UserID:   "firebase-user-1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	if _, err := service.CreateSession(context.Background(), "secret-api-key", "user-2"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected invalid credentials error, got %v", err)
+	}
+}
+
+func TestServiceCreateSessionRejectsMismatchedCachedBoundUser(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	cache := &cacheStub{
+		entries: map[string]APIKeyIdentity{
+			cacheKey("secret-api-key"): {
+				TenantID: "tenant-1",
+				UserID:   "firebase-user-1",
+			},
+		},
+	}
+
+	service, err := NewService(ServiceConfig{
+		Cache:         cache,
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    &repositoryStub{},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	if _, err := service.CreateSession(context.Background(), "secret-api-key", "user-2"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected invalid credentials error, got %v", err)
 	}
 }
 
@@ -183,14 +255,14 @@ func TestServiceRefreshSessionIssuesNewAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	initialClaims := parseAccessClaims(t, service, issued.AccessToken)
+	initialClaims := parseAccessClaims(t, service, issued.AccessToken, now)
 
 	now = now.Add(2 * time.Hour)
 	refreshedToken, err := service.RefreshSession(context.Background(), issued.RefreshToken)
 	if err != nil {
 		t.Fatalf("refresh session: %v", err)
 	}
-	refreshedClaims := parseAccessClaims(t, service, refreshedToken)
+	refreshedClaims := parseAccessClaims(t, service, refreshedToken, now)
 
 	if refreshedClaims.Subject != "user-1" {
 		t.Fatalf("unexpected subject: got %q want %q", refreshedClaims.Subject, "user-1")
@@ -253,14 +325,21 @@ func TestServiceRefreshSessionRejectsInvalidOrExpiredToken(t *testing.T) {
 	}
 }
 
-func parseAccessClaims(t *testing.T, service *Service, accessToken string) *AccessClaims {
+func parseAccessClaims(t *testing.T, service *Service, accessToken string, now time.Time) *AccessClaims {
 	t.Helper()
 
 	verifier, err := keyfunc.NewJWKSetJSON(json.RawMessage(service.JWKS()))
 	if err != nil {
 		t.Fatalf("new jwks verifier: %v", err)
 	}
-	token, err := jwt.ParseWithClaims(accessToken, &AccessClaims{}, verifier.Keyfunc, jwt.WithValidMethods([]string{"RS256"}))
+	token, err := jwt.ParseWithClaims(
+		accessToken,
+		&AccessClaims{},
+		verifier.Keyfunc,
+		jwt.WithValidMethods([]string{"RS256"}),
+		jwt.WithTimeFunc(func() time.Time { return now }),
+		jwt.WithoutClaimsValidation(),
+	)
 	if err != nil {
 		t.Fatalf("parse access token: %v", err)
 	}
@@ -298,7 +377,7 @@ func (r *repositoryStub) GetRefreshToken(_ context.Context, refreshToken string)
 }
 
 type cacheStub struct {
-	entries  map[string]string
+	entries  map[string]APIKeyIdentity
 	getCalls int
 	putCalls int
 }
@@ -307,14 +386,17 @@ func (c *cacheStub) Close() error {
 	return nil
 }
 
-func (c *cacheStub) GetTenantID(_ context.Context, apiKey string) (string, bool, error) {
+func (c *cacheStub) GetAPIKeyIdentity(_ context.Context, apiKey string) (APIKeyIdentity, bool, error) {
 	c.getCalls++
-	tenantID, ok := c.entries[cacheKey(apiKey)]
-	return tenantID, ok, nil
+	identity, ok := c.entries[cacheKey(apiKey)]
+	if !ok {
+		return APIKeyIdentity{}, false, nil
+	}
+	return identity, true, nil
 }
 
-func (c *cacheStub) PutTenantID(_ context.Context, apiKey, tenantID string, _ time.Duration) error {
+func (c *cacheStub) PutAPIKeyIdentity(_ context.Context, apiKey string, identity APIKeyIdentity, _ time.Duration) error {
 	c.putCalls++
-	c.entries[cacheKey(apiKey)] = tenantID
+	c.entries[cacheKey(apiKey)] = identity
 	return nil
 }

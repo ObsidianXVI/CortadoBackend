@@ -44,8 +44,8 @@ type Repository interface {
 
 type ValidationCache interface {
 	Close() error
-	GetTenantID(ctx context.Context, apiKey string) (string, bool, error)
-	PutTenantID(ctx context.Context, apiKey, tenantID string, ttl time.Duration) error
+	GetAPIKeyIdentity(ctx context.Context, apiKey string) (APIKeyIdentity, bool, error)
+	PutAPIKeyIdentity(ctx context.Context, apiKey string, identity APIKeyIdentity, ttl time.Duration) error
 }
 
 type ServiceConfig struct {
@@ -132,13 +132,16 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 		return SessionTokens{}, ErrInvalidRequest
 	}
 
-	tenantID, err := s.resolveTenantID(ctx, apiKey)
+	identity, err := s.resolveAPIKeyIdentity(ctx, apiKey)
 	if err != nil {
 		return SessionTokens{}, err
 	}
+	if identity.UserID != "" && identity.UserID != strings.TrimSpace(userID) {
+		return SessionTokens{}, ErrInvalidCredentials
+	}
 
 	now := s.now().UTC()
-	accessToken, jti, err := s.issueAccessToken(now, tenantID, userID)
+	accessToken, jti, err := s.issueAccessToken(now, identity.TenantID, userID)
 	if err != nil {
 		return SessionTokens{}, err
 	}
@@ -149,7 +152,7 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 		ExpiresAt:    now.Add(refreshTokenTTL),
 		JTI:          jti,
 		RefreshToken: refreshToken,
-		TenantID:     tenantID,
+		TenantID:     identity.TenantID,
 		UserID:       userID,
 	}); err != nil {
 		return SessionTokens{}, fmt.Errorf("save refresh token: %w", err)
@@ -190,20 +193,20 @@ func (s *Service) JWKS() []byte {
 	return append([]byte(nil), s.jwksJSON...)
 }
 
-func (s *Service) resolveTenantID(ctx context.Context, apiKey string) (string, error) {
+func (s *Service) resolveAPIKeyIdentity(ctx context.Context, apiKey string) (APIKeyIdentity, error) {
 	if s.cache != nil {
-		tenantID, ok, err := s.cache.GetTenantID(ctx, apiKey)
+		identity, ok, err := s.cache.GetAPIKeyIdentity(ctx, apiKey)
 		if err != nil {
-			return "", fmt.Errorf("get validation cache entry: %w", err)
+			return APIKeyIdentity{}, fmt.Errorf("get validation cache entry: %w", err)
 		}
 		if ok {
-			return tenantID, nil
+			return identity, nil
 		}
 	}
 
 	apiKeys, err := s.repository.ListAPIKeys(ctx)
 	if err != nil {
-		return "", fmt.Errorf("list api keys: %w", err)
+		return APIKeyIdentity{}, fmt.Errorf("list api keys: %w", err)
 	}
 
 	for _, record := range apiKeys {
@@ -213,15 +216,19 @@ func (s *Service) resolveTenantID(ctx context.Context, apiKey string) (string, e
 		if err := bcrypt.CompareHashAndPassword([]byte(record.Hash), []byte(apiKey)); err != nil {
 			continue
 		}
+		identity := APIKeyIdentity{
+			TenantID: record.TenantID,
+			UserID:   strings.TrimSpace(record.UserID),
+		}
 		if s.cache != nil {
-			if err := s.cache.PutTenantID(ctx, apiKey, record.TenantID, validationCacheTTL); err != nil {
-				return "", fmt.Errorf("write validation cache entry: %w", err)
+			if err := s.cache.PutAPIKeyIdentity(ctx, apiKey, identity, validationCacheTTL); err != nil {
+				return APIKeyIdentity{}, fmt.Errorf("write validation cache entry: %w", err)
 			}
 		}
-		return record.TenantID, nil
+		return identity, nil
 	}
 
-	return "", ErrInvalidCredentials
+	return APIKeyIdentity{}, ErrInvalidCredentials
 }
 
 func (s *Service) issueAccessToken(now time.Time, tenantID, userID string) (string, string, error) {
@@ -316,19 +323,27 @@ func (c *redisValidationCache) Close() error {
 	return c.client.Close()
 }
 
-func (c *redisValidationCache) GetTenantID(ctx context.Context, apiKey string) (string, bool, error) {
-	tenantID, err := c.client.Get(ctx, cacheKey(apiKey)).Result()
+func (c *redisValidationCache) GetAPIKeyIdentity(ctx context.Context, apiKey string) (APIKeyIdentity, bool, error) {
+	payload, err := c.client.Get(ctx, cacheKey(apiKey)).Result()
 	if errors.Is(err, redis.Nil) {
-		return "", false, nil
+		return APIKeyIdentity{}, false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return APIKeyIdentity{}, false, err
 	}
-	return tenantID, true, nil
+	var identity APIKeyIdentity
+	if err := json.Unmarshal([]byte(payload), &identity); err != nil {
+		return APIKeyIdentity{}, false, err
+	}
+	return identity, true, nil
 }
 
-func (c *redisValidationCache) PutTenantID(ctx context.Context, apiKey, tenantID string, ttl time.Duration) error {
-	return c.client.Set(ctx, cacheKey(apiKey), tenantID, ttl).Err()
+func (c *redisValidationCache) PutAPIKeyIdentity(ctx context.Context, apiKey string, identity APIKeyIdentity, ttl time.Duration) error {
+	payload, err := json.Marshal(identity)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, cacheKey(apiKey), payload, ttl).Err()
 }
 
 type memoryValidationCache struct {
@@ -338,7 +353,7 @@ type memoryValidationCache struct {
 
 type memoryValidationCacheEntry struct {
 	expiresAt time.Time
-	tenantID  string
+	identity  APIKeyIdentity
 }
 
 func newMemoryValidationCache() *memoryValidationCache {
@@ -351,28 +366,28 @@ func (c *memoryValidationCache) Close() error {
 	return nil
 }
 
-func (c *memoryValidationCache) GetTenantID(_ context.Context, apiKey string) (string, bool, error) {
+func (c *memoryValidationCache) GetAPIKeyIdentity(_ context.Context, apiKey string) (APIKeyIdentity, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	entry, ok := c.entries[cacheKey(apiKey)]
 	if !ok {
-		return "", false, nil
+		return APIKeyIdentity{}, false, nil
 	}
 	if time.Now().UTC().After(entry.expiresAt) {
 		delete(c.entries, cacheKey(apiKey))
-		return "", false, nil
+		return APIKeyIdentity{}, false, nil
 	}
-	return entry.tenantID, true, nil
+	return entry.identity, true, nil
 }
 
-func (c *memoryValidationCache) PutTenantID(_ context.Context, apiKey, tenantID string, ttl time.Duration) error {
+func (c *memoryValidationCache) PutAPIKeyIdentity(_ context.Context, apiKey string, identity APIKeyIdentity, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.entries[cacheKey(apiKey)] = memoryValidationCacheEntry{
 		expiresAt: time.Now().UTC().Add(ttl),
-		tenantID:  tenantID,
+		identity:  identity,
 	}
 	return nil
 }

@@ -45,7 +45,8 @@ func main() {
 		}
 	}()
 
-	authService, err := newSessionService(firestoreClient)
+	authStore := newAuthStore(firestoreClient)
+	authService, err := newSessionService(authStore)
 	if err != nil {
 		log.Fatalf("initialize auth service: %v", err)
 	}
@@ -127,16 +128,18 @@ func newFirestoreClient(ctx context.Context, projectID string) (*firestore.Clien
 	return client, nil
 }
 
-func newSessionService(firestoreClient *firestore.Client) (*auth.Service, error) {
-	authStore := store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
+func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {
+	return store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
 		APIKeysCollection:       os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
 		RefreshTokensCollection: os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
 	})
+}
 
+func newSessionService(repository auth.Repository) (*auth.Service, error) {
 	service, err := auth.NewService(auth.ServiceConfig{
 		Cache:         auth.NewValidationCacheFromEnv(),
 		PrivateKeyPEM: os.Getenv("CORTADO_JWT_PRIVATE_KEY_PEM"),
-		Repository:    authStore,
+		Repository:    repository,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create auth service: %w", err)

@@ -790,3 +790,23 @@
 - M flutter/lib/src/workspace_manager.dart
 - M flutter/pubspec.yaml
 - M flutter/test/workspace_manager_test.dart
+25/05/26 05:42 [FEAT] (pending) `dev-pro-large` Added Firebase-authenticated API key issuance to the control plane with tenant resolution from the Firebase `tenant_id` custom claim, bound issued keys to the creating Firebase UID so session creation cannot impersonate another user, extended cached API-key validation to carry tenant and user identity, and documented the new auth/bootstrap path without advancing the active Feature 7.1 release pointer.
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M docs/README.md
+- M docs/control-plane.md
+- M docs/flutter-package.md
+- M docs/system-architecture.md
+- M control-plane/cmd/portforward/main.go
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- M control-plane/go.mod
+- M control-plane/go.sum
+- A control-plane/internal/api/api_keys.go
+- M control-plane/internal/api/router.go
+- A control-plane/internal/auth/api_keys.go
+- A control-plane/internal/auth/firebase.go
+- M control-plane/internal/auth/model.go
+- M control-plane/internal/auth/service.go
+- A control-plane/internal/middleware/firebase_auth.go
+- M control-plane/internal/store/firestore_auth_store.go

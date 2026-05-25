@@ -14,6 +14,8 @@ import (
 )
 
 type RouterConfig struct {
+	APIKeyAuth       func(http.Handler) http.Handler
+	APIKeySvc        APIKeyService
 	AICompletionSvc  AICompletionService
 	ConnectHandler   http.Handler
 	JWKSProvider     JWKSProvider
@@ -24,6 +26,12 @@ type RouterConfig struct {
 
 type AICompletionService interface {
 	StreamCompletion(ctx context.Context, params ai.CompletionParams, emit func(string) error) error
+}
+
+type APIKeyService interface {
+	IssueAPIKey(ctx context.Context, tenantID, userID string) (auth.IssuedAPIKey, error)
+	ListAPIKeys(ctx context.Context, tenantID, userID string) ([]auth.APIKey, error)
+	RevokeAPIKey(ctx context.Context, tenantID, userID, keyID string) (auth.APIKey, error)
 }
 
 type SessionService interface {
@@ -66,6 +74,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			sessionsHandler := newSessionsHandler(cfg.SessionSvc)
 			r.Post("/sessions", sessionsHandler.create)
 			r.Post("/sessions/refresh", sessionsHandler.refresh)
+		}
+		if cfg.APIKeySvc != nil && cfg.APIKeyAuth != nil {
+			r.Group(func(firebaseProtected chi.Router) {
+				firebaseProtected.Use(cfg.APIKeyAuth)
+				handler := newAPIKeysHandler(cfg.APIKeySvc)
+				firebaseProtected.Post("/api-keys", handler.issue)
+				firebaseProtected.Get("/api-keys", handler.list)
+				firebaseProtected.Delete("/api-keys/{id}", handler.revoke)
+			})
 		}
 		r.Group(func(protected chi.Router) {
 			protected.Use(cpmiddleware.NewAuthMiddleware(cpmiddleware.AuthConfig{JWKSJSON: jwksJSON}))

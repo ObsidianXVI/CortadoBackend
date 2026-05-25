@@ -26,6 +26,8 @@ The runtime path is:
 
 `Flutter package` -> `control-plane HTTP API` -> `workspace record in Firestore` -> `GKE pod/service` -> `workspace agent gRPC` -> `PTY/filesystem` -> back to `control-plane` -> back to the Flutter client.
 
+For production-style auth, the control plane can now also mint Cortado API keys from Firebase-authenticated requests. That bootstrap path is documented in [control-plane.md](control-plane.md).
+
 The control plane never talks to the local filesystem directly. File operations are proxied to the agent in the workspace pod. Terminal traffic is multiplexed over a single WebSocket using a binary frame format. The agent is the only process that touches the workspace mount at `/workspace`.
 
 ## Data Shapes You Will See Often

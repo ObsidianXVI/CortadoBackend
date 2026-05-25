@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"cloud.google.com/go/firestore"
 	"github.com/your-org/cortado/control-plane/internal/auth"
@@ -60,6 +61,16 @@ func (s *FirestoreAuthStore) ListAPIKeys(ctx context.Context) ([]auth.APIKeyReco
 		}
 		records = append(records, record)
 	}
+}
+
+func (s *FirestoreAuthStore) SaveAPIKey(ctx context.Context, record auth.APIKeyRecord) error {
+	if strings.TrimSpace(record.ID) == "" {
+		return fmt.Errorf("save api key document: id is required")
+	}
+	if _, err := s.client.Collection(s.apiKeysCollection).Doc(record.ID).Set(ctx, record); err != nil {
+		return fmt.Errorf("save api key document: %w", err)
+	}
+	return nil
 }
 
 func (s *FirestoreAuthStore) SaveRefreshToken(ctx context.Context, token auth.RefreshTokenRecord) error {

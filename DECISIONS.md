@@ -63,3 +63,11 @@
 
 - Task 7.1.2 validates requested workspace ports through the agent `ListPorts` RPC, then proxies HTTP and WebSocket traffic directly to the workspace headless-Service DNS target instead of adding a separate agent HTTP port-proxy endpoint.
   Rationale: the agent already exposes the authoritative port list, while the control plane already knows how to resolve workspace service DNS names inside the cluster network. Reusing those two surfaces keeps the preview gateway smaller, avoids inventing a second proxy hop inside the agent, and stays compatible with the existing Cloud Run to GKE private-routing model.
+
+## 25/05/26
+
+- User-issued Cortado API keys are minted through Firebase-authenticated control-plane endpoints, and the tenant for each issued key comes from the Firebase ID token custom claim `tenant_id`.
+  Rationale: the user explicitly chose the Firebase custom-claim model instead of a fixed tenant. This keeps tenant routing out of request bodies, makes the tenant decision verifiable at token-validation time, and avoids inventing a second tenant lookup system inside Cortado.
+
+- API keys issued through the Firebase flow are bound to the Firebase UID that created them, and `POST /v1/sessions` rejects any `user_id` that does not match a bound key's stored owner.
+  Rationale: without binding the key to the verified Firebase user, any holder of the raw key could choose an arbitrary `user_id` when creating a session. Persisting and caching both tenant and user identity closes that impersonation gap while staying compatible with older tenant-scoped keys that have no stored `userId`.

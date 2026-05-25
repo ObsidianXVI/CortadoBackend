@@ -70,21 +70,42 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 	return service, nil
 }
 
-func newSessionService(firestoreClient *firestore.Client) (*auth.Service, error) {
-	authStore := store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
+func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {
+	return store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
 		APIKeysCollection:       os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
 		RefreshTokensCollection: os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
 	})
+}
 
+func newSessionService(repository auth.Repository) (*auth.Service, error) {
 	service, err := auth.NewService(auth.ServiceConfig{
 		Cache:         auth.NewValidationCacheFromEnv(),
 		PrivateKeyPEM: os.Getenv("CORTADO_JWT_PRIVATE_KEY_PEM"),
-		Repository:    authStore,
+		Repository:    repository,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create auth service: %w", err)
 	}
 	return service, nil
+}
+
+func newAPIKeyService(repository auth.APIKeyRepository) (*auth.APIKeyService, error) {
+	service, err := auth.NewAPIKeyService(auth.APIKeyServiceConfig{
+		Repository: repository,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create api key service: %w", err)
+	}
+	return service, nil
+}
+
+func newFirebaseVerifier(ctx context.Context, projectID string) (*auth.FirebaseVerifier, error) {
+	firebaseProjectID := envOrDefault("CORTADO_FIREBASE_PROJECT_ID", projectID)
+	verifier, err := auth.NewFirebaseVerifier(ctx, firebaseProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("create firebase verifier: %w", err)
+	}
+	return verifier, nil
 }
 
 func newAIService(projectID string, resolver ai.WorkspaceResolver) (*ai.Service, error) {

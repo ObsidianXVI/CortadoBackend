@@ -10,7 +10,9 @@ IN PROGRESS
 Completed Task 7.1.2 by adding the dedicated `cortado-portforward` Cloud Run gateway binary and Dockerfile, validating workspace ownership plus detected port exposure before forwarding, splitting plain HTTP reverse-proxy handling from raw WebSocket hijack/tunnel handling, wiring a workspace agent `ListPorts` client into the control plane, and extending the Terraform Cloud Run module plus both env stacks with the port-forward service deployment path and URI outputs.
 
 ## What was done this session
-Verified the new gateway slice with control-plane tests/builds and Terraform validation for both `dev` and `prod`, then advanced the tracker to the Flutter preview integration work.
+Completed a user-directed auth maintenance slice in the control plane by adding Firebase-authenticated API key issuance/list/revoke endpoints, binding issued API keys to the Firebase UID, and extending cached API key validation to carry both tenant and user identity so session creation cannot impersonate a different user with a user-bound key.
+
+The active feature pointer remains on Task 7.1.3; the Flutter preview work has not advanced during this interruption.
 
 ## Remaining work this session
 Task 7.1.3:

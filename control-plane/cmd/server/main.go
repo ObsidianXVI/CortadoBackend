@@ -14,6 +14,7 @@ import (
 	"github.com/your-org/cortado/control-plane/internal/api"
 	filesyncsvc "github.com/your-org/cortado/control-plane/internal/filesync"
 	"github.com/your-org/cortado/control-plane/internal/gateway"
+	cpmiddleware "github.com/your-org/cortado/control-plane/internal/middleware"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
 	"google.golang.org/grpc"
 )
@@ -50,7 +51,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize workspace service: %v", err)
 	}
-	authService, err := newSessionService(firestoreClient)
+	authStore := newAuthStore(firestoreClient)
+	authService, err := newSessionService(authStore)
 	if err != nil {
 		log.Fatalf("initialize auth service: %v", err)
 	}
@@ -59,6 +61,14 @@ func main() {
 			log.Printf("close auth service: %v", closeErr)
 		}
 	}()
+	apiKeyService, err := newAPIKeyService(authStore)
+	if err != nil {
+		log.Fatalf("initialize api key service: %v", err)
+	}
+	firebaseVerifier, err := newFirebaseVerifier(ctx, projectID)
+	if err != nil {
+		log.Fatalf("initialize firebase verifier: %v", err)
+	}
 	resolver := gateway.StaticWorkspaceResolver{
 		Namespace: workspaceNamespace,
 		DNSDomain: clusterDNSDomain,
@@ -106,6 +116,11 @@ func main() {
 	filesyncpb.RegisterFileSyncServiceServer(grpcServer, fileSyncService)
 
 	httpHandler := api.NewRouter(api.RouterConfig{
+		APIKeyAuth: cpmiddleware.NewFirebaseAuthMiddleware(cpmiddleware.FirebaseAuthConfig{
+			TenantClaim: envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
+			Verifier:    firebaseVerifier,
+		}),
+		APIKeySvc:        apiKeyService,
 		AICompletionSvc:  aiService,
 		ConnectHandler:   connectHandler,
 		JWKSProvider:     authService,

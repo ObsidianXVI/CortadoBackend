@@ -24,6 +24,12 @@ The router is assembled in [`control-plane/internal/api/router.go`](../control-p
 - `POST /v1/sessions`
 - `POST /v1/sessions/refresh`
 
+### Firebase-authenticated API key routes
+
+- `POST /v1/api-keys`
+- `GET /v1/api-keys`
+- `DELETE /v1/api-keys/{id}`
+
 ### Authenticated workspace routes
 
 - `GET /v1/workspaces`
@@ -50,6 +56,8 @@ Requests normally authenticate with an RS256 JWT access token. The token contain
 
 The middleware in [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go) also supports the development bypass when `CORTADO_ENV=development` and the request carries `X-Cortado-Dev-Token: dev-bypass` or `?dev_token=dev-bypass` for WebSocket upgrades.
 
+The API key issuance routes use a separate middleware in [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go). That middleware verifies a Firebase ID token from `Authorization: Bearer ...`, extracts the tenant from the `tenant_id` custom claim by default, and injects the Firebase UID as the request user.
+
 ## Session Flow
 
 `POST /v1/sessions` accepts:
@@ -71,6 +79,32 @@ and returns:
 ```
 
 The auth service looks up the API key against Firestore-backed records, resolves the tenant, issues a short-lived access token, and stores the refresh token. `POST /v1/sessions/refresh` accepts the refresh token and returns a new access token.
+
+If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds when the caller-provided `user_id` matches that bound owner. The validation cache stores both tenant and user identity so repeated session creation preserves the same check on cache hits.
+
+## API Key Issuance Flow
+
+`POST /v1/api-keys` requires a Firebase ID token and returns the raw Cortado API key once plus its stored metadata:
+
+```json
+{
+  "apiKey": "cortado_...",
+  "record": {
+    "id": "key-123",
+    "tenantId": "tenant-acme",
+    "userId": "firebase-user-1",
+    "revoked": false,
+    "createdAt": "2026-05-25T05:00:00Z"
+  }
+}
+```
+
+The raw key is never stored in Firestore. The control plane stores only the bcrypt hash plus `tenantId`, `userId`, `revoked`, and `createdAt`. `GET /v1/api-keys` lists the current Firebase user's keys for that tenant, and `DELETE /v1/api-keys/{id}` marks a matching key revoked.
+
+### Firebase env knobs
+
+- `CORTADO_FIREBASE_PROJECT_ID` overrides the Firebase project used by the Admin SDK. It defaults to the same GCP project ID as the control plane.
+- `CORTADO_FIREBASE_TENANT_CLAIM` overrides the custom claim name. It defaults to `tenant_id`.
 
 ## Workspace Lifecycle
 
@@ -146,6 +180,8 @@ File listing:
 
 - API router: [`control-plane/internal/api/router.go`](../control-plane/internal/api/router.go)
 - Auth middleware: [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go)
+- Firebase auth middleware: [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go)
+- API key service: [`control-plane/internal/auth/api_keys.go`](../control-plane/internal/auth/api_keys.go)
 - Workspace service: [`control-plane/internal/workspace/service.go`](../control-plane/internal/workspace/service.go)
 - WebSocket mux: [`control-plane/internal/gateway/mux.go`](../control-plane/internal/gateway/mux.go)
 - File bridge: [`control-plane/internal/gateway/file_bridge.go`](../control-plane/internal/gateway/file_bridge.go)

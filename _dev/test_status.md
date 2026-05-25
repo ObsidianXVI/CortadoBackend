@@ -367,3 +367,9 @@
 24/05/26 04:22
 - PASS `cd daemon && go test ./...`
 - PASS `cd daemon && CGO_ENABLED=0 go build ./...`
+25/05/26 05:42
+- PASS `cd control-plane && GOTOOLCHAIN=local go mod tidy`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/auth ./internal/api ./internal/middleware ./internal/store`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

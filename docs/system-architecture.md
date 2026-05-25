@@ -18,14 +18,15 @@ The repository root mirrors that split:
 
 ## End-to-End Request Path
 
-1. A consumer app creates a session through `POST /v1/sessions`.
-2. The Flutter package stores the access token and refresh token in `CortadoAuthSession`.
-3. The app creates or lists workspaces through `WorkspaceManager`.
-4. The control plane stores workspace metadata in Firestore and asks the Kubernetes provisioner to create or stop the pod.
-5. When the app opens a workspace, the control plane upgrades a WebSocket on `/v1/workspaces/{id}/connect`.
-6. The browser/client and the control plane exchange binary mux frames.
-7. For terminal traffic, the control plane opens a gRPC stream to the workspace agent and bridges data to and from the PTY.
-8. For file sync traffic, the control plane opens a gRPC `WatchFiles` stream and forwards file events to the client.
+1. A trusted frontend or bootstrap flow verifies the user with Firebase and can mint a Cortado API key through `POST /v1/api-keys`.
+2. A consumer app creates a Cortado session through `POST /v1/sessions`.
+3. The Flutter package stores the access token and refresh token in `CortadoAuthSession`.
+4. The app creates or lists workspaces through `WorkspaceManager`.
+5. The control plane stores workspace metadata in Firestore and asks the Kubernetes provisioner to create or stop the pod.
+6. When the app opens a workspace, the control plane upgrades a WebSocket on `/v1/workspaces/{id}/connect`.
+7. The browser/client and the control plane exchange binary mux frames.
+8. For terminal traffic, the control plane opens a gRPC stream to the workspace agent and bridges data to and from the PTY.
+9. For file sync traffic, the control plane opens a gRPC `WatchFiles` stream and forwards file events to the client.
 
 ## Workspace Topology
 
@@ -44,7 +45,7 @@ That DNS name is used for gRPC connections from Cloud Run to the agent pod.
 
 ## Where Data Lives
 
-- **Firestore** stores workspace metadata and auth/session data.
+- **Firestore** stores workspace metadata, hashed API keys, and refresh-token/session data.
 - **Redis** is used as the auth validation cache.
 - **Pub/Sub** receives usage events from the workspace agent.
 - **GKE** runs the workspaces and the agents.

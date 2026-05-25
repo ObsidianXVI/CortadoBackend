@@ -20,6 +20,8 @@ The `flutter/` directory is a package, not a standalone app shell. Downstream ID
 - it decodes the JWT `exp` claim so it can refresh before expiry
 - it automatically schedules refreshes
 
+`CortadoAuthSession` does not mint API keys itself. It expects a raw Cortado API key from a trusted bootstrap flow such as the control-plane Firebase-authenticated `POST /v1/api-keys` route.
+
 The package supports both:
 
 - bearer-token auth for normal HTTP requests
