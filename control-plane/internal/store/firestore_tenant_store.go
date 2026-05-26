@@ -55,7 +55,7 @@ func (s *FirestoreTenantStore) SaveMetadata(ctx context.Context, metadata tenant
 	if strings.TrimSpace(metadata.TenantID) == "" {
 		return fmt.Errorf("save tenant metadata document: tenant id is required")
 	}
-	if _, err := s.collectionRef().Doc(metadata.TenantID).Set(ctx, metadata); err != nil {
+	if _, err := s.collectionRef().Doc(metadata.TenantID).Set(ctx, metadata, firestore.MergeAll); err != nil {
 		return fmt.Errorf("save tenant metadata document: %w", err)
 	}
 	return nil

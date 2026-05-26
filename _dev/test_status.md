@@ -402,3 +402,9 @@
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && go build ./...`
 - PASS `cd agent && go build ./...`
+26/05/26 02:48
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && go build ./...`
+- PASS `cd agent && go build ./...`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`

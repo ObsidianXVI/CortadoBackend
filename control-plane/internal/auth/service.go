@@ -32,9 +32,11 @@ const (
 
 var (
 	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrInvalidRequest      = errors.New("api_key and user_id are required")
+	ErrInvalidRequest      = errors.New("api_key is required")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrInvalidRefreshInput = errors.New("refresh_token is required")
+	ErrPlatformUserID      = errors.New("user_id is not allowed for platform api keys")
+	ErrUserIDRequired      = errors.New("user_id is required for personal api keys")
 )
 
 type Repository interface {
@@ -71,7 +73,8 @@ type Service struct {
 }
 
 type AccessClaims struct {
-	TenantID string `json:"tid"`
+	ActorType string `json:"act,omitempty"`
+	TenantID  string `json:"tid"`
 	jwt.RegisteredClaims
 }
 
@@ -135,7 +138,9 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (SessionTokens, error) {
-	if strings.TrimSpace(apiKey) == "" || strings.TrimSpace(userID) == "" {
+	apiKey = strings.TrimSpace(apiKey)
+	userID = strings.TrimSpace(userID)
+	if apiKey == "" {
 		return SessionTokens{}, ErrInvalidRequest
 	}
 
@@ -143,11 +148,23 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 	if err != nil {
 		return SessionTokens{}, err
 	}
-	if identity.UserID != "" && identity.UserID != strings.TrimSpace(userID) {
+
+	if identity.Kind == APIKeyKindPlatform {
+		if userID != "" {
+			return SessionTokens{}, ErrPlatformUserID
+		}
+		subject := platformSubject(identity.TenantID)
+		return s.createSessionTokens(ctx, identity.TenantID, subject, ActorTypePlatform)
+	}
+
+	if userID == "" {
+		return SessionTokens{}, ErrUserIDRequired
+	}
+	if identity.UserID != "" && identity.UserID != userID {
 		return SessionTokens{}, ErrInvalidCredentials
 	}
 
-	return s.createSessionTokens(ctx, identity.TenantID, userID)
+	return s.createSessionTokens(ctx, identity.TenantID, userID, ActorTypeUser)
 }
 
 func (s *Service) ExchangeFirebaseSession(ctx context.Context, idToken string) (SessionTokens, error) {
@@ -165,7 +182,7 @@ func (s *Service) ExchangeFirebaseSession(ctx context.Context, idToken string) (
 		return SessionTokens{}, err
 	}
 
-	return s.createSessionTokens(ctx, account.PersonalTenantID, account.UserID)
+	return s.createSessionTokens(ctx, account.PersonalTenantID, account.UserID, ActorTypeUser)
 }
 
 func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (string, error) {
@@ -186,7 +203,8 @@ func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (stri
 		return "", ErrInvalidRefreshToken
 	}
 
-	accessToken, _, err := s.issueAccessToken(now, record.TenantID, record.UserID)
+	actorType := normalizedActorType(record.ActorType)
+	accessToken, _, err := s.issueAccessToken(now, record.TenantID, record.UserID, actorType)
 	if err != nil {
 		return "", err
 	}
@@ -221,6 +239,7 @@ func (s *Service) resolveAPIKeyIdentity(ctx context.Context, apiKey string) (API
 			continue
 		}
 		identity := APIKeyIdentity{
+			Kind:     normalizeAPIKeyKind(record.Kind),
 			TenantID: record.TenantID,
 			UserID:   strings.TrimSpace(record.UserID),
 		}
@@ -305,15 +324,17 @@ func (s *Service) resolveFirstPartyAccount(ctx context.Context, token *VerifiedF
 	return account, nil
 }
 
-func (s *Service) createSessionTokens(ctx context.Context, tenantID, userID string) (SessionTokens, error) {
+func (s *Service) createSessionTokens(ctx context.Context, tenantID, userID, actorType string) (SessionTokens, error) {
 	now := s.now().UTC()
-	accessToken, jti, err := s.issueAccessToken(now, tenantID, userID)
+	actorType = normalizedActorType(actorType)
+	accessToken, jti, err := s.issueAccessToken(now, tenantID, userID, actorType)
 	if err != nil {
 		return SessionTokens{}, err
 	}
 
 	refreshToken := uuid.NewString()
 	if err := s.repository.SaveRefreshToken(ctx, RefreshTokenRecord{
+		ActorType:    actorType,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(refreshTokenTTL),
 		JTI:          jti,
@@ -383,9 +404,10 @@ func stableIdentitySuffix(seed string) string {
 	return hex.EncodeToString(sum[:10])
 }
 
-func (s *Service) issueAccessToken(now time.Time, tenantID, userID string) (string, string, error) {
+func (s *Service) issueAccessToken(now time.Time, tenantID, userID, actorType string) (string, string, error) {
 	claims := AccessClaims{
-		TenantID: tenantID,
+		ActorType: normalizedActorType(actorType),
+		TenantID:  tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(accessTokenTTL)),
 			ID:        uuid.NewString(),
@@ -402,6 +424,19 @@ func (s *Service) issueAccessToken(now time.Time, tenantID, userID string) (stri
 		return "", "", fmt.Errorf("sign jwt access token: %w", err)
 	}
 	return accessToken, claims.ID, nil
+}
+
+func normalizedActorType(actorType string) string {
+	switch strings.TrimSpace(actorType) {
+	case ActorTypePlatform:
+		return ActorTypePlatform
+	default:
+		return ActorTypeUser
+	}
+}
+
+func platformSubject(tenantID string) string {
+	return "platform:" + tenantID
 }
 
 func parsePrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {

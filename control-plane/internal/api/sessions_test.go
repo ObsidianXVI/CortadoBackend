@@ -36,6 +36,68 @@ func TestSessionRouteIssuesTokensWithoutDevBypass(t *testing.T) {
 	}
 }
 
+func TestSessionRouteRejectsMissingUserIDForPersonalKeys(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: sessionServiceStub{
+			err: auth.ErrUserIDRequired,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions", bytes.NewBufferString(`{"api_key":"secret"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestSessionRouteCreatesPlatformSessionWithoutUserID(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	privateKeyPEM, err := auth.GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte("platform-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+	service, err := auth.NewService(auth.ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &authRepositoryStub{
+			apiKeys: []auth.APIKeyRecord{
+				{
+					Hash:     string(hash),
+					Kind:     auth.APIKeyKindPlatform,
+					TenantID: "platform-tenant-1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new auth service: %v", err)
+	}
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: service,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions", bytes.NewBufferString(`{"api_key":"platform-api-key"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body == "" {
+		t.Fatal("expected session response body")
+	}
+}
+
 func TestSessionRefreshRouteIssuesAccessTokenWithoutDevBypass(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "production")
 

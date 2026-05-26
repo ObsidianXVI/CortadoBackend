@@ -70,6 +70,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize api key service: %v", err)
 	}
+	platformTenantService, err := newPlatformTenantService(authStore, apiKeyService)
+	if err != nil {
+		log.Fatalf("initialize platform tenant service: %v", err)
+	}
 	tenantAuthProviderService, err := newTenantAuthProviderService(tenantStore)
 	if err != nil {
 		log.Fatalf("initialize tenant auth provider service: %v", err)
@@ -130,14 +134,15 @@ func main() {
 			TenantClaim: envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
 			Verifier:    firebaseVerifier,
 		}),
-		APIKeySvc:        apiKeyService,
-		AICompletionSvc:  aiService,
-		ConnectHandler:   connectHandler,
-		JWKSProvider:     authService,
-		SessionSvc:       authService,
-		TenantAuthSvc:    tenantAuthProviderService,
-		WorkspaceFileSvc: fileService,
-		WorkspaceSvc:     workspaceService,
+		APIKeySvc:         apiKeyService,
+		AICompletionSvc:   aiService,
+		ConnectHandler:    connectHandler,
+		JWKSProvider:      authService,
+		PlatformTenantSvc: platformTenantService,
+		SessionSvc:        authService,
+		TenantAuthSvc:     tenantAuthProviderService,
+		WorkspaceFileSvc:  fileService,
+		WorkspaceSvc:      workspaceService,
 	}
 	if os.Getenv("CORTADO_ENV") == "development" {
 		routerConfig.DevBootstrapAuth = cpmiddleware.NewFirebaseAuthMiddleware(

@@ -1,29 +1,29 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.3
+v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.4
 
 ## Status
 COMPLETE
 
 ## What was done last session
-Completed Task 8.4.2 by adding the Flutter-side first-party auth client, embedded auth widget, and automatic Firebase-to-Cortado session exchange support.
+Completed Task 8.4.3 by allowing `/v1/api-keys` to authenticate with a normal Cortado session first and adding personal API key management for headless reuse after first-party sign-in.
 
 ## What was done this session
-Completed Task 8.4.3 by allowing `/v1/api-keys` to authenticate with a normal Cortado session first and fall back to Firebase token verification for compatibility, adding Flutter-side personal API key issuance/list/revoke helpers for the headless reuse path, and updating the auth/docs coverage around personal API key management after one-time first-party sign-in.
+Completed Task 8.4.4 by introducing platform-tenant bootstrap plus platform API key management routes behind normal Cortado user sessions, extending `POST /v1/sessions` and JWT claims so platform API keys can mint platform-scoped Cortado sessions without a `user_id`, and documenting the split between personal first-party auth and SaaS backend platform auth.
 
 ## Remaining work this session
-Task 8.4.3 is complete. Resume with Task 8.4.4 for platform API keys for SaaS backends.
+Feature 8.4 is complete. Resume the previously deferred v0.7 preview slice at Feature 7.1 Task 7.1.3.
 
 ## Definition of done
-- [x] authenticated Cortado users can mint, list, and revoke long-lived personal API keys after one-time sign-in
-- [x] API keys are returned raw only at issuance time while the backend continues storing only hashed key material
-- [x] the Flutter package exposes personal API key management for CLI/local-tooling bootstrap after first-party auth
-- [x] docs and tests position personal API keys as a headless reuse path rather than the default browser credential
+- [x] platform tenant records exist separately from first-party personal tenants
+- [x] authenticated Cortado users can bootstrap, list, and manage platform API keys for owned platform tenants
+- [x] platform API keys can mint Cortado sessions without a headed login flow or a `user_id`
+- [x] docs and tests position platform API keys as the SaaS/backend integration path while first-party Firebase auth remains the default browser path
 
 ## Next task after this one
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.4
-After personal API keys are in place, add platform API keys for SaaS backends that authenticate as one Cortado entity without headed user sign-in flows.
+v0.7 → Feature 7.1 (Port Forward Gateway) → Task 7.1.3
+Resume the deferred Flutter web preview slice now that the v0.8 auth feature is complete.
 
 ## Blocked on / decisions needed
 No active blockers.

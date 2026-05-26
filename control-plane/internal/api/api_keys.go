@@ -30,7 +30,7 @@ func newAPIKeysHandler(service APIKeyService) *apiKeysHandler {
 }
 
 func (h *apiKeysHandler) issue(w http.ResponseWriter, r *http.Request) {
-	tenantID, userID, ok := requestActor(r)
+	tenantID, userID, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return
@@ -49,7 +49,7 @@ func (h *apiKeysHandler) issue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiKeysHandler) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, userID, ok := requestActor(r)
+	tenantID, userID, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return
@@ -65,7 +65,7 @@ func (h *apiKeysHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *apiKeysHandler) revoke(w http.ResponseWriter, r *http.Request) {
-	tenantID, userID, ok := requestActor(r)
+	tenantID, userID, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return

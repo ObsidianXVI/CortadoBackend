@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	chi "github.com/go-chi/chi/v5"
+	"github.com/your-org/cortado/control-plane/internal/auth"
 	cpmiddleware "github.com/your-org/cortado/control-plane/internal/middleware"
 	"github.com/your-org/cortado/control-plane/internal/workspace"
 )
@@ -151,6 +152,23 @@ func requestActor(r *http.Request) (tenantID string, userID string, ok bool) {
 	}
 
 	userID, _ = cpmiddleware.UserID(r.Context())
+	return tenantID, userID, true
+}
+
+func requestUserActor(r *http.Request) (tenantID string, userID string, ok bool) {
+	tenantID, userID, ok = requestActor(r)
+	if !ok || tenantID == "" || userID == "" {
+		return "", "", false
+	}
+
+	actorType, found := cpmiddleware.ActorType(r.Context())
+	if !found || actorType == "" {
+		actorType = auth.ActorTypeUser
+	}
+	if actorType != auth.ActorTypeUser {
+		return "", "", false
+	}
+
 	return tenantID, userID, true
 }
 

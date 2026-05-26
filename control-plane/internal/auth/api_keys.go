@@ -84,6 +84,28 @@ func (s *APIKeyService) IssueAPIKey(ctx context.Context, tenantID, userID string
 		return IssuedAPIKey{}, ErrInvalidRequest
 	}
 
+	return s.issueAPIKey(ctx, APIKeyRecord{
+		Kind:     APIKeyKindPersonal,
+		TenantID: strings.TrimSpace(tenantID),
+		UserID:   strings.TrimSpace(userID),
+	})
+}
+
+func (s *APIKeyService) IssuePlatformAPIKey(ctx context.Context, tenantID, createdByUserID string) (IssuedAPIKey, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(createdByUserID) == "" {
+		return IssuedAPIKey{}, ErrInvalidRequest
+	}
+
+	return s.issueAPIKey(ctx, APIKeyRecord{
+		CreatedByUserID: strings.TrimSpace(createdByUserID),
+		Kind:            APIKeyKindPlatform,
+		TenantID:        strings.TrimSpace(tenantID),
+	})
+}
+
+func (s *APIKeyService) issueAPIKey(ctx context.Context, record APIKeyRecord) (IssuedAPIKey, error) {
+	record.Kind = normalizeAPIKeyKind(record.Kind)
+
 	rawKey, err := s.generateRawKey()
 	if err != nil {
 		return IssuedAPIKey{}, fmt.Errorf("generate api key: %w", err)
@@ -95,14 +117,10 @@ func (s *APIKeyService) IssueAPIKey(ctx context.Context, tenantID, userID string
 	}
 
 	now := s.now().UTC()
-	record := APIKeyRecord{
-		ID:        uuid.NewString(),
-		Hash:      string(hash),
-		Revoked:   false,
-		TenantID:  strings.TrimSpace(tenantID),
-		UserID:    strings.TrimSpace(userID),
-		CreatedAt: now,
-	}
+	record.ID = uuid.NewString()
+	record.Hash = string(hash)
+	record.Revoked = false
+	record.CreatedAt = now
 	if err := s.repository.SaveAPIKey(ctx, record); err != nil {
 		return IssuedAPIKey{}, fmt.Errorf("save api key: %w", err)
 	}
@@ -118,6 +136,31 @@ func (s *APIKeyService) ListAPIKeys(ctx context.Context, tenantID, userID string
 		return nil, ErrInvalidRequest
 	}
 
+	return s.listAPIKeys(ctx, func(record APIKeyRecord) bool {
+		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) {
+			return false
+		}
+		if normalizeAPIKeyKind(record.Kind) != APIKeyKindPersonal {
+			return false
+		}
+		return strings.TrimSpace(record.UserID) == strings.TrimSpace(userID)
+	})
+}
+
+func (s *APIKeyService) ListPlatformAPIKeys(ctx context.Context, tenantID string) ([]APIKey, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, ErrInvalidRequest
+	}
+
+	return s.listAPIKeys(ctx, func(record APIKeyRecord) bool {
+		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) {
+			return false
+		}
+		return normalizeAPIKeyKind(record.Kind) == APIKeyKindPlatform
+	})
+}
+
+func (s *APIKeyService) listAPIKeys(ctx context.Context, include func(APIKeyRecord) bool) ([]APIKey, error) {
 	records, err := s.repository.ListAPIKeys(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list api keys: %w", err)
@@ -125,10 +168,7 @@ func (s *APIKeyService) ListAPIKeys(ctx context.Context, tenantID, userID string
 
 	filtered := make([]APIKey, 0, len(records))
 	for _, record := range records {
-		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) {
-			continue
-		}
-		if strings.TrimSpace(record.UserID) != strings.TrimSpace(userID) {
+		if !include(record) {
 			continue
 		}
 		filtered = append(filtered, record.Metadata())
@@ -145,6 +185,31 @@ func (s *APIKeyService) RevokeAPIKey(ctx context.Context, tenantID, userID, keyI
 		return APIKey{}, ErrInvalidRequest
 	}
 
+	return s.revokeAPIKey(ctx, keyID, func(record APIKeyRecord) bool {
+		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) {
+			return false
+		}
+		if normalizeAPIKeyKind(record.Kind) != APIKeyKindPersonal {
+			return false
+		}
+		return strings.TrimSpace(record.UserID) == strings.TrimSpace(userID)
+	})
+}
+
+func (s *APIKeyService) RevokePlatformAPIKey(ctx context.Context, tenantID, keyID string) (APIKey, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(keyID) == "" {
+		return APIKey{}, ErrInvalidRequest
+	}
+
+	return s.revokeAPIKey(ctx, keyID, func(record APIKeyRecord) bool {
+		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) {
+			return false
+		}
+		return normalizeAPIKeyKind(record.Kind) == APIKeyKindPlatform
+	})
+}
+
+func (s *APIKeyService) revokeAPIKey(ctx context.Context, keyID string, include func(APIKeyRecord) bool) (APIKey, error) {
 	records, err := s.repository.ListAPIKeys(ctx)
 	if err != nil {
 		return APIKey{}, fmt.Errorf("list api keys: %w", err)
@@ -154,7 +219,7 @@ func (s *APIKeyService) RevokeAPIKey(ctx context.Context, tenantID, userID, keyI
 		if record.ID != strings.TrimSpace(keyID) {
 			continue
 		}
-		if strings.TrimSpace(record.TenantID) != strings.TrimSpace(tenantID) || strings.TrimSpace(record.UserID) != strings.TrimSpace(userID) {
+		if !include(record) {
 			return APIKey{}, ErrAPIKeyNotFound
 		}
 		record.Revoked = true
@@ -173,4 +238,13 @@ func (s *APIKeyService) generateRawKey() (string, error) {
 		return "", err
 	}
 	return s.prefix + base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func normalizeAPIKeyKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case APIKeyKindPlatform:
+		return APIKeyKindPlatform
+	default:
+		return APIKeyKindPersonal
+	}
 }

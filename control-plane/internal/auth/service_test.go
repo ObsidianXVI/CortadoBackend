@@ -166,6 +166,128 @@ func TestServiceCreateSessionRejectsMismatchedBoundUser(t *testing.T) {
 	}
 }
 
+func TestServiceCreateSessionRejectsMissingUserForPersonalKey(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := NewService(ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &repositoryStub{
+			apiKeys: []APIKeyRecord{
+				{
+					Hash:     string(hash),
+					TenantID: "tenant-1",
+					UserID:   "user-1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	if _, err := service.CreateSession(context.Background(), "secret-api-key", ""); !errors.Is(err, ErrUserIDRequired) {
+		t.Fatalf("expected user id required error, got %v", err)
+	}
+}
+
+func TestServiceCreateSessionIssuesPlatformTokensWithoutUserID(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("platform-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	now := time.Date(2026, time.May, 26, 3, 0, 0, 0, time.UTC)
+	repository := &repositoryStub{
+		apiKeys: []APIKeyRecord{
+			{
+				Hash:            string(hash),
+				Kind:            APIKeyKindPlatform,
+				TenantID:        "platform-tenant-1",
+				CreatedByUserID: "user-1",
+			},
+		},
+	}
+
+	service, err := NewService(ServiceConfig{
+		Now:           func() time.Time { return now },
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    repository,
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	tokens, err := service.CreateSession(context.Background(), "platform-api-key", "")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	claims := parseAccessClaims(t, service, tokens.AccessToken, now)
+	if claims.ActorType != ActorTypePlatform {
+		t.Fatalf("unexpected actor type: %#v", claims)
+	}
+	if claims.Subject != "platform:platform-tenant-1" {
+		t.Fatalf("unexpected subject: %#v", claims)
+	}
+	if claims.TenantID != "platform-tenant-1" {
+		t.Fatalf("unexpected tenant: %#v", claims)
+	}
+	if len(repository.savedRefreshTokens) != 1 || repository.savedRefreshTokens[0].ActorType != ActorTypePlatform {
+		t.Fatalf("unexpected refresh tokens: %#v", repository.savedRefreshTokens)
+	}
+}
+
+func TestServiceCreateSessionRejectsUserIDForPlatformKey(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("platform-api-key"), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+
+	service, err := NewService(ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &repositoryStub{
+			apiKeys: []APIKeyRecord{
+				{
+					Hash:     string(hash),
+					Kind:     APIKeyKindPlatform,
+					TenantID: "platform-tenant-1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	if _, err := service.CreateSession(context.Background(), "platform-api-key", "user-1"); !errors.Is(err, ErrPlatformUserID) {
+		t.Fatalf("expected platform user id error, got %v", err)
+	}
+}
+
 func TestServiceCreateSessionRejectsMismatchedCachedBoundUser(t *testing.T) {
 	t.Parallel()
 

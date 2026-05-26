@@ -902,3 +902,19 @@
 - M flutter/README.md
 - M flutter/lib/cortado.dart
 - A flutter/lib/src/auth/cortado_personal_api_keys.dart
+26/05/26 02:48 [FEAT] (pending) `dev-pro-large` Completed Task 8.4.4 by introducing first-party-session bootstrap for platform tenants, adding platform API key issue/list/revoke routes plus platform-scoped session issuance without `user_id`, and documenting the separation between personal first-party auth and SaaS backend platform auth before handing the tracker back to the deferred Flutter preview task.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/api/platform_tenants.go
+- M control-plane/internal/api/router.go
+- M control-plane/internal/auth/api_keys.go
+- A control-plane/internal/auth/platform_tenants.go
+- M control-plane/internal/auth/service.go
+- M control-plane/internal/middleware/auth.go
+- M control-plane/internal/store/firestore_auth_store.go
+- M docs/control-plane.md
+- M docs/flutter-package.md
+- M docs/system-architecture.md
+- M flutter/lib/src/cortado_auth_session.dart

@@ -10,6 +10,7 @@ import (
 
 	"github.com/your-org/cortado/control-plane/internal/auth"
 	cpmiddleware "github.com/your-org/cortado/control-plane/internal/middleware"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestAPIKeyRoutesIssueListAndRevokeWithFirebaseAuth(t *testing.T) {
@@ -176,6 +177,62 @@ func TestAPIKeyRoutesIssueListAndRevokeWithCortadoSessionAuth(t *testing.T) {
 	if service.revokeTenantID != "tenant-1" || service.revokeUserID != "user-1" || service.revokedID != "key-2" {
 		t.Fatalf("unexpected revoke actor: tenant=%q user=%q id=%q", service.revokeTenantID, service.revokeUserID, service.revokedID)
 	}
+}
+
+func TestAPIKeyRoutesRejectPlatformSessionAuth(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := auth.GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	service, err := auth.NewService(auth.ServiceConfig{
+		PrivateKeyPEM: privateKeyPEM,
+		Repository: &authRepositoryStub{
+			apiKeys: []auth.APIKeyRecord{
+				{
+					Hash:     mustPlatformHash(t, "platform-api-key"),
+					Kind:     auth.APIKeyKindPlatform,
+					TenantID: "platform-tenant-1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new auth service: %v", err)
+	}
+
+	sessionTokens, err := service.CreateSession(context.Background(), "platform-api-key", "")
+	if err != nil {
+		t.Fatalf("create platform session: %v", err)
+	}
+
+	router := NewRouter(RouterConfig{
+		APIKeyAuth: cpmiddleware.NewAPIKeyAuthMiddleware(cpmiddleware.APIKeyAuthConfig{
+			JWKSJSON: service.JWKS(),
+		}),
+		APIKeySvc: &apiKeyServiceStub{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/api-keys", nil)
+	req.Header.Set("Authorization", "Bearer "+sessionTokens.AccessToken)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func mustPlatformHash(t *testing.T, apiKey string) string {
+	t.Helper()
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(apiKey), 12)
+	if err != nil {
+		t.Fatalf("hash api key: %v", err)
+	}
+	return string(hash)
 }
 
 func TestAPIKeyRoutesRejectMissingAuth(t *testing.T) {

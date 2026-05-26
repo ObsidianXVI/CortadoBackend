@@ -112,6 +112,8 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	case errors.Is(err, auth.ErrFirebaseTokenMissing):
 		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, auth.ErrPlatformUserID), errors.Is(err, auth.ErrUserIDRequired):
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, auth.ErrInvalidRequest), errors.Is(err, auth.ErrInvalidRefreshInput):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:

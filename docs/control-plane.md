@@ -31,6 +31,14 @@ The router is assembled in [`control-plane/internal/api/router.go`](../control-p
 - `GET /v1/api-keys`
 - `DELETE /v1/api-keys/{id}`
 
+### Platform tenant routes
+
+- `POST /v1/platform-tenants`
+- `GET /v1/platform-tenants`
+- `POST /v1/platform-tenants/{id}/api-keys`
+- `GET /v1/platform-tenants/{id}/api-keys`
+- `DELETE /v1/platform-tenants/{id}/api-keys/{keyID}`
+
 ### Development-only Firebase bootstrap route
 
 - `POST /v1/dev/firebase/tenant-claim`
@@ -56,7 +64,8 @@ The router is assembled in [`control-plane/internal/api/router.go`](../control-p
 Requests normally authenticate with an RS256 JWT access token. The token contains:
 
 - `tid`: tenant ID
-- `sub`: user ID
+- `sub`: user or platform subject
+- `act`: actor type (`user` or `platform`)
 - standard expiration, issue time, and token ID claims
 
 The middleware in [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go) also supports the development bypass when `CORTADO_ENV=development` and the request carries `X-Cortado-Dev-Token: dev-bypass` or `?dev_token=dev-bypass` for WebSocket upgrades.
@@ -76,6 +85,8 @@ In development, the control plane also exposes a Firebase-authenticated bootstra
 }
 ```
 
+`user_id` is required for personal API keys and must be omitted for platform API keys.
+
 and returns:
 
 ```json
@@ -85,9 +96,11 @@ and returns:
 }
 ```
 
-The auth service looks up the API key against Firestore-backed records, resolves the tenant, issues a short-lived access token, and stores the refresh token. `POST /v1/sessions/exchange/firebase` verifies a first-party Firebase ID token and returns the same Cortado session shape without requiring API-key bootstrap. `POST /v1/sessions/refresh` accepts the refresh token and returns a new access token.
+The auth service looks up the API key against Firestore-backed records, resolves the tenant plus actor type, issues a short-lived access token, and stores the refresh token. `POST /v1/sessions/exchange/firebase` verifies a first-party Firebase ID token and returns the same Cortado session shape without requiring API-key bootstrap. `POST /v1/sessions/refresh` accepts the refresh token and returns a new access token.
 
 If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds when the caller-provided `user_id` matches that bound owner. The validation cache stores both tenant and user identity so repeated session creation preserves the same check on cache hits.
+
+Platform API keys carry `act=platform` in the JWT and use a synthetic `sub` derived from the platform tenant. That keeps workspace and session flows compatible with the existing JWT structure without treating the platform's downstream end users as Cortado identities.
 
 ## API Key Issuance Flow
 
@@ -98,6 +111,7 @@ If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds w
   "apiKey": "cortado_...",
   "record": {
     "id": "key-123",
+    "kind": "personal",
     "tenantId": "tenant-acme",
     "userId": "firebase-user-1",
     "revoked": false,
@@ -107,6 +121,32 @@ If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds w
 ```
 
 The raw key is never stored in Firestore. The control plane stores only the bcrypt hash plus `tenantId`, `userId`, `revoked`, and `createdAt`. `GET /v1/api-keys` lists the authenticated user's keys for that tenant, and `DELETE /v1/api-keys/{id}` marks a matching key revoked.
+
+## Platform Tenant Bootstrap
+
+`POST /v1/platform-tenants` is authenticated with a normal Cortado user session and creates a distinct platform tenant owned by that bootstrap user. The route accepts:
+
+```json
+{
+  "displayName": "Acme IDE"
+}
+```
+
+It returns the stored platform tenant metadata:
+
+```json
+{
+  "tenant": {
+    "tenantId": "platform-123",
+    "displayName": "Acme IDE",
+    "kind": "platform",
+    "createdAt": "2026-05-26T04:00:00Z",
+    "updatedAt": "2026-05-26T04:00:00Z"
+  }
+}
+```
+
+Platform keys are then managed through `/v1/platform-tenants/{id}/api-keys`. Those keys are tenant-bound, store only a bcrypt hash at rest, and are intentionally not tied to a first-party Cortado end-user account. They exist for SaaS backends that already own their own user model.
 
 ## Development Firebase Bootstrap
 
@@ -212,6 +252,8 @@ File listing:
 - Firebase auth middleware: [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go)
 - Dev bootstrap handler: [`control-plane/internal/api/dev_bootstrap.go`](../control-plane/internal/api/dev_bootstrap.go)
 - API key service: [`control-plane/internal/auth/api_keys.go`](../control-plane/internal/auth/api_keys.go)
+- Platform tenant handler: [`control-plane/internal/api/platform_tenants.go`](../control-plane/internal/api/platform_tenants.go)
+- Platform tenant service: [`control-plane/internal/auth/platform_tenants.go`](../control-plane/internal/auth/platform_tenants.go)
 - Workspace service: [`control-plane/internal/workspace/service.go`](../control-plane/internal/workspace/service.go)
 - WebSocket mux: [`control-plane/internal/gateway/mux.go`](../control-plane/internal/gateway/mux.go)
 - File bridge: [`control-plane/internal/gateway/file_bridge.go`](../control-plane/internal/gateway/file_bridge.go)

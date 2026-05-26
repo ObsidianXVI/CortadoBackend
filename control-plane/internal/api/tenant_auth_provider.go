@@ -30,7 +30,7 @@ func newTenantAuthProviderHandler(service TenantAuthProviderService) *tenantAuth
 }
 
 func (h *tenantAuthProviderHandler) get(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := requestActor(r)
+	tenantID, _, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return
@@ -46,7 +46,7 @@ func (h *tenantAuthProviderHandler) get(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *tenantAuthProviderHandler) put(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := requestActor(r)
+	tenantID, _, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return
@@ -80,7 +80,7 @@ func (h *tenantAuthProviderHandler) put(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *tenantAuthProviderHandler) delete(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := requestActor(r)
+	tenantID, _, ok := requestUserActor(r)
 	if !ok {
 		http.Error(w, "missing tenant context", http.StatusUnauthorized)
 		return

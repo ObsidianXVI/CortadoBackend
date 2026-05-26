@@ -154,6 +154,36 @@ void main() {
       expect(session.expiresAt, DateTime.utc(2026, 5, 23, 15));
     });
 
+    test('createSession omits user_id for platform api keys', () async {
+      final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
+      final client = RecordingClient((request, body) async {
+        expect(request.method, 'POST');
+        expect(request.url, Uri.parse('https://api.example.dev/v1/sessions'));
+        expect(
+          jsonDecode(utf8.decode(body)),
+          <String, Object?>{
+            'api_key': 'platform-api-key',
+          },
+        );
+
+        return _jsonResponse(200, <String, Object?>{
+          'access_token': accessToken,
+          'refresh_token': 'refresh-token',
+        });
+      });
+
+      final session = CortadoAuthSession(
+        baseUrl: 'https://api.example.dev',
+        httpClient: client,
+        now: () => DateTime.utc(2026, 5, 23, 12),
+      );
+
+      await session.createSession(apiKey: 'platform-api-key');
+
+      expect(session.accessToken, accessToken);
+      expect(session.refreshToken, 'refresh-token');
+    });
+
     test('clear removes the current session state', () async {
       final session = CortadoAuthSession(
         baseUrl: 'https://api.example.dev',

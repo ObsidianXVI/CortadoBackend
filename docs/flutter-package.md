@@ -15,7 +15,7 @@ The `flutter/` directory is a package, not a standalone app shell. Downstream ID
 
 `CortadoAuthSession` manages the HTTP session with the control plane:
 
-- `createSession(apiKey, userId)` calls `POST /v1/sessions`
+- `createSession(apiKey, {userId})` calls `POST /v1/sessions`
 - `exchangeFirebaseSession(firebaseIdToken)` calls `POST /v1/sessions/exchange/firebase`
 - `refresh()` calls `POST /v1/sessions/refresh`
 - it decodes the JWT `exp` claim so it can refresh before expiry
@@ -23,7 +23,7 @@ The `flutter/` directory is a package, not a standalone app shell. Downstream ID
 
 For the browser-first product path, the package can now own the Firebase sign-in flow directly through [`flutter/lib/src/auth/cortado_firebase_auth.dart`](../flutter/lib/src/auth/cortado_firebase_auth.dart). `CortadoFirebaseAuthClient` signs the user into Cortado-managed Firebase Auth, exchanges the Firebase ID token for a normal Cortado session, and keeps the resulting `CortadoAuthSession` ready for the existing workspace and WebSocket clients.
 
-`CortadoAuthSession` still supports the older API-key bootstrap route for headless or power-user flows. It does not mint API keys itself; API-key management now lives beside the session object so apps can mint personal keys after a normal first-party sign-in.
+`CortadoAuthSession` still supports the older API-key bootstrap route for headless or power-user flows. `userId` stays required for personal API keys and should be omitted for platform API keys. The session object does not mint API keys itself; API-key management now lives beside it so apps can mint personal keys after a normal first-party sign-in.
 
 ## Personal API Keys
 
@@ -199,7 +199,10 @@ The initial state contains only the root directory entry.
 
 ```dart
 final auth = CortadoAuthSession(baseUrl: 'https://cortado.example.com');
-await auth.createSession(apiKey: apiKey, userId: userId);
+await auth.createSession(apiKey: apiKey, userId: userId); // personal API key
+
+final platformAuth = CortadoAuthSession(baseUrl: 'https://cortado.example.com');
+await platformAuth.createSession(apiKey: platformApiKey); // platform API key
 
 final manager = WorkspaceManager(
   baseUrl: 'https://cortado.example.com',

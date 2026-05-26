@@ -72,6 +72,7 @@ func validateFirebaseAPIKeyToken(
 	}
 
 	nextCtx := context.WithValue(ctx, ctxKeyFirebaseToken, verified)
+	nextCtx = context.WithValue(nextCtx, ctxKeyActorType, auth.ActorTypeUser)
 	nextCtx = context.WithValue(nextCtx, ctxKeyUserID, strings.TrimSpace(verified.UID))
 
 	tenantID, err := auth.TenantIDFromFirebaseClaims(verified.Claims, tenantClaim)

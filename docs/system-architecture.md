@@ -21,12 +21,13 @@ The repository root mirrors that split:
 1. A consumer app signs the user into Cortado-managed Firebase Auth and exchanges that token through `POST /v1/sessions/exchange/firebase`.
 2. The Flutter package stores the access token and refresh token in `CortadoAuthSession`.
 3. If the user wants a headless credential later, the authenticated app can mint a personal Cortado API key through `POST /v1/api-keys`.
-4. The app creates or lists workspaces through `WorkspaceManager`.
-5. The control plane stores workspace metadata in Firestore and asks the Kubernetes provisioner to create or stop the pod.
-6. When the app opens a workspace, the control plane upgrades a WebSocket on `/v1/workspaces/{id}/connect`.
-7. The browser/client and the control plane exchange binary mux frames.
-8. For terminal traffic, the control plane opens a gRPC stream to the workspace agent and bridges data to and from the PTY.
-9. For file sync traffic, the control plane opens a gRPC `WatchFiles` stream and forwards file events to the client.
+4. If a SaaS backend wants server-to-server trust instead, a first-party Cortado user can bootstrap a platform tenant and issue platform API keys through `/v1/platform-tenants/...`.
+5. The app or backend creates or lists workspaces through `WorkspaceManager` or direct control-plane calls.
+6. The control plane stores workspace metadata in Firestore and asks the Kubernetes provisioner to create or stop the pod.
+7. When the app opens a workspace, the control plane upgrades a WebSocket on `/v1/workspaces/{id}/connect`.
+8. The browser/client and the control plane exchange binary mux frames.
+9. For terminal traffic, the control plane opens a gRPC stream to the workspace agent and bridges data to and from the PTY.
+10. For file sync traffic, the control plane opens a gRPC `WatchFiles` stream and forwards file events to the client.
 
 ## Workspace Topology
 
@@ -45,7 +46,7 @@ That DNS name is used for gRPC connections from Cloud Run to the agent pod.
 
 ## Where Data Lives
 
-- **Firestore** stores workspace metadata, hashed API keys, and refresh-token/session data.
+- **Firestore** stores workspace metadata, tenant records, hashed API keys, and refresh-token/session data.
 - **Redis** is used as the auth validation cache.
 - **Pub/Sub** receives usage events from the workspace agent.
 - **GKE** runs the workspaces and the agents.

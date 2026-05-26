@@ -78,6 +78,47 @@ func TestAPIKeyServiceRevokeRejectsCrossUserAccess(t *testing.T) {
 	}
 }
 
+func TestAPIKeyServiceIssuesListsAndRevokesPlatformKeys(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 26, 3, 15, 0, 0, time.UTC)
+	repository := &apiKeyRepositoryStub{}
+	service, err := NewAPIKeyService(APIKeyServiceConfig{
+		Now:        func() time.Time { return now },
+		Repository: repository,
+	})
+	if err != nil {
+		t.Fatalf("new api key service: %v", err)
+	}
+
+	issued, err := service.IssuePlatformAPIKey(context.Background(), "platform-tenant-1", "user-1")
+	if err != nil {
+		t.Fatalf("issue platform api key: %v", err)
+	}
+	if issued.Record.Kind != APIKeyKindPlatform || issued.Record.UserID != "" {
+		t.Fatalf("unexpected issued record: %+v", issued.Record)
+	}
+	if repository.records[0].Kind != APIKeyKindPlatform || repository.records[0].CreatedByUserID != "user-1" {
+		t.Fatalf("unexpected stored record: %+v", repository.records[0])
+	}
+
+	listed, err := service.ListPlatformAPIKeys(context.Background(), "platform-tenant-1")
+	if err != nil {
+		t.Fatalf("list platform api keys: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != issued.Record.ID || listed[0].Kind != APIKeyKindPlatform {
+		t.Fatalf("unexpected listed records: %+v", listed)
+	}
+
+	revoked, err := service.RevokePlatformAPIKey(context.Background(), "platform-tenant-1", issued.Record.ID)
+	if err != nil {
+		t.Fatalf("revoke platform api key: %v", err)
+	}
+	if !revoked.Revoked || !repository.records[0].Revoked {
+		t.Fatalf("expected revoked platform key, got %+v and %+v", revoked, repository.records[0])
+	}
+}
+
 func TestTenantIDFromFirebaseClaims(t *testing.T) {
 	t.Parallel()
 

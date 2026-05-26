@@ -119,6 +119,20 @@ func newAPIKeyService(repository auth.APIKeyRepository) (*auth.APIKeyService, er
 	return service, nil
 }
 
+func newPlatformTenantService(
+	repository auth.PlatformTenantRepository,
+	apiKeyService *auth.APIKeyService,
+) (*auth.PlatformTenantService, error) {
+	service, err := auth.NewPlatformTenantService(auth.PlatformTenantServiceConfig{
+		APIKeys:    apiKeyService,
+		Repository: repository,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create platform tenant service: %w", err)
+	}
+	return service, nil
+}
+
 func newFirebaseVerifier(ctx context.Context, projectID string) (*auth.FirebaseVerifier, error) {
 	firebaseProjectID := envOrDefault("CORTADO_FIREBASE_PROJECT_ID", projectID)
 	verifier, err := auth.NewFirebaseVerifier(ctx, firebaseProjectID)

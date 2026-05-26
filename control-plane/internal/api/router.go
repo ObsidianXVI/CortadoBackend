@@ -15,17 +15,18 @@ import (
 )
 
 type RouterConfig struct {
-	APIKeyAuth       func(http.Handler) http.Handler
-	APIKeySvc        APIKeyService
-	AICompletionSvc  AICompletionService
-	ConnectHandler   http.Handler
-	DevBootstrapAuth func(http.Handler) http.Handler
-	DevBootstrapSvc  DevFirebaseBootstrapService
-	JWKSProvider     JWKSProvider
-	SessionSvc       SessionService
-	TenantAuthSvc    TenantAuthProviderService
-	WorkspaceFileSvc WorkspaceFileService
-	WorkspaceSvc     WorkspaceService
+	APIKeyAuth        func(http.Handler) http.Handler
+	APIKeySvc         APIKeyService
+	AICompletionSvc   AICompletionService
+	ConnectHandler    http.Handler
+	DevBootstrapAuth  func(http.Handler) http.Handler
+	DevBootstrapSvc   DevFirebaseBootstrapService
+	JWKSProvider      JWKSProvider
+	PlatformTenantSvc PlatformTenantService
+	SessionSvc        SessionService
+	TenantAuthSvc     TenantAuthProviderService
+	WorkspaceFileSvc  WorkspaceFileService
+	WorkspaceSvc      WorkspaceService
 }
 
 type AICompletionService interface {
@@ -42,6 +43,14 @@ type SessionService interface {
 	CreateSession(ctx context.Context, apiKey, userID string) (auth.SessionTokens, error)
 	ExchangeFirebaseSession(ctx context.Context, idToken string) (auth.SessionTokens, error)
 	RefreshSession(ctx context.Context, refreshToken string) (string, error)
+}
+
+type PlatformTenantService interface {
+	CreatePlatformTenant(ctx context.Context, ownerUserID, displayName string) (auth.PlatformTenant, error)
+	IssuePlatformAPIKey(ctx context.Context, ownerUserID, tenantID string) (auth.IssuedAPIKey, error)
+	ListPlatformAPIKeys(ctx context.Context, ownerUserID, tenantID string) ([]auth.APIKey, error)
+	ListPlatformTenants(ctx context.Context, ownerUserID string) ([]auth.PlatformTenant, error)
+	RevokePlatformAPIKey(ctx context.Context, ownerUserID, tenantID, keyID string) (auth.APIKey, error)
 }
 
 type TenantAuthProviderService interface {
@@ -116,6 +125,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		}
 		r.Group(func(protected chi.Router) {
 			protected.Use(cpmiddleware.NewAuthMiddleware(cpmiddleware.AuthConfig{JWKSJSON: jwksJSON}))
+			if cfg.PlatformTenantSvc != nil {
+				handler := newPlatformTenantsHandler(cfg.PlatformTenantSvc)
+				protected.Post("/platform-tenants", handler.createTenant)
+				protected.Get("/platform-tenants", handler.listTenants)
+				protected.Post("/platform-tenants/{id}/api-keys", handler.issueAPIKey)
+				protected.Get("/platform-tenants/{id}/api-keys", handler.listAPIKeys)
+				protected.Delete("/platform-tenants/{id}/api-keys/{keyID}", handler.revokeAPIKey)
+			}
 			if cfg.WorkspaceSvc != nil {
 				handler := newWorkspacesHandler(cfg.WorkspaceSvc)
 				protected.Get("/workspaces", handler.list)

@@ -18,6 +18,7 @@ import (
 type contextKey string
 
 const (
+	ctxKeyActorType     contextKey = "actor_type"
 	ctxKeyTenantID      contextKey = "tenant_id"
 	ctxKeyUserID        contextKey = "user_id"
 	ctxKeyFirebaseToken contextKey = "firebase_token"
@@ -25,6 +26,11 @@ const (
 
 type AuthConfig struct {
 	JWKSJSON []byte
+}
+
+func ActorType(ctx context.Context) (string, bool) {
+	value, ok := ctx.Value(ctxKeyActorType).(string)
+	return value, ok
 }
 
 func TenantID(ctx context.Context) (string, bool) {
@@ -119,13 +125,18 @@ func validateJWT(ctx context.Context, tokenString string, verifier keyfunc.Keyfu
 		return nil, errors.New("required claims are missing")
 	}
 
+	ctx = context.WithValue(ctx, ctxKeyActorType, auth.ActorTypeUser)
+	if strings.TrimSpace(claims.ActorType) != "" {
+		ctx = context.WithValue(ctx, ctxKeyActorType, claims.ActorType)
+	}
 	ctx = context.WithValue(ctx, ctxKeyTenantID, claims.TenantID)
 	ctx = context.WithValue(ctx, ctxKeyUserID, claims.Subject)
 	return ctx, nil
 }
 
 func injectDevContext(r *http.Request) *http.Request {
-	ctx := context.WithValue(r.Context(), ctxKeyTenantID, "dev-tenant")
+	ctx := context.WithValue(r.Context(), ctxKeyActorType, auth.ActorTypeUser)
+	ctx = context.WithValue(ctx, ctxKeyTenantID, "dev-tenant")
 	ctx = context.WithValue(ctx, ctxKeyUserID, "dev-user")
 	return r.WithContext(ctx)
 }

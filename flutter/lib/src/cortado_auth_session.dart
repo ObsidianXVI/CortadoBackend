@@ -40,17 +40,22 @@ class CortadoAuthSession {
 
   Future<void> createSession({
     required String apiKey,
-    required String userId,
+    String? userId,
   }) async {
+    final body = <String, String>{
+      'api_key': apiKey,
+    };
+    final normalizedUserId = userId?.trim();
+    if (normalizedUserId != null && normalizedUserId.isNotEmpty) {
+      body['user_id'] = normalizedUserId;
+    }
+
     final response = await _client.post(
       _sessionUri(const <String>['v1', 'sessions']),
       headers: const <String, String>{
         'Content-Type': 'application/json',
       },
-      body: jsonEncode(<String, String>{
-        'api_key': apiKey,
-        'user_id': userId,
-      }),
+      body: jsonEncode(body),
     );
 
     final payload = _decodeResponse(response);

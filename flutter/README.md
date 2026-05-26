@@ -64,4 +64,4 @@ final listed = await apiKeys.list();
 await apiKeys.revoke(issued.record.id);
 ```
 
-`CortadoAuthSession.createSession(apiKey: ..., userId: ...)` remains available for headless, CLI, and other non-browser bootstrap flows once the user has stored a personal API key.
+`CortadoAuthSession.createSession(apiKey: ..., userId: ...)` remains available for headless, CLI, and other non-browser bootstrap flows once the user has stored a personal API key. For platform API keys, omit `userId` and let the control plane mint a platform-scoped session from the key alone.

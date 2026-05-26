@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"cloud.google.com/go/firestore"
@@ -121,6 +122,78 @@ func (s *FirestoreAuthStore) EnsurePersonalTenant(ctx context.Context, tenant au
 	}
 	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(ctx, tenant, firestore.MergeAll); err != nil {
 		return fmt.Errorf("save personal tenant document: %w", err)
+	}
+	return nil
+}
+
+func (s *FirestoreAuthStore) GetPlatformTenant(ctx context.Context, tenantID string) (auth.PlatformTenantRecord, bool, error) {
+	doc, err := s.client.Collection(s.tenantsCollection).Doc(tenantID).Get(ctx)
+	if isNotFound(err) {
+		return auth.PlatformTenantRecord{}, false, nil
+	}
+	if err != nil {
+		return auth.PlatformTenantRecord{}, false, fmt.Errorf("get platform tenant document: %w", err)
+	}
+
+	var record auth.PlatformTenantRecord
+	if err := doc.DataTo(&record); err != nil {
+		return auth.PlatformTenantRecord{}, false, fmt.Errorf("decode platform tenant document %q: %w", doc.Ref.ID, err)
+	}
+	if strings.TrimSpace(record.TenantID) == "" {
+		record.TenantID = doc.Ref.ID
+	}
+	if record.Kind == "" {
+		record.Kind = auth.APIKeyKindPlatform
+	}
+	if record.Kind != auth.APIKeyKindPlatform {
+		return auth.PlatformTenantRecord{}, false, nil
+	}
+
+	return record, true, nil
+}
+
+func (s *FirestoreAuthStore) ListPlatformTenants(ctx context.Context, ownerUserID string) ([]auth.PlatformTenantRecord, error) {
+	iter := s.client.Collection(s.tenantsCollection).
+		Where("kind", "==", auth.APIKeyKindPlatform).
+		Where("ownerUserId", "==", strings.TrimSpace(ownerUserID)).
+		Documents(ctx)
+	defer iter.Stop()
+
+	records := []auth.PlatformTenantRecord{}
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate platform tenant documents: %w", err)
+		}
+
+		var record auth.PlatformTenantRecord
+		if err := doc.DataTo(&record); err != nil {
+			return nil, fmt.Errorf("decode platform tenant document %q: %w", doc.Ref.ID, err)
+		}
+		if strings.TrimSpace(record.TenantID) == "" {
+			record.TenantID = doc.Ref.ID
+		}
+		if record.Kind == "" {
+			record.Kind = auth.APIKeyKindPlatform
+		}
+		records = append(records, record)
+	}
+
+	slices.SortFunc(records, func(left, right auth.PlatformTenantRecord) int {
+		return right.CreatedAt.Compare(left.CreatedAt)
+	})
+	return records, nil
+}
+
+func (s *FirestoreAuthStore) SavePlatformTenant(ctx context.Context, tenant auth.PlatformTenantRecord) error {
+	if strings.TrimSpace(tenant.TenantID) == "" {
+		return fmt.Errorf("save platform tenant document: tenant id is required")
+	}
+	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(ctx, tenant, firestore.MergeAll); err != nil {
+		return fmt.Errorf("save platform tenant document: %w", err)
 	}
 	return nil
 }
