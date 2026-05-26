@@ -869,3 +869,11 @@
 - M _dev/docs/technical_report.md
 - M _dev/features/feat-8-4.md
 - M _dev/session_log.md
+26/05/26 01:58 [FEAT] (pending) `dev-pro-large` Completed Task 8.4.1 for Cortado-managed browser auth by adding the Firebase ID-token exchange session endpoint, issuing normal Cortado access and refresh tokens after Firebase verification, and auto-provisioning stable first-party user and personal-tenant records in Firestore so embedded browser apps no longer need API-key bootstrap or tenant-managed OIDC for the default path.
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- M control-plane/internal/api/router.go
+- M control-plane/internal/api/sessions.go
+- M control-plane/internal/auth/model.go
+- M control-plane/internal/auth/service.go
+- M control-plane/internal/store/firestore_auth_store.go

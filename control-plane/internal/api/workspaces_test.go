@@ -272,8 +272,20 @@ type workspaceAuthRepositoryStub struct {
 	apiKeys []auth.APIKeyRecord
 }
 
+func (r *workspaceAuthRepositoryStub) EnsurePersonalTenant(_ context.Context, _ auth.PersonalTenantRecord) error {
+	return nil
+}
+
+func (r *workspaceAuthRepositoryStub) GetFirstPartyAccount(_ context.Context, _ string) (auth.FirstPartyAccount, bool, error) {
+	return auth.FirstPartyAccount{}, false, nil
+}
+
 func (r *workspaceAuthRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord, error) {
 	return append([]auth.APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *workspaceAuthRepositoryStub) SaveFirstPartyAccount(_ context.Context, _ auth.FirstPartyAccount) error {
+	return nil
 }
 
 func (r *workspaceAuthRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {

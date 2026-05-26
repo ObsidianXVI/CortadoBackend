@@ -58,6 +58,50 @@ func TestSessionRefreshRouteIssuesAccessTokenWithoutDevBypass(t *testing.T) {
 	}
 }
 
+func TestSessionExchangeFirebaseRouteIssuesTokensWithoutDevBypass(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: sessionServiceStub{
+			exchangeTokens: auth.SessionTokens{
+				AccessToken:  "access-token",
+				RefreshToken: "refresh-token",
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions/exchange/firebase", bytes.NewBufferString(`{"firebase_id_token":"firebase-id-token"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusOK)
+	}
+	if body := rec.Body.String(); body == "" {
+		t.Fatal("expected exchange response body")
+	}
+}
+
+func TestSessionExchangeFirebaseRouteRejectsInvalidFirebaseToken(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "production")
+
+	router := NewRouter(RouterConfig{
+		SessionSvc: sessionServiceStub{
+			exchangeErr: auth.ErrFirebaseTokenInvalid,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions/exchange/firebase", bytes.NewBufferString(`{"firebase_id_token":"bad-token"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: got %d want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestSessionRefreshRouteRejectsInvalidRefreshToken(t *testing.T) {
 	t.Setenv("CORTADO_ENV", "production")
 
@@ -101,6 +145,8 @@ func TestJWKSRouteServesDocument(t *testing.T) {
 
 type sessionServiceStub struct {
 	err                error
+	exchangeErr        error
+	exchangeTokens     auth.SessionTokens
 	refreshErr         error
 	refreshAccessToken string
 	tokens             auth.SessionTokens
@@ -108,6 +154,10 @@ type sessionServiceStub struct {
 
 func (s sessionServiceStub) CreateSession(_ context.Context, _, _ string) (auth.SessionTokens, error) {
 	return s.tokens, s.err
+}
+
+func (s sessionServiceStub) ExchangeFirebaseSession(_ context.Context, _ string) (auth.SessionTokens, error) {
+	return s.exchangeTokens, s.exchangeErr
 }
 
 func (s sessionServiceStub) RefreshSession(_ context.Context, _ string) (string, error) {
@@ -144,8 +194,20 @@ type authRepositoryStub struct {
 	apiKeys []auth.APIKeyRecord
 }
 
+func (r *authRepositoryStub) EnsurePersonalTenant(_ context.Context, _ auth.PersonalTenantRecord) error {
+	return nil
+}
+
+func (r *authRepositoryStub) GetFirstPartyAccount(_ context.Context, _ string) (auth.FirstPartyAccount, bool, error) {
+	return auth.FirstPartyAccount{}, false, nil
+}
+
 func (r *authRepositoryStub) ListAPIKeys(_ context.Context) ([]auth.APIKeyRecord, error) {
 	return append([]auth.APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *authRepositoryStub) SaveFirstPartyAccount(_ context.Context, _ auth.FirstPartyAccount) error {
+	return nil
 }
 
 func (r *authRepositoryStub) SaveRefreshToken(_ context.Context, token auth.RefreshTokenRecord) error {

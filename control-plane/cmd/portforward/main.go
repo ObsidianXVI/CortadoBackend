@@ -130,8 +130,10 @@ func newFirestoreClient(ctx context.Context, projectID string) (*firestore.Clien
 
 func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {
 	return store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
-		APIKeysCollection:       os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
-		RefreshTokensCollection: os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
+		APIKeysCollection:         os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
+		FirstPartyUsersCollection: os.Getenv("CORTADO_AUTH_FIRST_PARTY_USERS_COLLECTION"),
+		RefreshTokensCollection:   os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
+		TenantsCollection:         os.Getenv("CORTADO_TENANTS_COLLECTION"),
 	})
 }
 

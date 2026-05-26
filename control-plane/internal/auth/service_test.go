@@ -219,6 +219,123 @@ func TestServiceCreateSessionRejectsInvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestServiceExchangeFirebaseSessionProvisionsFirstPartyAccountAndTenant(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	now := time.Date(2026, time.May, 26, 2, 15, 0, 0, time.UTC)
+	repository := &repositoryStub{}
+	service, err := NewService(ServiceConfig{
+		FirebaseVerifier: firebaseVerifierStub{
+			token: &VerifiedFirebaseToken{
+				UID: "firebase-user-1",
+				Claims: map[string]any{
+					"email": "user@example.com",
+					"name":  "User One",
+				},
+			},
+		},
+		Now:           func() time.Time { return now },
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    repository,
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	tokens, err := service.ExchangeFirebaseSession(context.Background(), "firebase-id-token")
+	if err != nil {
+		t.Fatalf("exchange firebase session: %v", err)
+	}
+
+	claims := parseAccessClaims(t, service, tokens.AccessToken, now)
+	expectedUserID := firstPartyUserID("firebase-user-1")
+	expectedTenantID := firstPartyTenantID("firebase-user-1")
+	if claims.Subject != expectedUserID || claims.TenantID != expectedTenantID {
+		t.Fatalf("unexpected claims: %#v", claims)
+	}
+	if len(repository.savedAccounts) != 1 {
+		t.Fatalf("unexpected saved account count: got %d want 1", len(repository.savedAccounts))
+	}
+	account := repository.savedAccounts[0]
+	if account.FirebaseUID != "firebase-user-1" || account.UserID != expectedUserID || account.PersonalTenantID != expectedTenantID {
+		t.Fatalf("unexpected first-party account: %#v", account)
+	}
+	if account.Email != "user@example.com" || account.DisplayName != "User One" {
+		t.Fatalf("unexpected first-party account profile fields: %#v", account)
+	}
+	if len(repository.ensuredTenants) != 1 {
+		t.Fatalf("unexpected ensured tenant count: got %d want 1", len(repository.ensuredTenants))
+	}
+	tenant := repository.ensuredTenants[0]
+	if tenant.TenantID != expectedTenantID || tenant.OwnerUserID != expectedUserID || tenant.Kind != "personal" {
+		t.Fatalf("unexpected personal tenant record: %#v", tenant)
+	}
+}
+
+func TestServiceExchangeFirebaseSessionReusesExistingFirstPartyAccount(t *testing.T) {
+	t.Parallel()
+
+	privateKeyPEM, err := GenerateRSAKeyPEM()
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	now := time.Date(2026, time.May, 26, 2, 15, 0, 0, time.UTC)
+	repository := &repositoryStub{
+		firstPartyAccounts: map[string]FirstPartyAccount{
+			"firebase-user-1": {
+				CreatedAt:        now.Add(-time.Hour),
+				FirebaseUID:      "firebase-user-1",
+				PersonalTenantID: "tenant-existing",
+				UpdatedAt:        now.Add(-time.Hour),
+				UserID:           "user-existing",
+			},
+		},
+	}
+	service, err := NewService(ServiceConfig{
+		FirebaseVerifier: firebaseVerifierStub{
+			token: &VerifiedFirebaseToken{
+				UID: "firebase-user-1",
+			},
+		},
+		Now:           func() time.Time { return now },
+		PrivateKeyPEM: privateKeyPEM,
+		Repository:    repository,
+	})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	firstTokens, err := service.ExchangeFirebaseSession(context.Background(), "firebase-id-token")
+	if err != nil {
+		t.Fatalf("first exchange firebase session: %v", err)
+	}
+	secondTokens, err := service.ExchangeFirebaseSession(context.Background(), "firebase-id-token")
+	if err != nil {
+		t.Fatalf("second exchange firebase session: %v", err)
+	}
+
+	firstClaims := parseAccessClaims(t, service, firstTokens.AccessToken, now)
+	secondClaims := parseAccessClaims(t, service, secondTokens.AccessToken, now)
+	if firstClaims.Subject != "user-existing" || firstClaims.TenantID != "tenant-existing" {
+		t.Fatalf("unexpected first claims: %#v", firstClaims)
+	}
+	if secondClaims.Subject != "user-existing" || secondClaims.TenantID != "tenant-existing" {
+		t.Fatalf("unexpected second claims: %#v", secondClaims)
+	}
+	if len(repository.savedAccounts) != 0 {
+		t.Fatalf("expected existing account to be reused without rewrite, saved %d accounts", len(repository.savedAccounts))
+	}
+	if len(repository.ensuredTenants) != 2 {
+		t.Fatalf("unexpected ensured tenant count: got %d want 2", len(repository.ensuredTenants))
+	}
+}
+
 func TestServiceRefreshSessionIssuesNewAccessToken(t *testing.T) {
 	t.Parallel()
 
@@ -352,14 +469,30 @@ func parseAccessClaims(t *testing.T, service *Service, accessToken string, now t
 
 type repositoryStub struct {
 	apiKeys            []APIKeyRecord
+	ensuredTenants     []PersonalTenantRecord
+	firstPartyAccounts map[string]FirstPartyAccount
 	refreshTokens      map[string]RefreshTokenRecord
 	listCalls          int
+	savedAccounts      []FirstPartyAccount
 	savedRefreshTokens []RefreshTokenRecord
 }
 
 func (r *repositoryStub) ListAPIKeys(_ context.Context) ([]APIKeyRecord, error) {
 	r.listCalls++
 	return append([]APIKeyRecord(nil), r.apiKeys...), nil
+}
+
+func (r *repositoryStub) EnsurePersonalTenant(_ context.Context, tenant PersonalTenantRecord) error {
+	r.ensuredTenants = append(r.ensuredTenants, tenant)
+	return nil
+}
+
+func (r *repositoryStub) GetFirstPartyAccount(_ context.Context, firebaseUID string) (FirstPartyAccount, bool, error) {
+	if r.firstPartyAccounts == nil {
+		return FirstPartyAccount{}, false, nil
+	}
+	account, ok := r.firstPartyAccounts[firebaseUID]
+	return account, ok, nil
 }
 
 func (r *repositoryStub) SaveRefreshToken(_ context.Context, token RefreshTokenRecord) error {
@@ -371,9 +504,30 @@ func (r *repositoryStub) SaveRefreshToken(_ context.Context, token RefreshTokenR
 	return nil
 }
 
+func (r *repositoryStub) SaveFirstPartyAccount(_ context.Context, account FirstPartyAccount) error {
+	if r.firstPartyAccounts == nil {
+		r.firstPartyAccounts = map[string]FirstPartyAccount{}
+	}
+	r.firstPartyAccounts[account.FirebaseUID] = account
+	r.savedAccounts = append(r.savedAccounts, account)
+	return nil
+}
+
 func (r *repositoryStub) GetRefreshToken(_ context.Context, refreshToken string) (RefreshTokenRecord, bool, error) {
 	token, ok := r.refreshTokens[refreshToken]
 	return token, ok, nil
+}
+
+type firebaseVerifierStub struct {
+	err   error
+	token *VerifiedFirebaseToken
+}
+
+func (s firebaseVerifierStub) VerifyIDToken(_ context.Context, _ string) (*VerifiedFirebaseToken, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.token, nil
 }
 
 type cacheStub struct {

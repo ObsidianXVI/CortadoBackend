@@ -13,28 +13,40 @@ import (
 )
 
 type FirestoreAuthStoreConfig struct {
-	APIKeysCollection       string
-	RefreshTokensCollection string
+	APIKeysCollection         string
+	FirstPartyUsersCollection string
+	RefreshTokensCollection   string
+	TenantsCollection         string
 }
 
 type FirestoreAuthStore struct {
-	apiKeysCollection       string
-	client                  *firestore.Client
-	refreshTokensCollection string
+	apiKeysCollection         string
+	client                    *firestore.Client
+	firstPartyUsersCollection string
+	refreshTokensCollection   string
+	tenantsCollection         string
 }
 
 func NewFirestoreAuthStore(client *firestore.Client, cfg FirestoreAuthStoreConfig) *FirestoreAuthStore {
 	if cfg.APIKeysCollection == "" {
 		cfg.APIKeysCollection = auth.DefaultAPIKeysCollection
 	}
+	if cfg.FirstPartyUsersCollection == "" {
+		cfg.FirstPartyUsersCollection = auth.DefaultFirstPartyUsersCollection
+	}
 	if cfg.RefreshTokensCollection == "" {
 		cfg.RefreshTokensCollection = auth.DefaultRefreshTokensCollection
 	}
+	if cfg.TenantsCollection == "" {
+		cfg.TenantsCollection = "tenants"
+	}
 
 	return &FirestoreAuthStore{
-		apiKeysCollection:       cfg.APIKeysCollection,
-		client:                  client,
-		refreshTokensCollection: cfg.RefreshTokensCollection,
+		apiKeysCollection:         cfg.APIKeysCollection,
+		client:                    client,
+		firstPartyUsersCollection: cfg.FirstPartyUsersCollection,
+		refreshTokensCollection:   cfg.RefreshTokensCollection,
+		tenantsCollection:         cfg.TenantsCollection,
 	}
 }
 
@@ -69,6 +81,46 @@ func (s *FirestoreAuthStore) SaveAPIKey(ctx context.Context, record auth.APIKeyR
 	}
 	if _, err := s.client.Collection(s.apiKeysCollection).Doc(record.ID).Set(ctx, record); err != nil {
 		return fmt.Errorf("save api key document: %w", err)
+	}
+	return nil
+}
+
+func (s *FirestoreAuthStore) GetFirstPartyAccount(ctx context.Context, firebaseUID string) (auth.FirstPartyAccount, bool, error) {
+	doc, err := s.client.Collection(s.firstPartyUsersCollection).Doc(firebaseUID).Get(ctx)
+	if isNotFound(err) {
+		return auth.FirstPartyAccount{}, false, nil
+	}
+	if err != nil {
+		return auth.FirstPartyAccount{}, false, fmt.Errorf("get first-party account document: %w", err)
+	}
+
+	var account auth.FirstPartyAccount
+	if err := doc.DataTo(&account); err != nil {
+		return auth.FirstPartyAccount{}, false, fmt.Errorf("decode first-party account document %q: %w", doc.Ref.ID, err)
+	}
+	if account.FirebaseUID == "" {
+		account.FirebaseUID = doc.Ref.ID
+	}
+
+	return account, true, nil
+}
+
+func (s *FirestoreAuthStore) SaveFirstPartyAccount(ctx context.Context, account auth.FirstPartyAccount) error {
+	if strings.TrimSpace(account.FirebaseUID) == "" {
+		return fmt.Errorf("save first-party account document: firebase uid is required")
+	}
+	if _, err := s.client.Collection(s.firstPartyUsersCollection).Doc(account.FirebaseUID).Set(ctx, account); err != nil {
+		return fmt.Errorf("save first-party account document: %w", err)
+	}
+	return nil
+}
+
+func (s *FirestoreAuthStore) EnsurePersonalTenant(ctx context.Context, tenant auth.PersonalTenantRecord) error {
+	if strings.TrimSpace(tenant.TenantID) == "" {
+		return fmt.Errorf("save personal tenant document: tenant id is required")
+	}
+	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(ctx, tenant, firestore.MergeAll); err != nil {
+		return fmt.Errorf("save personal tenant document: %w", err)
 	}
 	return nil
 }

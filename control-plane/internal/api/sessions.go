@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/your-org/cortado/control-plane/internal/auth"
 )
@@ -19,6 +20,11 @@ type createSessionRequest struct {
 type createSessionResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+type exchangeFirebaseSessionRequest struct {
+	FirebaseIDToken string `json:"firebase_id_token"`
+	IDToken         string `json:"id_token,omitempty"`
 }
 
 type refreshSessionRequest struct {
@@ -52,6 +58,25 @@ func (h *sessionsHandler) create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *sessionsHandler) exchangeFirebase(w http.ResponseWriter, r *http.Request) {
+	var request exchangeFirebaseSessionRequest
+	if err := decodeJSON(r, &request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	tokens, err := h.service.ExchangeFirebaseSession(r.Context(), request.token())
+	if err != nil {
+		writeSessionError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, createSessionResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	})
+}
+
 func (h *sessionsHandler) refresh(w http.ResponseWriter, r *http.Request) {
 	var request refreshSessionRequest
 	if err := decodeJSON(r, &request); err != nil {
@@ -70,12 +95,23 @@ func (h *sessionsHandler) refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (r exchangeFirebaseSessionRequest) token() string {
+	if token := strings.TrimSpace(r.FirebaseIDToken); token != "" {
+		return token
+	}
+	return strings.TrimSpace(r.IDToken)
+}
+
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	case errors.Is(err, auth.ErrFirebaseTokenInvalid):
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	case errors.Is(err, auth.ErrInvalidRefreshToken):
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	case errors.Is(err, auth.ErrFirebaseTokenMissing):
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, auth.ErrInvalidRequest), errors.Is(err, auth.ErrInvalidRefreshInput):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:

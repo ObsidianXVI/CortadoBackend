@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -37,9 +38,12 @@ var (
 )
 
 type Repository interface {
+	EnsurePersonalTenant(ctx context.Context, tenant PersonalTenantRecord) error
+	GetFirstPartyAccount(ctx context.Context, firebaseUID string) (FirstPartyAccount, bool, error)
 	ListAPIKeys(ctx context.Context) ([]APIKeyRecord, error)
 	GetRefreshToken(ctx context.Context, refreshToken string) (RefreshTokenRecord, bool, error)
 	SaveRefreshToken(ctx context.Context, token RefreshTokenRecord) error
+	SaveFirstPartyAccount(ctx context.Context, account FirstPartyAccount) error
 }
 
 type ValidationCache interface {
@@ -49,19 +53,21 @@ type ValidationCache interface {
 }
 
 type ServiceConfig struct {
-	Cache         ValidationCache
-	Now           func() time.Time
-	PrivateKeyPEM string
-	Repository    Repository
+	Cache            ValidationCache
+	FirebaseVerifier FirebaseTokenVerifier
+	Now              func() time.Time
+	PrivateKeyPEM    string
+	Repository       Repository
 }
 
 type Service struct {
-	cache      ValidationCache
-	jwksJSON   []byte
-	keyID      string
-	now        func() time.Time
-	privateKey *rsa.PrivateKey
-	repository Repository
+	cache            ValidationCache
+	firebaseVerifier FirebaseTokenVerifier
+	jwksJSON         []byte
+	keyID            string
+	now              func() time.Time
+	privateKey       *rsa.PrivateKey
+	repository       Repository
 }
 
 type AccessClaims struct {
@@ -97,12 +103,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		cache:      cfg.Cache,
-		jwksJSON:   jwksJSON,
-		keyID:      keyID,
-		now:        cfg.Now,
-		privateKey: privateKey,
-		repository: cfg.Repository,
+		cache:            cfg.Cache,
+		firebaseVerifier: cfg.FirebaseVerifier,
+		jwksJSON:         jwksJSON,
+		keyID:            keyID,
+		now:              cfg.Now,
+		privateKey:       privateKey,
+		repository:       cfg.Repository,
 	}, nil
 }
 
@@ -140,28 +147,25 @@ func (s *Service) CreateSession(ctx context.Context, apiKey, userID string) (Ses
 		return SessionTokens{}, ErrInvalidCredentials
 	}
 
-	now := s.now().UTC()
-	accessToken, jti, err := s.issueAccessToken(now, identity.TenantID, userID)
+	return s.createSessionTokens(ctx, identity.TenantID, userID)
+}
+
+func (s *Service) ExchangeFirebaseSession(ctx context.Context, idToken string) (SessionTokens, error) {
+	if s.firebaseVerifier == nil {
+		return SessionTokens{}, errors.New("firebase verifier is not configured")
+	}
+
+	verified, err := s.firebaseVerifier.VerifyIDToken(ctx, idToken)
 	if err != nil {
 		return SessionTokens{}, err
 	}
 
-	refreshToken := uuid.NewString()
-	if err := s.repository.SaveRefreshToken(ctx, RefreshTokenRecord{
-		CreatedAt:    now,
-		ExpiresAt:    now.Add(refreshTokenTTL),
-		JTI:          jti,
-		RefreshToken: refreshToken,
-		TenantID:     identity.TenantID,
-		UserID:       userID,
-	}); err != nil {
-		return SessionTokens{}, fmt.Errorf("save refresh token: %w", err)
+	account, err := s.resolveFirstPartyAccount(ctx, verified)
+	if err != nil {
+		return SessionTokens{}, err
 	}
 
-	return SessionTokens{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	}, nil
+	return s.createSessionTokens(ctx, account.PersonalTenantID, account.UserID)
 }
 
 func (s *Service) RefreshSession(ctx context.Context, refreshToken string) (string, error) {
@@ -229,6 +233,154 @@ func (s *Service) resolveAPIKeyIdentity(ctx context.Context, apiKey string) (API
 	}
 
 	return APIKeyIdentity{}, ErrInvalidCredentials
+}
+
+func (s *Service) resolveFirstPartyAccount(ctx context.Context, token *VerifiedFirebaseToken) (FirstPartyAccount, error) {
+	if token == nil || strings.TrimSpace(token.UID) == "" {
+		return FirstPartyAccount{}, ErrFirebaseTokenInvalid
+	}
+
+	now := s.now().UTC()
+	firebaseUID := strings.TrimSpace(token.UID)
+	account, found, err := s.repository.GetFirstPartyAccount(ctx, firebaseUID)
+	if err != nil {
+		return FirstPartyAccount{}, fmt.Errorf("get first-party account: %w", err)
+	}
+
+	if found {
+		updated := false
+		if strings.TrimSpace(account.FirebaseUID) == "" {
+			account.FirebaseUID = firebaseUID
+			updated = true
+		}
+		if strings.TrimSpace(account.UserID) == "" {
+			account.UserID = firstPartyUserID(firebaseUID)
+			updated = true
+		}
+		if strings.TrimSpace(account.PersonalTenantID) == "" {
+			account.PersonalTenantID = firstPartyTenantID(firebaseUID)
+			updated = true
+		}
+		if account.CreatedAt.IsZero() {
+			account.CreatedAt = now
+			updated = true
+		}
+		if account.Email == "" {
+			if email := firebaseStringClaim(token.Claims, "email"); email != "" {
+				account.Email = email
+				updated = true
+			}
+		}
+		if account.DisplayName == "" {
+			if displayName := firebaseDisplayName(token.Claims); displayName != "" {
+				account.DisplayName = displayName
+				updated = true
+			}
+		}
+		if updated {
+			account.UpdatedAt = now
+			if err := s.repository.SaveFirstPartyAccount(ctx, account); err != nil {
+				return FirstPartyAccount{}, fmt.Errorf("save first-party account: %w", err)
+			}
+		}
+	} else {
+		account = FirstPartyAccount{
+			CreatedAt:        now,
+			DisplayName:      firebaseDisplayName(token.Claims),
+			Email:            firebaseStringClaim(token.Claims, "email"),
+			FirebaseUID:      firebaseUID,
+			PersonalTenantID: firstPartyTenantID(firebaseUID),
+			UpdatedAt:        now,
+			UserID:           firstPartyUserID(firebaseUID),
+		}
+		if err := s.repository.SaveFirstPartyAccount(ctx, account); err != nil {
+			return FirstPartyAccount{}, fmt.Errorf("save first-party account: %w", err)
+		}
+	}
+
+	if err := s.repository.EnsurePersonalTenant(ctx, personalTenantRecord(account, now)); err != nil {
+		return FirstPartyAccount{}, fmt.Errorf("ensure personal tenant: %w", err)
+	}
+
+	return account, nil
+}
+
+func (s *Service) createSessionTokens(ctx context.Context, tenantID, userID string) (SessionTokens, error) {
+	now := s.now().UTC()
+	accessToken, jti, err := s.issueAccessToken(now, tenantID, userID)
+	if err != nil {
+		return SessionTokens{}, err
+	}
+
+	refreshToken := uuid.NewString()
+	if err := s.repository.SaveRefreshToken(ctx, RefreshTokenRecord{
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(refreshTokenTTL),
+		JTI:          jti,
+		RefreshToken: refreshToken,
+		TenantID:     tenantID,
+		UserID:       userID,
+	}); err != nil {
+		return SessionTokens{}, fmt.Errorf("save refresh token: %w", err)
+	}
+
+	return SessionTokens{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func personalTenantRecord(account FirstPartyAccount, now time.Time) PersonalTenantRecord {
+	createdAt := account.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now
+	}
+
+	return PersonalTenantRecord{
+		CreatedAt:   createdAt,
+		DisplayName: account.DisplayName,
+		Kind:        "personal",
+		OwnerUserID: account.UserID,
+		TenantID:    account.PersonalTenantID,
+		UpdatedAt:   now,
+	}
+}
+
+func firebaseDisplayName(claims map[string]any) string {
+	for _, key := range []string{"name", "display_name"} {
+		if value := firebaseStringClaim(claims, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func firebaseStringClaim(claims map[string]any, key string) string {
+	if claims == nil {
+		return ""
+	}
+	value, ok := claims[key]
+	if !ok {
+		return ""
+	}
+	asString, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(asString)
+}
+
+func firstPartyUserID(firebaseUID string) string {
+	return "user-" + stableIdentitySuffix("user:"+firebaseUID)
+}
+
+func firstPartyTenantID(firebaseUID string) string {
+	return "tenant-" + stableIdentitySuffix("tenant:"+firebaseUID)
+}
+
+func stableIdentitySuffix(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
+	return hex.EncodeToString(sum[:10])
 }
 
 func (s *Service) issueAccessToken(now time.Time, tenantID, userID string) (string, string, error) {

@@ -73,8 +73,10 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 
 func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {
 	return store.NewFirestoreAuthStore(firestoreClient, store.FirestoreAuthStoreConfig{
-		APIKeysCollection:       os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
-		RefreshTokensCollection: os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
+		APIKeysCollection:         os.Getenv("CORTADO_AUTH_API_KEYS_COLLECTION"),
+		FirstPartyUsersCollection: os.Getenv("CORTADO_AUTH_FIRST_PARTY_USERS_COLLECTION"),
+		RefreshTokensCollection:   os.Getenv("CORTADO_AUTH_REFRESH_TOKENS_COLLECTION"),
+		TenantsCollection:         os.Getenv("CORTADO_TENANTS_COLLECTION"),
 	})
 }
 
@@ -84,11 +86,12 @@ func newTenantStore(firestoreClient *firestore.Client) *store.FirestoreTenantSto
 	})
 }
 
-func newSessionService(repository auth.Repository) (*auth.Service, error) {
+func newSessionService(repository auth.Repository, firebaseVerifier auth.FirebaseTokenVerifier) (*auth.Service, error) {
 	service, err := auth.NewService(auth.ServiceConfig{
-		Cache:         auth.NewValidationCacheFromEnv(),
-		PrivateKeyPEM: os.Getenv("CORTADO_JWT_PRIVATE_KEY_PEM"),
-		Repository:    repository,
+		Cache:            auth.NewValidationCacheFromEnv(),
+		FirebaseVerifier: firebaseVerifier,
+		PrivateKeyPEM:    os.Getenv("CORTADO_JWT_PRIVATE_KEY_PEM"),
+		Repository:       repository,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create auth service: %w", err)

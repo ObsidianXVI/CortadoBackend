@@ -40,6 +40,7 @@ type APIKeyService interface {
 
 type SessionService interface {
 	CreateSession(ctx context.Context, apiKey, userID string) (auth.SessionTokens, error)
+	ExchangeFirebaseSession(ctx context.Context, idToken string) (auth.SessionTokens, error)
 	RefreshSession(ctx context.Context, refreshToken string) (string, error)
 }
 
@@ -83,6 +84,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if cfg.SessionSvc != nil {
 			sessionsHandler := newSessionsHandler(cfg.SessionSvc)
 			r.Post("/sessions", sessionsHandler.create)
+			r.Post("/sessions/exchange/firebase", sessionsHandler.exchangeFirebase)
 			r.Post("/sessions/refresh", sessionsHandler.refresh)
 		}
 		if cfg.APIKeyAuth != nil && (cfg.APIKeySvc != nil || cfg.TenantAuthSvc != nil) {

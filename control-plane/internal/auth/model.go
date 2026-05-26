@@ -3,8 +3,9 @@ package auth
 import "time"
 
 const (
-	DefaultAPIKeysCollection       = "api_keys"
-	DefaultRefreshTokensCollection = "refresh_tokens"
+	DefaultAPIKeysCollection         = "api_keys"
+	DefaultFirstPartyUsersCollection = "users"
+	DefaultRefreshTokensCollection   = "refresh_tokens"
 )
 
 type APIKeyRecord struct {
@@ -28,6 +29,25 @@ type RefreshTokenRecord struct {
 type SessionTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+type FirstPartyAccount struct {
+	CreatedAt        time.Time `firestore:"createdAt"`
+	DisplayName      string    `firestore:"displayName,omitempty"`
+	Email            string    `firestore:"email,omitempty"`
+	FirebaseUID      string    `firestore:"firebaseUid"`
+	PersonalTenantID string    `firestore:"personalTenantId"`
+	UpdatedAt        time.Time `firestore:"updatedAt"`
+	UserID           string    `firestore:"userId"`
+}
+
+type PersonalTenantRecord struct {
+	CreatedAt   time.Time `firestore:"createdAt"`
+	DisplayName string    `firestore:"displayName,omitempty"`
+	Kind        string    `firestore:"kind"`
+	OwnerUserID string    `firestore:"ownerUserId"`
+	TenantID    string    `firestore:"tenantId"`
+	UpdatedAt   time.Time `firestore:"updatedAt"`
 }
 
 type APIKey struct {
