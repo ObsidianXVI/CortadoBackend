@@ -16,11 +16,69 @@ The `flutter/` directory is a package, not a standalone app shell. Downstream ID
 `CortadoAuthSession` manages the HTTP session with the control plane:
 
 - `createSession(apiKey, userId)` calls `POST /v1/sessions`
+- `exchangeFirebaseSession(firebaseIdToken)` calls `POST /v1/sessions/exchange/firebase`
 - `refresh()` calls `POST /v1/sessions/refresh`
 - it decodes the JWT `exp` claim so it can refresh before expiry
 - it automatically schedules refreshes
 
-`CortadoAuthSession` does not mint API keys itself. It expects a raw Cortado API key from a trusted bootstrap flow such as the control-plane Firebase-authenticated `POST /v1/api-keys` route.
+For the browser-first product path, the package can now own the Firebase sign-in flow directly through [`flutter/lib/src/auth/cortado_firebase_auth.dart`](../flutter/lib/src/auth/cortado_firebase_auth.dart). `CortadoFirebaseAuthClient` signs the user into Cortado-managed Firebase Auth, exchanges the Firebase ID token for a normal Cortado session, and keeps the resulting `CortadoAuthSession` ready for the existing workspace and WebSocket clients.
+
+`CortadoAuthSession` still supports the older API-key bootstrap route for headless or power-user flows. It does not mint API keys itself; that remains a separate bootstrap path such as the control-plane Firebase-authenticated `POST /v1/api-keys` route.
+
+## First-Party Firebase Auth
+
+The package now exposes two auth entry points for the zero-backend browser path:
+
+- **Low-level helper**: `CortadoFirebaseAuthClient`
+- **Drop-in UI**: `CortadoEmbeddedAuth`
+
+### Low-level helper
+
+Use `CortadoFirebaseAuthClient` when the host app wants to keep full control over its own UI:
+
+```dart
+final authClient = CortadoFirebaseAuthClient(
+  baseUrl: 'https://cortado.example.com',
+  firebaseOptions: const FirebaseOptions(
+    apiKey: '...',
+    appId: '...',
+    messagingSenderId: '...',
+    projectId: '...',
+  ),
+);
+
+final result = await authClient.signInWithEmailPassword(
+  email: 'user@example.com',
+  password: 'correct horse battery staple',
+);
+
+final manager = WorkspaceManager(
+  baseUrl: 'https://cortado.example.com',
+  authSession: result.session,
+);
+
+final client = CortadoClient(
+  baseUrl: 'https://cortado.example.com',
+  authSession: result.session,
+);
+```
+
+`signInWithGoogle()` uses the Firebase web popup flow. On native platforms, the host app should complete Firebase sign-in itself and then call `exchangeCurrentUser()` on the client instead.
+
+### Drop-in UI
+
+Use `CortadoEmbeddedAuth` when the host app wants a minimal package-owned auth form:
+
+```dart
+CortadoEmbeddedAuth(
+  authClient: authClient,
+  onAuthenticated: (result) {
+    // Reuse result.session with WorkspaceManager and CortadoClient.
+  },
+)
+```
+
+The widget intentionally stays low-opinion: email, password, optional Google sign-in, basic busy/error state, and a callback that hands the authenticated Cortado session back to the host app.
 
 The package supports both:
 
@@ -135,6 +193,8 @@ final client = CortadoClient(
 ## Code References
 
 - HTTP client: [`flutter/lib/src/workspace_manager.dart`](../flutter/lib/src/workspace_manager.dart)
+- First-party Firebase auth client: [`flutter/lib/src/auth/cortado_firebase_auth.dart`](../flutter/lib/src/auth/cortado_firebase_auth.dart)
+- Embedded auth widget: [`flutter/lib/src/auth/cortado_embedded_auth.dart`](../flutter/lib/src/auth/cortado_embedded_auth.dart)
 - WebSocket client: [`flutter/lib/src/cortado_client.dart`](../flutter/lib/src/cortado_client.dart)
 - VFS notifier: [`flutter/lib/src/filesystem/vfs_notifier.dart`](../flutter/lib/src/filesystem/vfs_notifier.dart)
 - File tree widget: [`flutter/lib/src/filesystem/cortado_file_tree.dart`](../flutter/lib/src/filesystem/cortado_file_tree.dart)

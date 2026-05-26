@@ -68,6 +68,34 @@ class CortadoAuthSession {
     );
   }
 
+  Future<void> exchangeFirebaseSession({
+    required String firebaseIdToken,
+  }) async {
+    final response = await _client.post(
+      _sessionUri(const <String>['v1', 'sessions', 'exchange', 'firebase']),
+      headers: const <String, String>{
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, String>{
+        'firebase_id_token': firebaseIdToken,
+      }),
+    );
+
+    final payload = _decodeResponse(response);
+    final accessToken = payload['access_token'];
+    final refreshToken = payload['refresh_token'];
+    if (accessToken is! String || refreshToken is! String) {
+      throw const FormatException(
+        'Session response must contain string access_token and refresh_token values.',
+      );
+    }
+
+    setTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+  }
+
   void setTokens({
     required String accessToken,
     required String refreshToken,
@@ -77,6 +105,12 @@ class CortadoAuthSession {
       refreshToken: refreshToken,
       expiresAt: _decodeExpiry(accessToken),
     ));
+  }
+
+  void clear() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _state = null;
   }
 
   Future<String?> accessTokenForHttpRequest() async {

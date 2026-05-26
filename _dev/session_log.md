@@ -877,3 +877,15 @@
 - M control-plane/internal/auth/model.go
 - M control-plane/internal/auth/service.go
 - M control-plane/internal/store/firestore_auth_store.go
+26/05/26 02:18 [FEAT] (pending) `dev-pro-large` Completed Task 8.4.2 for the Flutter package by adding a package-owned Firebase auth client, a minimal embedded auth widget, direct Firebase-to-Cortado session exchange support on the reusable auth session object, and package-facing docs/tests so host Flutter web apps can adopt the zero-backend browser auth path without building their own middleware.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- M docs/README.md
+- M docs/flutter-package.md
+- A flutter/README.md
+- M flutter/lib/cortado.dart
+- M flutter/lib/src/cortado_auth_session.dart
+- A flutter/lib/src/auth/cortado_embedded_auth.dart
+- A flutter/lib/src/auth/cortado_firebase_auth.dart
+- M flutter/pubspec.yaml

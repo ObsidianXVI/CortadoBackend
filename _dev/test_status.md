@@ -242,6 +242,10 @@
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && go build ./...`
 - PASS `cd agent && go build ./...`
+26/05/26 02:18
+- PASS `cd flutter && flutter pub get`
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
 24/05/26 05:03
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`

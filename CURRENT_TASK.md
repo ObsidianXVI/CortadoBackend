@@ -1,29 +1,29 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.1
+v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.2
 
 ## Status
 COMPLETE
 
 ## What was done last session
-Completed the now-superseded direct-OIDC Feature 8.4.1 slice by adding tenant auth-provider persistence and validation to the control plane.
+Completed Task 8.4.1 by adding the control-plane Firebase session exchange endpoint plus stable first-party user and personal-tenant provisioning.
 
 ## What was done this session
-Implemented the Firebase browser-session exchange slice in the control plane by adding `POST /v1/sessions/exchange/firebase`, wiring Firebase token verification into the session issuer, auto-provisioning stable first-party Cortado user and personal-tenant records on first login, and extending Firestore auth storage plus test coverage for the new flow.
+Implemented the Flutter-side first-party auth slice by adding `CortadoFirebaseAuthClient`, a drop-in `CortadoEmbeddedAuth` widget, Firebase-to-Cortado session exchange support inside `CortadoAuthSession`, package README/docs updates, and package test coverage for the zero-backend browser auth path.
 
 ## Remaining work this session
-Task 8.4.1 is complete. Resume with Task 8.4.2 for the Flutter package auth client and embedded auth surface.
+Task 8.4.2 is complete. Resume with Task 8.4.3 for personal API key issuance and management after one-time Firebase auth.
 
 ## Definition of done
-- [x] `POST /v1/sessions/exchange/firebase` exists for Cortado-managed browser auth
-- [x] first successful login provisions a stable Cortado user profile plus personal tenant
-- [x] browser apps can establish a normal Cortado session without bringing their own backend or API-key bootstrap
-- [x] relevant Go tests/builds pass for the new Task 8.4.1 slice
+- [x] package-level auth helpers exist for Firebase email/password and Google sign-in
+- [x] package exposes a low-friction embedded auth surface for host Flutter web apps
+- [x] Firebase sign-in automatically exchanges into a reusable Cortado session for existing workspace/client layers
+- [x] Flutter package docs and tests cover the new zero-backend auth path
 
 ## Next task after this one
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.2
-After the Firebase exchange slice lands, move to the Flutter package auth client and embedded auth surface for the zero-backend browser path.
+v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.3
+After the Flutter auth surface lands, add personal API key issuance and management for headless reuse after one-time first-party auth.
 
 ## Blocked on / decisions needed
 No active blockers.

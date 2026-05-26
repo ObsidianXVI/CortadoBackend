@@ -117,6 +117,61 @@ void main() {
       expect(token, refreshedToken);
       expect(session.accessToken, refreshedToken);
     });
+
+    test('exchangeFirebaseSession stores exchanged tokens', () async {
+      final accessToken = _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15));
+      final client = RecordingClient((request, body) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url,
+          Uri.parse('https://api.example.dev/v1/sessions/exchange/firebase'),
+        );
+        expect(
+          jsonDecode(utf8.decode(body)),
+          <String, Object?>{
+            'firebase_id_token': 'firebase-id-token',
+          },
+        );
+
+        return _jsonResponse(200, <String, Object?>{
+          'access_token': accessToken,
+          'refresh_token': 'refresh-token',
+        });
+      });
+
+      final session = CortadoAuthSession(
+        baseUrl: 'https://api.example.dev',
+        httpClient: client,
+        now: () => DateTime.utc(2026, 5, 23, 12),
+      );
+
+      await session.exchangeFirebaseSession(
+        firebaseIdToken: 'firebase-id-token',
+      );
+
+      expect(session.accessToken, accessToken);
+      expect(session.refreshToken, 'refresh-token');
+      expect(session.expiresAt, DateTime.utc(2026, 5, 23, 15));
+    });
+
+    test('clear removes the current session state', () async {
+      final session = CortadoAuthSession(
+        baseUrl: 'https://api.example.dev',
+        now: () => DateTime.utc(2026, 5, 23, 12),
+      );
+
+      session.setTokens(
+        accessToken: _jwtExpiringAt(DateTime.utc(2026, 5, 23, 15)),
+        refreshToken: 'refresh-token',
+      );
+
+      session.clear();
+
+      expect(session.hasSession, isFalse);
+      expect(session.accessToken, isNull);
+      expect(session.refreshToken, isNull);
+      expect(session.expiresAt, isNull);
+    });
   });
 }
 
