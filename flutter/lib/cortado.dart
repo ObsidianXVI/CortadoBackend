@@ -6,6 +6,7 @@ export 'src/cortado_workspace_provider.dart';
 export 'src/ai/cortado_ai_service.dart';
 export 'src/auth/cortado_embedded_auth.dart';
 export 'src/auth/cortado_firebase_auth.dart';
+export 'src/auth/cortado_personal_api_keys.dart';
 export 'src/editor/cortado_code_editor.dart';
 export 'src/editor/cortado_lsp_client.dart';
 export 'src/editor/editor_models.dart';

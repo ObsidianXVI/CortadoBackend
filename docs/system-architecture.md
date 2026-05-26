@@ -18,9 +18,9 @@ The repository root mirrors that split:
 
 ## End-to-End Request Path
 
-1. A trusted frontend or bootstrap flow verifies the user with Firebase and can mint a Cortado API key through `POST /v1/api-keys`.
-2. A consumer app creates a Cortado session through `POST /v1/sessions`.
-3. The Flutter package stores the access token and refresh token in `CortadoAuthSession`.
+1. A consumer app signs the user into Cortado-managed Firebase Auth and exchanges that token through `POST /v1/sessions/exchange/firebase`.
+2. The Flutter package stores the access token and refresh token in `CortadoAuthSession`.
+3. If the user wants a headless credential later, the authenticated app can mint a personal Cortado API key through `POST /v1/api-keys`.
 4. The app creates or lists workspaces through `WorkspaceManager`.
 5. The control plane stores workspace metadata in Firestore and asks the Kubernetes provisioner to create or stop the pod.
 6. When the app opens a workspace, the control plane upgrades a WebSocket on `/v1/workspaces/{id}/connect`.

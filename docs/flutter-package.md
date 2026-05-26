@@ -23,7 +23,29 @@ The `flutter/` directory is a package, not a standalone app shell. Downstream ID
 
 For the browser-first product path, the package can now own the Firebase sign-in flow directly through [`flutter/lib/src/auth/cortado_firebase_auth.dart`](../flutter/lib/src/auth/cortado_firebase_auth.dart). `CortadoFirebaseAuthClient` signs the user into Cortado-managed Firebase Auth, exchanges the Firebase ID token for a normal Cortado session, and keeps the resulting `CortadoAuthSession` ready for the existing workspace and WebSocket clients.
 
-`CortadoAuthSession` still supports the older API-key bootstrap route for headless or power-user flows. It does not mint API keys itself; that remains a separate bootstrap path such as the control-plane Firebase-authenticated `POST /v1/api-keys` route.
+`CortadoAuthSession` still supports the older API-key bootstrap route for headless or power-user flows. It does not mint API keys itself; API-key management now lives beside the session object so apps can mint personal keys after a normal first-party sign-in.
+
+## Personal API Keys
+
+After the host app finishes the first-party Firebase sign-in flow and has a normal `CortadoAuthSession`, it can manage long-lived personal API keys through `CortadoPersonalApiKeysClient`.
+
+```dart
+final authResult = await authClient.signInWithEmailPassword(
+  email: 'user@example.com',
+  password: 'correct horse battery staple',
+);
+
+final personalApiKeys = CortadoPersonalApiKeysClient(
+  baseUrl: 'https://cortado.example.com',
+  authSession: authResult.session,
+);
+
+final issued = await personalApiKeys.issue();
+final listed = await personalApiKeys.list();
+await personalApiKeys.revoke(issued.record.id);
+```
+
+The raw `issued.apiKey` value is returned only from the issuance call. Later list and revoke calls work only on stored metadata, matching the control-plane behavior for hashed-at-rest personal keys.
 
 ## First-Party Firebase Auth
 
@@ -195,6 +217,7 @@ final client = CortadoClient(
 - HTTP client: [`flutter/lib/src/workspace_manager.dart`](../flutter/lib/src/workspace_manager.dart)
 - First-party Firebase auth client: [`flutter/lib/src/auth/cortado_firebase_auth.dart`](../flutter/lib/src/auth/cortado_firebase_auth.dart)
 - Embedded auth widget: [`flutter/lib/src/auth/cortado_embedded_auth.dart`](../flutter/lib/src/auth/cortado_embedded_auth.dart)
+- Personal API key client: [`flutter/lib/src/auth/cortado_personal_api_keys.dart`](../flutter/lib/src/auth/cortado_personal_api_keys.dart)
 - WebSocket client: [`flutter/lib/src/cortado_client.dart`](../flutter/lib/src/cortado_client.dart)
 - VFS notifier: [`flutter/lib/src/filesystem/vfs_notifier.dart`](../flutter/lib/src/filesystem/vfs_notifier.dart)
 - File tree widget: [`flutter/lib/src/filesystem/cortado_file_tree.dart`](../flutter/lib/src/filesystem/cortado_file_tree.dart)

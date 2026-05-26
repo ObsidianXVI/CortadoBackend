@@ -125,7 +125,8 @@ func main() {
 	filesyncpb.RegisterFileSyncServiceServer(grpcServer, fileSyncService)
 
 	routerConfig := api.RouterConfig{
-		APIKeyAuth: cpmiddleware.NewFirebaseAuthMiddleware(cpmiddleware.FirebaseAuthConfig{
+		APIKeyAuth: cpmiddleware.NewAPIKeyAuthMiddleware(cpmiddleware.APIKeyAuthConfig{
+			JWKSJSON:    authService.JWKS(),
 			TenantClaim: envOrDefault("CORTADO_FIREBASE_TENANT_CLAIM", "tenant_id"),
 			Verifier:    firebaseVerifier,
 		}),

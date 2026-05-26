@@ -396,3 +396,9 @@
 - PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+26/05/26 02:30
+- PASS `cd flutter && flutter test`
+- PASS `cd flutter && flutter analyze`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && go build ./...`
+- PASS `cd agent && go build ./...`

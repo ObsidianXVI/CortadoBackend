@@ -22,9 +22,10 @@ The router is assembled in [`control-plane/internal/api/router.go`](../control-p
 - `GET /health`
 - `GET /.well-known/jwks.json`
 - `POST /v1/sessions`
+- `POST /v1/sessions/exchange/firebase`
 - `POST /v1/sessions/refresh`
 
-### Firebase-authenticated API key routes
+### Personal API key routes
 
 - `POST /v1/api-keys`
 - `GET /v1/api-keys`
@@ -60,7 +61,7 @@ Requests normally authenticate with an RS256 JWT access token. The token contain
 
 The middleware in [`control-plane/internal/middleware/auth.go`](../control-plane/internal/middleware/auth.go) also supports the development bypass when `CORTADO_ENV=development` and the request carries `X-Cortado-Dev-Token: dev-bypass` or `?dev_token=dev-bypass` for WebSocket upgrades.
 
-The API key issuance routes use a separate middleware in [`control-plane/internal/middleware/firebase_auth.go`](../control-plane/internal/middleware/firebase_auth.go). That middleware verifies a Firebase ID token from `Authorization: Bearer ...`, extracts the tenant from the `tenant_id` custom claim by default, and injects the Firebase UID as the request user.
+The API key routes now accept a normal Cortado JWT access token first and fall back to Firebase-token auth second. The combined middleware lives in [`control-plane/internal/middleware/api_key_auth.go`](../control-plane/internal/middleware/api_key_auth.go). That keeps the first-party browser flow on normal Cortado sessions while preserving the older Firebase-token bootstrap path where it is still used.
 
 In development, the control plane also exposes a Firebase-authenticated bootstrap route that verifies the Firebase token without requiring an existing tenant claim, then uses the Firebase Admin SDK to assign the configured development tenant claim to that Firebase user.
 
@@ -84,13 +85,13 @@ and returns:
 }
 ```
 
-The auth service looks up the API key against Firestore-backed records, resolves the tenant, issues a short-lived access token, and stores the refresh token. `POST /v1/sessions/refresh` accepts the refresh token and returns a new access token.
+The auth service looks up the API key against Firestore-backed records, resolves the tenant, issues a short-lived access token, and stores the refresh token. `POST /v1/sessions/exchange/firebase` verifies a first-party Firebase ID token and returns the same Cortado session shape without requiring API-key bootstrap. `POST /v1/sessions/refresh` accepts the refresh token and returns a new access token.
 
 If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds when the caller-provided `user_id` matches that bound owner. The validation cache stores both tenant and user identity so repeated session creation preserves the same check on cache hits.
 
 ## API Key Issuance Flow
 
-`POST /v1/api-keys` requires a Firebase ID token and returns the raw Cortado API key once plus its stored metadata:
+`POST /v1/api-keys` can be called with either a normal Cortado access token from the first-party session flow or a Firebase ID token from the older bootstrap path. It returns the raw Cortado API key once plus its stored metadata:
 
 ```json
 {
@@ -105,7 +106,7 @@ If an API key record also stores a `userId`, `POST /v1/sessions` only succeeds w
 }
 ```
 
-The raw key is never stored in Firestore. The control plane stores only the bcrypt hash plus `tenantId`, `userId`, `revoked`, and `createdAt`. `GET /v1/api-keys` lists the current Firebase user's keys for that tenant, and `DELETE /v1/api-keys/{id}` marks a matching key revoked.
+The raw key is never stored in Firestore. The control plane stores only the bcrypt hash plus `tenantId`, `userId`, `revoked`, and `createdAt`. `GET /v1/api-keys` lists the authenticated user's keys for that tenant, and `DELETE /v1/api-keys/{id}` marks a matching key revoked.
 
 ## Development Firebase Bootstrap
 

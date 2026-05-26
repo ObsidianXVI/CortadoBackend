@@ -44,7 +44,7 @@ func TestAPIKeyRoutesIssueListAndRevokeWithFirebaseAuth(t *testing.T) {
 	}
 
 	router := NewRouter(RouterConfig{
-		APIKeyAuth: cpmiddleware.NewFirebaseAuthMiddleware(cpmiddleware.FirebaseAuthConfig{
+		APIKeyAuth: cpmiddleware.NewAPIKeyAuthMiddleware(cpmiddleware.APIKeyAuthConfig{
 			TenantClaim: "tenant_id",
 			Verifier: apiFirebaseVerifierStub{
 				token: &auth.VerifiedFirebaseToken{
@@ -98,11 +98,91 @@ func TestAPIKeyRoutesIssueListAndRevokeWithFirebaseAuth(t *testing.T) {
 	}
 }
 
-func TestAPIKeyRoutesRejectMissingFirebaseAuth(t *testing.T) {
+func TestAPIKeyRoutesIssueListAndRevokeWithCortadoSessionAuth(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 26, 2, 30, 0, 0, time.UTC)
+	service := &apiKeyServiceStub{
+		issued: auth.IssuedAPIKey{
+			APIKey: "cortado_personal",
+			Record: auth.APIKey{
+				ID:        "key-2",
+				TenantID:  "tenant-1",
+				UserID:    "user-1",
+				CreatedAt: now,
+			},
+		},
+		listed: []auth.APIKey{
+			{
+				ID:        "key-2",
+				TenantID:  "tenant-1",
+				UserID:    "user-1",
+				CreatedAt: now,
+			},
+		},
+		revoked: auth.APIKey{
+			ID:        "key-2",
+			TenantID:  "tenant-1",
+			UserID:    "user-1",
+			Revoked:   true,
+			CreatedAt: now,
+		},
+	}
+	authService := mustAuthService(t)
+	sessionTokens, err := authService.CreateSession(context.Background(), "secret-api-key", "user-1")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	router := NewRouter(RouterConfig{
+		APIKeyAuth: cpmiddleware.NewAPIKeyAuthMiddleware(cpmiddleware.APIKeyAuthConfig{
+			JWKSJSON: authService.JWKS(),
+		}),
+		APIKeySvc: service,
+	})
+
+	issueReq := httptest.NewRequest(http.MethodPost, "/v1/api-keys", nil)
+	issueReq.Header.Set("Authorization", "Bearer "+sessionTokens.AccessToken)
+	issueRec := httptest.NewRecorder()
+	router.ServeHTTP(issueRec, issueReq)
+
+	if issueRec.Code != http.StatusCreated {
+		t.Fatalf("unexpected issue status: got %d want %d", issueRec.Code, http.StatusCreated)
+	}
+	if service.issueTenantID != "tenant-1" || service.issueUserID != "user-1" {
+		t.Fatalf("unexpected issue actor: tenant=%q user=%q", service.issueTenantID, service.issueUserID)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/v1/api-keys", nil)
+	listReq.Header.Set("Authorization", "Bearer "+sessionTokens.AccessToken)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("unexpected list status: got %d want %d", listRec.Code, http.StatusOK)
+	}
+	if service.listTenantID != "tenant-1" || service.listUserID != "user-1" {
+		t.Fatalf("unexpected list actor: tenant=%q user=%q", service.listTenantID, service.listUserID)
+	}
+
+	revokeReq := httptest.NewRequest(http.MethodDelete, "/v1/api-keys/key-2", nil)
+	revokeReq.Header.Set("Authorization", "Bearer "+sessionTokens.AccessToken)
+	revokeRec := httptest.NewRecorder()
+	router.ServeHTTP(revokeRec, revokeReq)
+
+	if revokeRec.Code != http.StatusOK {
+		t.Fatalf("unexpected revoke status: got %d want %d", revokeRec.Code, http.StatusOK)
+	}
+	if service.revokeTenantID != "tenant-1" || service.revokeUserID != "user-1" || service.revokedID != "key-2" {
+		t.Fatalf("unexpected revoke actor: tenant=%q user=%q id=%q", service.revokeTenantID, service.revokeUserID, service.revokedID)
+	}
+}
+
+func TestAPIKeyRoutesRejectMissingAuth(t *testing.T) {
 	t.Parallel()
 
 	router := NewRouter(RouterConfig{
-		APIKeyAuth: cpmiddleware.NewFirebaseAuthMiddleware(cpmiddleware.FirebaseAuthConfig{
+		APIKeyAuth: cpmiddleware.NewAPIKeyAuthMiddleware(cpmiddleware.APIKeyAuthConfig{
 			TenantClaim: "tenant_id",
 			Verifier: apiFirebaseVerifierStub{
 				token: &auth.VerifiedFirebaseToken{

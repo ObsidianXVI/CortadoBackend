@@ -1,29 +1,29 @@
 # CURRENT TASK
 
 ## Release · Feature · Task
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.2
+v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.3
 
 ## Status
 COMPLETE
 
 ## What was done last session
-Completed Task 8.4.1 by adding the control-plane Firebase session exchange endpoint plus stable first-party user and personal-tenant provisioning.
+Completed Task 8.4.2 by adding the Flutter-side first-party auth client, embedded auth widget, and automatic Firebase-to-Cortado session exchange support.
 
 ## What was done this session
-Implemented the Flutter-side first-party auth slice by adding `CortadoFirebaseAuthClient`, a drop-in `CortadoEmbeddedAuth` widget, Firebase-to-Cortado session exchange support inside `CortadoAuthSession`, package README/docs updates, and package test coverage for the zero-backend browser auth path.
+Completed Task 8.4.3 by allowing `/v1/api-keys` to authenticate with a normal Cortado session first and fall back to Firebase token verification for compatibility, adding Flutter-side personal API key issuance/list/revoke helpers for the headless reuse path, and updating the auth/docs coverage around personal API key management after one-time first-party sign-in.
 
 ## Remaining work this session
-Task 8.4.2 is complete. Resume with Task 8.4.3 for personal API key issuance and management after one-time Firebase auth.
+Task 8.4.3 is complete. Resume with Task 8.4.4 for platform API keys for SaaS backends.
 
 ## Definition of done
-- [x] package-level auth helpers exist for Firebase email/password and Google sign-in
-- [x] package exposes a low-friction embedded auth surface for host Flutter web apps
-- [x] Firebase sign-in automatically exchanges into a reusable Cortado session for existing workspace/client layers
-- [x] Flutter package docs and tests cover the new zero-backend auth path
+- [x] authenticated Cortado users can mint, list, and revoke long-lived personal API keys after one-time sign-in
+- [x] API keys are returned raw only at issuance time while the backend continues storing only hashed key material
+- [x] the Flutter package exposes personal API key management for CLI/local-tooling bootstrap after first-party auth
+- [x] docs and tests position personal API keys as a headless reuse path rather than the default browser credential
 
 ## Next task after this one
-v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.3
-After the Flutter auth surface lands, add personal API key issuance and management for headless reuse after one-time first-party auth.
+v0.8 → Feature 8.4 (Cortado-Managed Auth + API Key Modes) → Task 8.4.4
+After personal API keys are in place, add platform API keys for SaaS backends that authenticate as one Cortado entity without headed user sign-in flows.
 
 ## Blocked on / decisions needed
 No active blockers.

@@ -889,3 +889,16 @@
 - A flutter/lib/src/auth/cortado_embedded_auth.dart
 - A flutter/lib/src/auth/cortado_firebase_auth.dart
 - M flutter/pubspec.yaml
+26/05/26 02:30 [FEAT] (pending) `dev-pro-large` Completed Task 8.4.3 by letting personal API key routes accept an authenticated Cortado session with Firebase-token fallback for compatibility, adding Flutter-side personal API key issue/list/revoke helpers for headless reuse after first-party sign-in, and updating the auth/docs trackers to point the roadmap at platform API keys next.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/middleware/api_key_auth.go
+- M docs/README.md
+- M docs/control-plane.md
+- M docs/flutter-package.md
+- M docs/system-architecture.md
+- M flutter/README.md
+- M flutter/lib/cortado.dart
+- A flutter/lib/src/auth/cortado_personal_api_keys.dart
