@@ -861,3 +861,11 @@
 - A control-plane/internal/api/tenant_auth_provider.go
 - A control-plane/internal/store/firestore_tenant_store.go
 - A control-plane/internal/tenant/service.go
+26/05/26 01:33 [DOCS] (pending) `dev-pro-large` Replanned the active auth roadmap around first-party Cortado-managed Firebase login plus personal and platform API-key modes, replaced the previous tenant-managed OIDC browser-exchange plan in the feature and technical docs, and repointed the current release/task trackers to the new Firebase session-exchange implementation slice.
+- M CURRENT_RELEASE.md
+- M CURRENT_TASK.md
+- M DECISIONS.md
+- M _dev/docs/release_timeline.md
+- M _dev/docs/technical_report.md
+- M _dev/features/feat-8-4.md
+- M _dev/session_log.md

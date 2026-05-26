@@ -1817,49 +1817,55 @@ spec:
 
 ### 11.2 Authentication & Authorization
 
-**JWT-based auth flow:**
+**Cortado-native session flow:**
 
 ```
-1. Consuming IDE app authenticates its users (any auth provider)
-2. IDE app calls Cortado API with its own API key + user identifier
-3. Cortado issues a scoped JWT for that user's workspace session
-4. Flutter package uses this JWT for all WebSocket/API calls
-5. JWT encodes: {tenant_id, user_id, workspace_ids[], permissions[], exp}
-6. Control plane and workspace agent both validate JWTs using shared JWKS
+1. A caller completes either Firebase session exchange or API-key bootstrap
+2. Cortado issues a scoped JWT for the resulting tenant/user or platform identity
+3. Flutter package and control-plane clients use this JWT for subsequent API and WebSocket calls
+4. JWT encodes the Cortado-native identity and session scope
+5. Control plane and workspace agent both validate JWTs using shared JWKS
 ```
 
-**Direct browser OIDC exchange (planned no-server DX path):**
+**Cortado-managed browser auth (default product path):**
 
 ```
-1. Consuming IDE app signs the user in with its own OIDC provider using PKCE
-2. Browser receives an ID token (or another JWT-like user assertion) from the tenant's provider
-3. Flutter package calls POST /v1/sessions/exchange with that external token
-4. Cortado resolves the tenant's configured OIDC discovery or JWKS metadata
-5. Cortado validates iss, aud, exp, alg, and signature against that tenant config
-6. Cortado maps provider claims into Cortado's internal {tenant_id, user_id} actor
-7. Cortado returns its own access_token + refresh_token pair
-8. Flutter package uses the Cortado JWT for all subsequent HTTP and WebSocket calls
+1. End user signs in with email/password or Google through Cortado-managed Firebase Auth
+2. Browser receives a Firebase ID token issued by Cortado's Firebase project
+3. Flutter package calls POST /v1/sessions/exchange/firebase with that Firebase token
+4. Cortado verifies the token, auto-provisions the Cortado user on first login, and resolves the user's personal tenant
+5. Cortado returns its own access_token + refresh_token pair
+6. Flutter package uses the Cortado JWT for all subsequent HTTP and WebSocket calls
+7. JWT encodes the Cortado tenant/user identity, not Firebase-specific transport details
+8. Control plane and workspace agent both validate JWTs using shared JWKS
 ```
 
-**Why this path exists:** server-to-server session minting from a tenant backend remains the long-term best-practice path for production SaaS, but it forces every developer to operate a trusted backend before they can adopt Cortado. A browser exchange flow gives a much better zero-backend developer experience while still keeping Cortado out of tenant identity databases and avoiding tenant-specific Firebase Admin access in production.
+**Why this is the default path:** the product goal is that developers embedding the Cortado Flutter package should not have to build custom middleware, run a dedicated auth backend, or wire their own identity provider into Cortado just to make the package usable. Cortado therefore owns the primary browser login/register path itself.
 
-**Tenant auth-provider configuration (planned):**
+**Long-lived API key auth (headless + SaaS integration path):**
 
-- `issuer` or OIDC discovery URL
-- optional explicit `jwks_uri`
-- allowed audiences / client IDs
-- accepted signing algorithms
-- `user_id` claim mapping (`sub` by default, with configurable override)
-- optional tenant/group/org membership claim rules
+```
+1. A Cortado user or provisioned platform tenant completes a one-time authenticated bootstrap
+2. Cortado issues a raw API key once and stores only a hash at rest
+3. The caller stores that key and later uses it to create Cortado sessions without another headed auth flow
+4. Cortado resolves either the personal tenant/user identity or the platform tenant identity from the key
+5. Cortado returns Cortado-native session tokens or executes direct server-side operations under that identity
+6. Downstream APIs continue to consume Cortado JWTs or explicit API-key-authenticated platform calls only
+```
 
-**Security constraints for the exchange endpoint:**
+**API key modes:**
 
-- Cortado must reject tokens unless `iss`, `aud`, `exp`, `nbf`, and signature all validate against the tenant's stored provider config.
-- The exchange endpoint should only accept JWT-capable providers with stable discovery/JWKS metadata; it should not become a generic opaque-token introspection proxy.
-- Provider claims should be mapped into Cortado's own JWT immediately so downstream workspace APIs never depend on third-party token formats.
-- The no-server exchange path should not require Cortado to mutate tenant identity state or hold tenant admin credentials.
+- **Personal API keys** are bound to a first-party Cortado user and that user's personal tenant. They exist for CLI, scripting, local automation, and other non-interactive developer workflows.
+- **Platform API keys** are bound to a SaaS platform tenant. They authenticate the external platform as one Cortado entity while the platform keeps owning its own downstream user auth and identity model.
 
-**Deferred path:** a tenant-backend server-to-server session minting flow is still the preferred enterprise architecture, but it is intentionally deferred until after the browser exchange path lands.
+**Security constraints for the auth system:**
+
+- `POST /v1/sessions/exchange/firebase` must only accept Firebase ID tokens issued by Cortado's own Firebase project.
+- First-login provisioning must be idempotent so repeated exchanges do not create duplicate users or duplicate personal tenants.
+- Raw API keys are only returned once and must be stored hashed at rest; browser-first flows should prefer refreshable Cortado sessions instead of long-lived API keys.
+- Platform API keys authenticate the platform tenant as one entity; they must not be treated as proof of identity for the platform's downstream end users.
+
+**Deferred path:** enterprise BYO identity such as tenant-managed OIDC or SAML may still land later as an optional integration mode, but it is explicitly no longer the core product path.
 
 **mTLS for pod-to-control-plane communication:**
 
@@ -2022,12 +2028,15 @@ Log correlation via trace IDs (from OTel context) enables end-to-end request tra
 
 ```
 Cortado (you, the platform operator)
-  └── Tenant (the IDE developer using Cortado's package)
-       └── User (the IDE's end users)
+  ├── First-party Cortado user
+  │    └── Personal tenant
+  │         └── Workspace
+  └── Platform tenant (optional SaaS integration)
+       └── Platform-managed users (opaque to Cortado)
             └── Workspace
 ```
 
-The Cortado API key is per-tenant. Tenants configure their workspace images, resource limits, and billing plans. End users are authenticated by the tenant's IDE app; Cortado only needs a stable user identifier. For the planned browser exchange flow, the tenant's OIDC provider remains the identity source of truth and Cortado only consumes a validated user assertion long enough to mint its own session token.
+The default product mode is the first branch: a Cortado user signs into Cortado directly and receives a personal tenant automatically. That keeps the zero-backend embedded flow simple because consuming frontend packages do not have to bring their own auth middleware. The second branch exists for full SaaS products that already run their own identity systems. In that mode, Cortado authenticates only the platform tenant and does not become the source of truth for that platform's internal end users.
 
 ### 14.2 Namespace Isolation in GKE
 

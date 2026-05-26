@@ -1660,7 +1660,7 @@ build-daemon:
 
 # RELEASE v0.8 — "Public Beta"
 ### Weeks 35–40 | ~87 hours
-**Exit criterion**: Multi-tenant. Direct browser OIDC exchange works without a tenant backend. Stripe billing charges users. Package published on pub.dev.
+**Exit criterion**: Multi-tenant. Cortado-managed first-party auth works without any tenant backend. Personal and platform API keys exist for headless and SaaS integrations. Stripe billing charges users. Package published on pub.dev.
 
 ---
 
@@ -1775,29 +1775,34 @@ Instrument control plane and agent with OTel spans. Key metrics: terminal RTT, c
 
 ---
 
-## Feature 8.4 — Direct OIDC Session Exchange
-**Duration**: Week 40 (3 tasks, ~4 days)
+## Feature 8.4 — Cortado-Managed Auth + API Key Modes
+**Duration**: Week 40 (4 tasks, ~6 days)
 
-### Task 8.4.1 — Tenant auth-provider configuration
-- Add tenant-scoped config for OIDC discovery or explicit issuer + JWKS.
-- Store allowed audience / client IDs, accepted algorithms, and claim mapping for `user_id`.
-- Validate provider metadata on write so broken tenant config fails early.
-
----
-
-### Task 8.4.2 — `POST /v1/sessions/exchange`
-- Accept a tenant-managed external JWT from the browser and exchange it for Cortado `{access_token, refresh_token}`.
-- Validate `iss`, `aud`, `exp`, `nbf`, algorithm, and signature against the tenant's configured OIDC metadata.
-- Map provider claims into Cortado's internal `tenant_id` + `user_id`, then reuse the existing Cortado session issuance path.
-
-**Challenge**: keep the first cut strict and JWT-only. Do not try to support opaque access tokens or provider-specific introspection APIs in the same milestone.
+### Task 8.4.1 — First-party Firebase session exchange
+- Add `POST /v1/sessions/exchange/firebase` for Firebase ID tokens issued by Cortado's own Firebase project.
+- Auto-provision the Cortado user profile and default personal tenant on first successful login.
+- Return Cortado `{access_token, refresh_token}` so embedded apps can proceed without a tenant backend or manual API-key bootstrap.
 
 ---
 
-### Task 8.4.3 — Flutter exchange client + docs
-- Add a Flutter package auth helper for exchanging an externally obtained OIDC token for a Cortado session.
-- Document the no-server browser exchange flow as the first production auth path.
-- Explicitly defer tenant-backend server-to-server minting as the follow-up enterprise path.
+### Task 8.4.2 — Flutter first-party auth client + embedded auth surface
+- Add package helpers for email/password and Google login against Cortado-managed Firebase Auth.
+- Exchange the Firebase token for a Cortado session automatically after sign-in.
+- Document the zero-backend embedded-auth path for consuming Flutter web apps.
+
+---
+
+### Task 8.4.3 — Personal API key issuance + management
+- Let authenticated Cortado users mint, list, and revoke long-lived personal API keys after one-time auth.
+- Keep raw keys one-time-visible only and reuse them for later headless session creation.
+- Position this as the CLI/headless path, not the default browser session path.
+
+---
+
+### Task 8.4.4 — Platform API keys for SaaS backends
+- Introduce long-lived platform API keys for SaaS backends that authenticate to Cortado as one external entity.
+- Keep the platform's own end-user auth outside Cortado while still allowing backend-to-backend Cortado API usage.
+- Document this as the integration path for full SaaS products with their own identity systems.
 
 ---
 
@@ -1829,7 +1834,7 @@ Instrument control plane and agent with OTel spans. Key metrics: terminal RTT, c
 | 35 | v0.8 | Multi-tenancy (Terraform namespaces + RBAC) | 12 |
 | 36–37 | v0.8 | Package polish, example app, pub.dev publish | 12 |
 | 39 | v0.8 | OTel dashboards, error audit, load test | 12 |
-| 40 | v0.8 | Direct browser OIDC session exchange | 12 |
+| 40 | v0.8 | Cortado-managed auth + platform API keys | 18 |
 
 **Total: ~303 hours over 40 weeks (~7.5h/week effective)**
 

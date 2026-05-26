@@ -75,5 +75,16 @@
 - Self-service Firebase tenant-claim assignment exists only on a dedicated development-only endpoint, with the assigned tenant defaulting to `CORTADO_FIREBASE_DEV_TENANT_ID` and falling back to `demo-tenant`.
   Rationale: the user wanted localhost demo bootstrap to be fully self-service, but broad claim assignment would be too permissive for production. Scoping the route to `CORTADO_ENV=development` keeps the convenience path local to dev/demo environments while letting the app recover brand-new Firebase users automatically before minting Cortado API keys.
 
-- The first production-grade identity integration after the current JWT/API-key system will be browser-driven OIDC token exchange, while tenant-backend server-to-server session minting is explicitly deferred.
-  Rationale: the user confirmed server-to-server is the correct long-term industry-standard model, but asked to start with the best no-server developer experience. A direct `sessions/exchange` flow against tenant-configured OIDC discovery/JWKS keeps Cortado out of tenant identity databases while avoiding a mandatory tenant backend for early adopters.
+- The direct browser OIDC exchange decision is superseded and no longer the mainline auth plan.
+  Rationale: this preserves the historical note that the team briefly moved toward tenant-managed OIDC, but the later 26/05/26 decision replaced it with Cortado-managed first-party auth as the primary product direction.
+
+## 26/05/26
+
+- Cortado's primary product auth path is first-party Firebase-managed end-user authentication, not tenant-managed BYO OIDC.
+  Rationale: the user explicitly wants frontend-package developers to add the Cortado package without building middleware or a tenant backend. Making Cortado own the browser login/register flow is the lowest-friction path for package adoption and supersedes the previous direct-browser OIDC exchange direction as the new mainline plan.
+
+- After one-time authenticated bootstrap, long-lived Cortado API keys remain a supported auth mode for both personal headless use and backend/server integrations.
+  Rationale: browser apps should prefer refreshable Cortado session tokens, but durable API keys are still valuable for CLI, automation, and developers who want to call Cortado APIs without repeating a headed login flow.
+
+- SaaS/server API-key integrations authenticate an external platform as one Cortado entity, while that platform remains responsible for its own downstream user identities.
+  Rationale: the user wants Cortado to manage end users only in the zero-backend first-party path. When a full SaaS already operates its own auth stack, Cortado should only need platform-level trust rather than becoming the identity source of truth for every downstream user in that product.

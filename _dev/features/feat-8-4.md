@@ -1,65 +1,62 @@
-## Feature 8.4 — Direct OIDC Session Exchange
-**Duration**: Week 40 (3 tasks, ~4 days)
+## Feature 8.4 — Cortado-Managed Auth + API Key Modes
+**Duration**: Week 40 (4 tasks, ~6 days)
 
-*This feature adds the first production-grade no-server authentication path. Tenant-backend server-to-server session minting remains deferred and is not part of this scope.*
+*This feature makes Cortado usable with zero backend work for embedded Flutter web IDEs while still preserving a long-lived API-key path for headless personal usage and SaaS/server integrations.*
 
 ### Goal
-- Let a tenant-managed browser app authenticate users with its own OIDC provider and exchange that external user token directly for a Cortado session.
-- Keep Cortado out of tenant identity databases and admin consoles.
-- Preserve a future upgrade path to server-to-server minting without throwing away the exchange implementation.
+- Let frontend-package developers embed Cortado without building custom auth middleware or a Cortado-specific backend.
+- Make Cortado-managed Firebase auth the default end-user identity path for browser IDEs.
+- Preserve long-lived API keys for both personal headless usage and server-side SaaS platforms that want Cortado-to-platform trust only.
 
 ### Non-goals
-- Do not implement tenant-backend server-to-server session minting yet.
-- Do not support opaque OAuth access tokens that require provider-specific introspection APIs.
-- Do not make Cortado a full identity broker or generic social-login gateway.
+- Do not require tenant-managed OIDC or other BYO-auth integration for the default product path.
+- Do not make long-lived API keys the normal browser credential for embedded apps.
+- Do not implement enterprise SAML/OIDC federation in this slice.
+- Do not require Cortado to understand or verify a SaaS platform's downstream end-user identities in the platform API-key mode.
 
-### Task 8.4.1 — Tenant auth-provider configuration
-- Add tenant-scoped auth provider config for:
-  - OIDC discovery URL or explicit `issuer` + `jwks_uri`
-  - allowed audience / client IDs
-  - accepted signing algorithms
-  - `user_id` claim mapping (default `sub`)
-  - optional claim requirements for org/team membership
-- Expose control-plane CRUD endpoints for this config under the tenant self-service API surface.
-- Persist provider config alongside tenant metadata and validate it on write.
+### Task 8.4.1 — First-party Firebase session exchange
+- Add a new `POST /v1/sessions/exchange/firebase` endpoint that accepts a Firebase ID token issued by Cortado's own Firebase project.
+- Verify the token, auto-provision a Cortado user profile on first login, and create or resolve that user's default personal tenant namespace.
+- Return Cortado `{access_token, refresh_token}` so the Flutter package can proceed with normal workspace calls without a separate API-key bootstrap step.
+- Persist a stable mapping between Firebase UID, Cortado user ID, and the user's default personal tenant.
 
-**Challenge**: provider metadata can be subtly malformed or incomplete. Validate discovery responses up front and fail tenant config writes early instead of surfacing confusing auth failures at session-exchange time.
+**Challenge**: first-login provisioning must be idempotent and stable under retries so package consumers never have to think about internal tenant creation or partial bootstrap state.
 
 ---
 
-### Task 8.4.2 — `POST /v1/sessions/exchange`
-- Implement a new session exchange endpoint that accepts a tenant-scoped external JWT and returns Cortado `{access_token, refresh_token}`.
-- Resolve the tenant's configured discovery/JWKS metadata, cache signing keys, and validate:
-  - `iss`
-  - `aud`
-  - `exp` / `nbf`
-  - signature
-  - allowed signing algorithms
-- Map the configured user claim into Cortado's internal `user_id`.
-- Mint Cortado JWTs using the existing internal session machinery so the rest of the control plane continues to consume Cortado-native tokens only.
+### Task 8.4.2 — Flutter first-party auth client + embedded auth surface
+- Add package-level auth helpers for email/password and Google login against Cortado-managed Firebase Auth.
+- Expose a low-friction embedded auth surface that host Flutter web apps can drop in without adding backend middleware.
+- After Firebase sign-in, exchange the Firebase ID token for a Cortado session automatically and hand the result to the existing Cortado client/workspace layers.
+- Document both the turnkey embedded-auth path and the lower-level path for hosts that want custom UI but still rely on Cortado-managed auth.
 
-**Challenge**: many providers return both ID tokens and access tokens, but only some access tokens are JWTs with stable claims. Keep the first implementation strict: accept JWT-like tokens only, with a clear error when a tenant tries to send an opaque token.
+**Challenge**: keep the package embeddable and low-opinion while still delivering a genuinely zero-backend adoption path.
 
 ---
 
-### Task 8.4.3 — Flutter exchange client + example integration
-- Extend the Flutter package auth session to support exchanging an externally obtained OIDC token for a Cortado session.
-- Add a package example showing:
-  - browser sign-in handled by the consuming app
-  - Cortado session exchange call
-  - normal workspace create/connect flow after exchange
-- Document the provider requirements and the difference between:
-  - direct browser exchange
-  - development-only Firebase bootstrap
-  - future server-to-server minting
+### Task 8.4.3 — Personal API key issuance + management
+- Let an authenticated Cortado user mint, list, and revoke long-lived personal API keys after a one-time Firebase sign-in.
+- Return the raw key only once, store only a hash, and allow that key to create Cortado sessions later without another headed auth flow.
+- Position personal API keys as a headless/power-user path for CLI, local tooling, and non-interactive developer workflows rather than the default browser path.
+- Ensure personal API keys remain bound to the owning Cortado user and personal tenant so they cannot impersonate another Cortado user.
 
-**Challenge**: browser auth SDKs vary a lot. Keep the Flutter package surface narrow: Cortado should accept a token string and not own the upstream sign-in UI or provider SDK lifecycle.
+**Challenge**: keep the browser-first path on refreshable session tokens while still making headless personal access practical and easy to reason about.
+
+---
+
+### Task 8.4.4 — Platform API keys for SaaS backends
+- Introduce a platform tenant entity that can hold long-lived server-side API keys independently of first-party Cortado end-user accounts.
+- Let a SaaS platform authenticate to Cortado as one external entity and call Cortado APIs from its own backend without interactive login flows.
+- Treat the platform's internal end users as opaque to Cortado unless the platform chooses to send user metadata for its own bookkeeping.
+- Document this as the path for full SaaS products that already run their own identity systems and only need Cortado-to-platform trust.
+
+**Challenge**: keep platform API-key auth clearly separate from the first-party end-user auth model so permissions, billing, and attribution do not get blurred.
 
 ---
 
 ### Definition of done
-- [ ] Tenant auth-provider config exists with strict validation for discovery/JWKS and audience settings
-- [ ] `POST /v1/sessions/exchange` validates tenant-issued external JWTs and returns Cortado session tokens
-- [ ] Exchange path reuses Cortado's internal JWT/refresh-token machinery after claim mapping
-- [ ] Flutter package exposes a small exchange client surface without embedding provider-specific auth logic
-- [ ] Docs clearly position browser exchange as the first no-server path and server-to-server minting as deferred follow-up
+- [ ] Cortado-managed Firebase session exchange exists and auto-provisions first-party users plus personal tenants
+- [ ] Flutter package supports zero-backend login/register flows against Cortado-managed auth
+- [ ] Personal API keys can be minted after one-time auth and reused headlessly
+- [ ] Platform API keys exist for SaaS/server integrations that authenticate as one Cortado entity
+- [ ] Docs clearly position first-party auth as the default path and platform API keys as the backend integration path
