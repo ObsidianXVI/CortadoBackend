@@ -408,3 +408,6 @@
 - PASS `cd agent && go build ./...`
 - PASS `cd flutter && flutter test`
 - PASS `cd flutter && flutter analyze`
+26/05/26 03:12
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`

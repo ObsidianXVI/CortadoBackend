@@ -918,3 +918,11 @@
 - M docs/flutter-package.md
 - M docs/system-architecture.md
 - M flutter/lib/src/cortado_auth_session.dart
+26/05/26 03:12 [FEAT] (pending) `dev-pro-large` Integrated the new managed-auth backend flows into `demo_app` by adding direct Firebase-to-Cortado session exchange, platform-tenant bootstrap plus platform-key mint/list flows, and platform-session bootstrap with an empty user ID so the demo can exercise the new auth model locally while the tracker remains pointed at the deferred Flutter web preview task.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M demo_app/README.md
+- M demo_app/lib/src/demo_firebase_bootstrap.dart
+- M demo_app/lib/src/demo_showcase_app.dart
+- M demo_app/test/widget_test.dart

@@ -76,5 +76,7 @@ void main() {
 
     expect(find.text('Cortado Package Showcase'), findsOneWidget);
     expect(find.text('Identity Bootstrap'), findsOneWidget);
+    expect(find.text('Exchange Session'), findsOneWidget);
+    expect(find.text('Platform Backend Flow'), findsOneWidget);
   });
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cortado/cortado.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,7 @@ import 'demo_bootstrap_config.dart';
 class DemoApiKeyRecord {
   const DemoApiKeyRecord({
     required this.id,
+    required this.kind,
     required this.tenantId,
     required this.userId,
     required this.revoked,
@@ -16,6 +18,7 @@ class DemoApiKeyRecord {
   });
 
   final String id;
+  final String kind;
   final String tenantId;
   final String userId;
   final bool revoked;
@@ -24,10 +27,37 @@ class DemoApiKeyRecord {
   factory DemoApiKeyRecord.fromJson(Map<String, dynamic> json) {
     return DemoApiKeyRecord(
       id: (json['id'] as String? ?? '').trim(),
+      kind: (json['kind'] as String? ?? '').trim(),
       tenantId: (json['tenantId'] as String? ?? '').trim(),
       userId: (json['userId'] as String? ?? '').trim(),
       revoked: json['revoked'] as bool? ?? false,
       createdAt: DateTime.tryParse((json['createdAt'] as String? ?? '').trim()),
+    );
+  }
+}
+
+class DemoPlatformTenant {
+  const DemoPlatformTenant({
+    required this.tenantId,
+    required this.displayName,
+    required this.kind,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String tenantId;
+  final String displayName;
+  final String kind;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  factory DemoPlatformTenant.fromJson(Map<String, dynamic> json) {
+    return DemoPlatformTenant(
+      tenantId: (json['tenantId'] as String? ?? '').trim(),
+      displayName: (json['displayName'] as String? ?? '').trim(),
+      kind: (json['kind'] as String? ?? '').trim(),
+      createdAt: DateTime.tryParse((json['createdAt'] as String? ?? '').trim()),
+      updatedAt: DateTime.tryParse((json['updatedAt'] as String? ?? '').trim()),
     );
   }
 }
@@ -141,7 +171,7 @@ class DemoFirebaseBootstrap {
   }
 
   Future<DemoIssuedApiKey> mintApiKey(String baseUrl) async {
-    final idToken = await _currentIdToken(forceRefresh: true);
+    final idToken = await currentIdToken(forceRefresh: true);
     final response = await http.post(
       _endpoint(baseUrl, '/v1/api-keys'),
       headers: <String, String>{
@@ -156,7 +186,7 @@ class DemoFirebaseBootstrap {
   }
 
   Future<List<DemoApiKeyRecord>> listApiKeys(String baseUrl) async {
-    final idToken = await _currentIdToken(forceRefresh: true);
+    final idToken = await currentIdToken(forceRefresh: true);
     final response = await http.get(
       _endpoint(baseUrl, '/v1/api-keys'),
       headers: <String, String>{
@@ -179,7 +209,7 @@ class DemoFirebaseBootstrap {
     String baseUrl, {
     String tenantId = '',
   }) async {
-    final idToken = await _currentIdToken(forceRefresh: true);
+    final idToken = await currentIdToken(forceRefresh: true);
     final response = await http.post(
       _endpoint(baseUrl, '/v1/dev/firebase/tenant-claim'),
       headers: <String, String>{
@@ -202,7 +232,91 @@ class DemoFirebaseBootstrap {
     );
   }
 
-  Future<String> _currentIdToken({required bool forceRefresh}) async {
+  Future<DemoPlatformTenant> createPlatformTenant(
+    String baseUrl,
+    CortadoAuthSession session, {
+    required String displayName,
+  }) async {
+    final response = await http.post(
+      _endpoint(baseUrl, '/v1/platform-tenants'),
+      headers: await _sessionHeaders(session),
+      body: jsonEncode(<String, String>{
+        'displayName': displayName.trim(),
+      }),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw StateError(_errorMessage(response));
+    }
+
+    final payload = _decodeObject(response.body);
+    return DemoPlatformTenant.fromJson(
+      (payload['tenant'] as Map<Object?, Object?>? ??
+              const <Object?, Object?>{})
+          .cast<String, dynamic>(),
+    );
+  }
+
+  Future<List<DemoPlatformTenant>> listPlatformTenants(
+    String baseUrl,
+    CortadoAuthSession session,
+  ) async {
+    final response = await http.get(
+      _endpoint(baseUrl, '/v1/platform-tenants'),
+      headers: await _sessionHeaders(session),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_errorMessage(response));
+    }
+
+    final payload = _decodeObject(response.body);
+    final rawTenants =
+        payload['tenants'] as List<Object?>? ?? const <Object?>[];
+    return rawTenants
+        .whereType<Map<Object?, Object?>>()
+        .map(
+          (json) => DemoPlatformTenant.fromJson(json.cast<String, dynamic>()),
+        )
+        .toList(growable: false);
+  }
+
+  Future<DemoIssuedApiKey> mintPlatformApiKey(
+    String baseUrl,
+    CortadoAuthSession session, {
+    required String tenantId,
+  }) async {
+    final response = await http.post(
+      _endpoint(baseUrl, '/v1/platform-tenants/${tenantId.trim()}/api-keys'),
+      headers: await _sessionHeaders(session),
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw StateError(_errorMessage(response));
+    }
+
+    return DemoIssuedApiKey.fromJson(_decodeObject(response.body));
+  }
+
+  Future<List<DemoApiKeyRecord>> listPlatformApiKeys(
+    String baseUrl,
+    CortadoAuthSession session, {
+    required String tenantId,
+  }) async {
+    final response = await http.get(
+      _endpoint(baseUrl, '/v1/platform-tenants/${tenantId.trim()}/api-keys'),
+      headers: await _sessionHeaders(session),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_errorMessage(response));
+    }
+
+    final payload = _decodeObject(response.body);
+    final rawKeys = payload['apiKeys'] as List<Object?>? ?? const <Object?>[];
+    return rawKeys
+        .whereType<Map<Object?, Object?>>()
+        .map((json) => DemoApiKeyRecord.fromJson(json.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<String> currentIdToken({bool forceRefresh = true}) async {
     final firebaseAuth = await auth();
     final user = firebaseAuth.currentUser;
     if (user == null) {
@@ -214,6 +328,20 @@ class DemoFirebaseBootstrap {
       throw StateError('Firebase did not return an ID token.');
     }
     return idToken.trim();
+  }
+
+  static Future<Map<String, String>> _sessionHeaders(
+    CortadoAuthSession session,
+  ) async {
+    final accessToken = await session.accessTokenForHttpRequest();
+    if (accessToken == null || accessToken.trim().isEmpty) {
+      throw StateError('Create a Cortado session first.');
+    }
+
+    return <String, String>{
+      'Authorization': 'Bearer ${accessToken.trim()}',
+      'Content-Type': 'application/json',
+    };
   }
 
   static Uri _endpoint(String baseUrl, String path) {

@@ -23,6 +23,12 @@ enum DemoEditorPackage {
   liteCodeEditor,
 }
 
+enum DemoSessionMode {
+  firebaseExchange,
+  personalApiKey,
+  platformApiKey,
+}
+
 extension DemoEditorPackagePresentation on DemoEditorPackage {
   String get label => switch (this) {
         DemoEditorPackage.flutterCodeEditor => 'Flutter Code Editor',
@@ -59,6 +65,21 @@ extension DemoEditorPackagePresentation on DemoEditorPackage {
             'Useful for showing the low-overhead path: open lib/main.dart, edit, save to the workspace, and verify in terminal.',
             'Good contrast against the heavier Monaco and CodeForge experiences.',
           ],
+      };
+}
+
+extension DemoSessionModePresentation on DemoSessionMode {
+  String get label => switch (this) {
+        DemoSessionMode.firebaseExchange => 'First-party Firebase session',
+        DemoSessionMode.personalApiKey => 'Personal API key session',
+        DemoSessionMode.platformApiKey => 'Platform API key session',
+      };
+
+  bool get isUserScoped => switch (this) {
+        DemoSessionMode.platformApiKey => false,
+        DemoSessionMode.firebaseExchange ||
+        DemoSessionMode.personalApiKey =>
+          true,
       };
 }
 
@@ -128,6 +149,10 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       TextEditingController(text: widget.initialConfig.apiKey);
   late final TextEditingController _userIdController =
       TextEditingController(text: widget.initialConfig.userId);
+  late final TextEditingController _platformTenantDisplayNameController =
+      TextEditingController(text: 'Acme IDE');
+  late final TextEditingController _platformTenantIdController =
+      TextEditingController();
   late final TextEditingController _workspaceIdController =
       TextEditingController(text: widget.initialConfig.workspaceId);
   late final TextEditingController _imageController =
@@ -152,7 +177,10 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   User? _firebaseUser;
   DemoTenantAssignment? _tenantAssignment;
   DemoIssuedApiKey? _issuedApiKey;
+  DemoIssuedApiKey? _issuedPlatformApiKey;
   List<DemoApiKeyRecord> _issuedApiKeys = const <DemoApiKeyRecord>[];
+  List<DemoApiKeyRecord> _platformApiKeys = const <DemoApiKeyRecord>[];
+  List<DemoPlatformTenant> _platformTenants = const <DemoPlatformTenant>[];
   Workspace? _workspace;
   WorkspaceStatus? _workspaceStatus;
   String _draftCode = '';
@@ -160,9 +188,12 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   String? _busyLabel;
   String? _connectedWorkspaceId;
   String? _infoMessage;
+  DemoSessionMode? _sessionMode;
   int _documentRevision = 0;
 
   bool get _isBusy => _busyLabel != null;
+  bool get _hasUserScopedSession =>
+      _authSession != null && (_sessionMode?.isUserScoped ?? false);
   String get _workspaceId => _workspaceIdController.text.trim();
   String get _filePath => _filePathController.text.trim();
   bool get _hasLoadedFile => _loadedFilePath.isNotEmpty;
@@ -183,6 +214,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _firebasePasswordController.dispose();
     _apiKeyController.dispose();
     _userIdController.dispose();
+    _platformTenantDisplayNameController.dispose();
+    _platformTenantIdController.dispose();
     _workspaceIdController.dispose();
     _imageController.dispose();
     _shellController.dispose();
@@ -297,7 +330,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
-            'Register or sign in with Firebase email/password, mint a Cortado API key from the control plane, then use the existing session and workspace buttons below.',
+            'Register or sign in with Firebase email/password, then either exchange directly into a Cortado session or mint personal and platform API keys from the control plane.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFFB8C4D2),
                 ),
@@ -365,6 +398,13 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               FilledButton.icon(
                 onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
                     ? null
+                    : _exchangeFirebaseSession,
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Exchange Session'),
+              ),
+              FilledButton.icon(
+                onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
+                    ? null
                     : _assignDevelopmentTenant,
                 icon: const Icon(Icons.verified_user_outlined),
                 label: const Text('Assign Dev Tenant'),
@@ -374,14 +414,14 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                     ? null
                     : _mintApiKey,
                 icon: const Icon(Icons.vpn_key_outlined),
-                label: const Text('Mint API Key'),
+                label: const Text('Mint Personal Key'),
               ),
               OutlinedButton.icon(
                 onPressed: !bootstrapReady || _isBusy || _firebaseUser == null
                     ? null
                     : _refreshIssuedApiKeys,
                 icon: const Icon(Icons.key_rounded),
-                label: const Text('List My Keys'),
+                label: const Text('List Personal Keys'),
               ),
             ],
           ),
@@ -408,6 +448,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                 Chip(
                   label: Text('Assigned ${_tenantAssignment!.tenantId}'),
                 ),
+              if (_sessionMode != null) Chip(label: Text(_sessionMode!.label)),
             ],
           ),
           if (_issuedApiKey != null) ...<Widget>[
@@ -440,7 +481,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
           if (_issuedApiKeys.isNotEmpty) ...<Widget>[
             const SizedBox(height: 16),
             Text(
-              'Issued API Keys',
+              'Personal API Keys',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -450,6 +491,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(apiKey.id),
                 subtitle: Text(
+                  '${apiKey.kind.isEmpty ? 'personal' : apiKey.kind} · '
                   '${apiKey.tenantId} · ${apiKey.userId} · '
                   '${apiKey.createdAt?.toIso8601String() ?? 'unknown time'}',
                 ),
@@ -459,8 +501,171 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               ),
             ],
           ],
+          const SizedBox(height: 20),
+          _buildPlatformCard(context),
         ],
       ),
+    );
+  }
+
+  Widget _buildPlatformCard(BuildContext context) {
+    final platformReady = _hasUserScopedSession;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Platform Backend Flow',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Use a normal Cortado user session to create a platform tenant, mint a platform API key, then switch the session form below to a platform-scoped backend credential.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFFB8C4D2),
+              ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          platformReady
+              ? 'Current session can manage platform tenants.'
+              : 'Exchange a Firebase session or create a personal API-key session first. Platform API-key sessions cannot manage platform tenants.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF8898AA),
+              ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            _buildField(
+              _platformTenantDisplayNameController,
+              'Platform Tenant Name',
+              260,
+            ),
+            _buildField(
+              _platformTenantIdController,
+              'Platform Tenant ID',
+              260,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            FilledButton.icon(
+              onPressed:
+                  !platformReady || _isBusy ? null : _createPlatformTenant,
+              icon: const Icon(Icons.apartment_rounded),
+              label: const Text('Create Platform Tenant'),
+            ),
+            OutlinedButton.icon(
+              onPressed:
+                  !platformReady || _isBusy ? null : _refreshPlatformTenants,
+              icon: const Icon(Icons.domain_verification_outlined),
+              label: const Text('List Platform Tenants'),
+            ),
+            FilledButton.icon(
+              onPressed: !platformReady || _isBusy ? null : _mintPlatformApiKey,
+              icon: const Icon(Icons.key_rounded),
+              label: const Text('Mint Platform Key'),
+            ),
+            OutlinedButton.icon(
+              onPressed:
+                  !platformReady || _isBusy ? null : _refreshPlatformApiKeys,
+              icon: const Icon(Icons.key_off_outlined),
+              label: const Text('List Platform Keys'),
+            ),
+          ],
+        ),
+        if (_issuedPlatformApiKey != null) ...<Widget>[
+          const SizedBox(height: 16),
+          Text(
+            'Latest Platform API Key',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF091119),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF213042)),
+            ),
+            child: SelectionArea(
+              child: Text(
+                _issuedPlatformApiKey!.apiKey,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ],
+        if (_platformTenants.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          Text(
+            'Platform Tenants',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          for (final tenant in _platformTenants.take(4)) ...<Widget>[
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                tenant.displayName.isEmpty
+                    ? tenant.tenantId
+                    : tenant.displayName,
+              ),
+              subtitle: Text(
+                '${tenant.kind} · ${tenant.tenantId} · '
+                '${tenant.createdAt?.toIso8601String() ?? 'unknown time'}',
+              ),
+              trailing: OutlinedButton(
+                onPressed: _isBusy
+                    ? null
+                    : () {
+                        _platformTenantIdController.text = tenant.tenantId;
+                        _setInfoMessage(
+                          'Selected platform tenant ${tenant.tenantId}.',
+                        );
+                      },
+                child: const Text('Use Tenant'),
+              ),
+            ),
+          ],
+        ],
+        if (_platformApiKeys.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          Text(
+            'Platform API Keys',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          for (final apiKey in _platformApiKeys.take(4)) ...<Widget>[
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(apiKey.id),
+              subtitle: Text(
+                '${apiKey.kind.isEmpty ? 'platform' : apiKey.kind} · '
+                '${apiKey.tenantId} · '
+                '${apiKey.createdAt?.toIso8601String() ?? 'unknown time'}',
+              ),
+              trailing: Chip(
+                label: Text(apiKey.revoked ? 'Revoked' : 'Active'),
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 
@@ -481,7 +686,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               _buildField(_baseUrlController, 'Control Plane Base URL', 360),
               _buildField(_apiKeyController, 'Demo API Key', 280,
                   obscure: true),
-              _buildField(_userIdController, 'Demo User ID', 220),
+              _buildField(
+                  _userIdController, 'Demo User ID (personal only)', 220),
               _buildField(_workspaceIdController, 'Workspace ID', 220),
               _buildField(_imageController, 'Workspace Image', 260),
               _buildField(_cpuController, 'CPU', 120),
@@ -489,6 +695,13 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               _buildField(_shellController, 'Shell', 180),
               _buildField(_filePathController, 'Target File', 220),
             ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Leave Demo User ID empty when the API key came from the platform-tenant flow.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF8898AA),
+                ),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -564,6 +777,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                     '${_workspace!.resources.memoryGb.toStringAsFixed(1)} GB',
                   ),
                 ),
+              if (_sessionMode != null) Chip(label: Text(_sessionMode!.label)),
               if (_connectedWorkspaceId == _workspaceId &&
                   _workspaceId.isNotEmpty)
                 const Chip(label: Text('Terminal socket attached')),
@@ -819,8 +1033,31 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
         _tenantAssignment = null;
         _issuedApiKey = null;
         _issuedApiKeys = const <DemoApiKeyRecord>[];
+        _issuedPlatformApiKey = null;
+        _platformApiKeys = const <DemoApiKeyRecord>[];
+        _platformTenants = const <DemoPlatformTenant>[];
       });
       _setInfoMessage('Firebase user signed out.');
+    });
+  }
+
+  Future<void> _exchangeFirebaseSession() async {
+    await _runBusy('Exchanging Firebase session', () async {
+      final baseUrl = _baseUrlController.text.trim();
+      if (baseUrl.isEmpty) {
+        throw StateError('Base URL is required.');
+      }
+
+      final firebaseIdToken = await _firebaseBootstrap.currentIdToken();
+      await _disposeTransports();
+
+      final session = CortadoAuthSession(baseUrl: baseUrl);
+      await session.exchangeFirebaseSession(firebaseIdToken: firebaseIdToken);
+      await _bindSession(
+        session,
+        mode: DemoSessionMode.firebaseExchange,
+        infoMessage: 'Exchanged Firebase sign-in into a Cortado session.',
+      );
     });
   }
 
@@ -855,6 +1092,133 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       _setInfoMessage(
         'Minted Cortado API key for ${issued.record.userId}. The session form was updated automatically.',
       );
+    });
+  }
+
+  Future<void> _createPlatformTenant() async {
+    if (!_ensureUserScopedSession()) {
+      return;
+    }
+
+    await _runBusy('Creating platform tenant', () async {
+      final baseUrl = _baseUrlController.text.trim();
+      final displayName = _platformTenantDisplayNameController.text.trim();
+      if (baseUrl.isEmpty) {
+        throw StateError('Base URL is required.');
+      }
+      if (displayName.isEmpty) {
+        throw StateError('Platform tenant name is required.');
+      }
+
+      final tenant = await _firebaseBootstrap.createPlatformTenant(
+        baseUrl,
+        _authSession!,
+        displayName: displayName,
+      );
+      final tenants = await _firebaseBootstrap.listPlatformTenants(
+        baseUrl,
+        _authSession!,
+      );
+
+      _platformTenantIdController.text = tenant.tenantId;
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _platformTenants = tenants;
+      });
+      _setInfoMessage(
+        'Created platform tenant ${tenant.tenantId}. You can mint a platform API key for it now.',
+      );
+    });
+  }
+
+  Future<void> _refreshPlatformTenants() async {
+    if (!_ensureUserScopedSession()) {
+      return;
+    }
+
+    await _runBusy('Loading platform tenants', () async {
+      final tenants = await _firebaseBootstrap.listPlatformTenants(
+        _baseUrlController.text.trim(),
+        _authSession!,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _platformTenants = tenants;
+      });
+      _setInfoMessage('Loaded ${tenants.length} platform tenant(s).');
+    });
+  }
+
+  Future<void> _mintPlatformApiKey() async {
+    if (!_ensureUserScopedSession()) {
+      return;
+    }
+
+    await _runBusy('Minting platform API key', () async {
+      final baseUrl = _baseUrlController.text.trim();
+      final tenantId = _platformTenantIdController.text.trim();
+      if (baseUrl.isEmpty || tenantId.isEmpty) {
+        throw StateError('Base URL and platform tenant ID are required.');
+      }
+
+      final issued = await _firebaseBootstrap.mintPlatformApiKey(
+        baseUrl,
+        _authSession!,
+        tenantId: tenantId,
+      );
+      final listed = await _firebaseBootstrap.listPlatformApiKeys(
+        baseUrl,
+        _authSession!,
+        tenantId: tenantId,
+      );
+
+      _apiKeyController.text = issued.apiKey;
+      _userIdController.clear();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _issuedPlatformApiKey = issued;
+        _platformApiKeys = listed;
+      });
+      _setInfoMessage(
+        'Minted a platform API key for $tenantId. The session form was updated; leave Demo User ID empty before pressing New Session.',
+      );
+    });
+  }
+
+  Future<void> _refreshPlatformApiKeys() async {
+    if (!_ensureUserScopedSession()) {
+      return;
+    }
+
+    await _runBusy('Loading platform API keys', () async {
+      final tenantId = _platformTenantIdController.text.trim();
+      if (tenantId.isEmpty) {
+        throw StateError('Enter a platform tenant ID first.');
+      }
+
+      final listed = await _firebaseBootstrap.listPlatformApiKeys(
+        _baseUrlController.text.trim(),
+        _authSession!,
+        tenantId: tenantId,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _platformApiKeys = listed;
+      });
+      _setInfoMessage('Loaded ${listed.length} platform API key record(s).');
     });
   }
 
@@ -938,30 +1302,27 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       final apiKey = _apiKeyController.text.trim();
       final userId = _userIdController.text.trim();
 
-      if (baseUrl.isEmpty || apiKey.isEmpty || userId.isEmpty) {
-        throw StateError('Base URL, API key, and user ID are required.');
+      if (baseUrl.isEmpty || apiKey.isEmpty) {
+        throw StateError('Base URL and API key are required.');
       }
 
       await _disposeTransports();
 
       final session = CortadoAuthSession(baseUrl: baseUrl);
-      await session.createSession(apiKey: apiKey, userId: userId);
-
-      _authSession = session;
-      _workspaceManager = WorkspaceManager(
-        baseUrl: baseUrl,
-        authSession: session,
+      final sessionMode = userId.isEmpty
+          ? DemoSessionMode.platformApiKey
+          : DemoSessionMode.personalApiKey;
+      await session.createSession(
+        apiKey: apiKey,
+        userId: userId.isEmpty ? null : userId,
       );
-      _client = CortadoClient(
-        baseUrl: baseUrl,
-        authSession: session,
+      await _bindSession(
+        session,
+        mode: sessionMode,
+        infoMessage: userId.isEmpty
+            ? 'Platform API key session established.'
+            : 'Session established for $userId.',
       );
-      _connectedWorkspaceId = null;
-      _setInfoMessage('Session established for $userId.');
-
-      if (_workspaceId.isNotEmpty) {
-        await _refreshWorkspaceState();
-      }
     });
   }
 
@@ -1211,6 +1572,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _workspaceManager = null;
     _authSession = null;
     _connectedWorkspaceId = null;
+    _sessionMode = null;
   }
 
   bool _ensureWorkspaceManager() {
@@ -1264,6 +1626,41 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _draftCode = '';
     _loadedFilePath = '';
     _documentRevision++;
+  }
+
+  bool _ensureUserScopedSession() {
+    if (_hasUserScopedSession) {
+      return true;
+    }
+
+    _setInfoMessage(
+      'Create a first-party Firebase session or personal API-key session first. Platform API-key sessions cannot manage platform tenants.',
+    );
+    return false;
+  }
+
+  Future<void> _bindSession(
+    CortadoAuthSession session, {
+    required DemoSessionMode mode,
+    required String infoMessage,
+  }) async {
+    final baseUrl = _baseUrlController.text.trim();
+    _authSession = session;
+    _workspaceManager = WorkspaceManager(
+      baseUrl: baseUrl,
+      authSession: session,
+    );
+    _client = CortadoClient(
+      baseUrl: baseUrl,
+      authSession: session,
+    );
+    _connectedWorkspaceId = null;
+    _sessionMode = mode;
+    _setInfoMessage(infoMessage);
+
+    if (_workspaceId.isNotEmpty) {
+      await _refreshWorkspaceState();
+    }
   }
 }
 

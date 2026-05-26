@@ -5,12 +5,15 @@ terminal story. It provisions one real Ubuntu workspace through the Cortado
 control plane, opens the same workspace file through multiple editor packages,
 and reuses one shared Cortado terminal for the shell/bootstrap flow. It now
 also supports Firebase email/password sign-up and sign-in inside the app so you
-can mint a Cortado API key without leaving the demo UI.
+can exchange directly into a Cortado session, mint personal API keys, and try
+the platform-tenant / platform-key backend flow without leaving the demo UI.
 
 ## What It Demonstrates
 
 - real session creation through `POST /v1/sessions`
+- first-party Firebase session exchange through `POST /v1/sessions/exchange/firebase`
 - Firebase-backed API key minting through `POST /v1/api-keys`
+- platform-tenant bootstrap plus platform API key minting through `/v1/platform-tenants/...`
 - real workspace provisioning/start/stop/delete against the current backend
 - one shared Ubuntu workspace image: `ubuntu:24.04`
 - manual bootstrap of Flutter inside the workspace terminal
@@ -73,11 +76,9 @@ Optional query params can override the env-backed defaults:
 ## Demo Flow
 
 1. Use `Register User` or `Login` in the `Identity Bootstrap` panel.
-2. Press `Assign Dev Tenant` if you want to force the development tenant claim
-   immediately, or go straight to `Mint API Key`.
-3. `Mint API Key` now auto-assigns the development tenant claim and retries once
-   if the Firebase user is brand new and missing `tenant_id`.
-4. Press `New Session`.
+2. For the browser-first path, press `Exchange Session` to turn the current Firebase sign-in into a normal Cortado session immediately.
+3. For the headless personal-key path, press `Assign Dev Tenant` if needed, then `Mint Personal Key`, then `New Session`.
+4. For the SaaS/backend path, use `Create Platform Tenant`, then `Mint Platform Key`. The session form is auto-filled with the new key; leave `Demo User ID` empty before pressing `New Session`.
 5. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
 6. Wait for the workspace to reach `RUNNING`.
 7. Use the shared terminal to run the bootstrap commands shown in the UI:
@@ -126,6 +127,10 @@ Optional query params can override the env-backed defaults:
 - Firebase sign-up/sign-in stays inside the demo app, but the tenant binding
   still comes from the Firebase `tenant_id` custom claim required by the
   control-plane API-key routes.
+- The demo now exposes all three auth shapes the backend supports:
+  - direct first-party Firebase session exchange,
+  - personal API keys for headless user flows,
+  - platform tenants plus platform API keys for SaaS backend flows.
 - In development, the demo can assign that claim itself through the
   control-plane dev bootstrap route before retrying API-key minting.
 - The local Cortado Flutter package now aligns on
