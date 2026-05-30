@@ -975,3 +975,11 @@
 - M demo_app/lib/src/demo_bootstrap_config.dart
 - M demo_app/test/demo_firebase_bootstrap_test.dart
 - M demo_app/test/widget_test.dart
+30/05/26 07:44 [FIX] (pending) `dev-pro-large` Fixed the VM-hosted control-plane routing path by wiring terminal/file/idle-inspection traffic through the live pod-backed workspace resolver instead of a static `.svc.cluster.local` resolver and by preferring the workspace pod IP when available, which removes the zero-address DNS failures when the control plane runs outside the Kubernetes cluster but still has direct VPC reachability to workspace pods.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/bootstrap.go
+- M control-plane/cmd/server/main.go
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go

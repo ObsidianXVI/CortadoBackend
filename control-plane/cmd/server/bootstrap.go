@@ -35,10 +35,10 @@ func newFirestoreClient(ctx context.Context, projectID string) (*firestore.Clien
 	return client, nil
 }
 
-func newWorkspaceService(ctx context.Context, projectID string, firestoreClient *firestore.Client) (*workspace.Service, error) {
+func newWorkspaceService(ctx context.Context, projectID string, firestoreClient *firestore.Client) (*workspace.Service, *workspace.PodManager, error) {
 	kubeClient, err := newKubernetesClient(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("create kubernetes client: %w", err)
+		return nil, nil, fmt.Errorf("create kubernetes client: %w", err)
 	}
 
 	repository := store.NewFirestoreWorkspaceStore(firestoreClient, store.FirestoreWorkspaceStoreConfig{
@@ -68,7 +68,7 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 	}))
 	podManager.Run(ctx)
 
-	return service, nil
+	return service, podManager, nil
 }
 
 func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {

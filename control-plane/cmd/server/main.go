@@ -45,9 +45,7 @@ func main() {
 		}
 	}()
 
-	workspaceNamespace := os.Getenv("CORTADO_WORKSPACE_NAMESPACE")
-	clusterDNSDomain := os.Getenv("CORTADO_CLUSTER_DNS_DOMAIN")
-	workspaceService, err := newWorkspaceService(ctx, projectID, firestoreClient)
+	workspaceService, workspaceResolver, err := newWorkspaceService(ctx, projectID, firestoreClient)
 	if err != nil {
 		log.Fatalf("initialize workspace service: %v", err)
 	}
@@ -82,19 +80,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize dev firebase bootstrap service: %v", err)
 	}
-	resolver := gateway.StaticWorkspaceResolver{
-		Namespace: workspaceNamespace,
-		DNSDomain: clusterDNSDomain,
-	}
-	aiService, err := newAIService(projectID, resolver)
+	aiService, err := newAIService(projectID, workspaceResolver)
 	if err != nil {
 		log.Fatalf("initialize ai service: %v", err)
 	}
 	fileService := workspace.NewAgentFileService(workspace.AgentFileServiceConfig{
-		WorkspaceResolver: resolver,
+		WorkspaceResolver: workspaceResolver,
 	})
 	terminalBridge := gateway.NewTerminalBridge(gateway.TerminalBridgeConfig{
-		WorkspaceResolver: resolver,
+		WorkspaceResolver: workspaceResolver,
 	})
 	connectHandler := gateway.NewConnectHandler(gateway.ConnectHandlerConfig{
 		TerminalHandler: func(handlerCtx context.Context, session gateway.Session, frame gateway.Frame, receivedAt time.Time) error {
@@ -108,12 +102,12 @@ func main() {
 			}
 			return nil
 		},
-		WorkspaceResolver: resolver,
+		WorkspaceResolver: workspaceResolver,
 	})
 
 	go workspace.NewIdleMonitor(workspace.IdleMonitorConfig{
 		IdleInspector: workspace.NewAgentIdleInspector(workspace.AgentIdleInspectorConfig{
-			WorkspaceResolver: resolver,
+			WorkspaceResolver: workspaceResolver,
 		}),
 		IdleTimeout: idleTimeoutFromEnv(),
 		Service:     workspaceService,

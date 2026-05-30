@@ -447,6 +447,24 @@ func TestPodManagerGetServiceDNS(t *testing.T) {
 	}
 }
 
+func TestPodManagerGetServiceDNSUsesPodIPWhenAvailable(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+		Status: corev1.PodStatus{
+			PodIP: "10.13.129.18",
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+
+	if got := manager.GetServiceDNS("ws-123"); got != "10.13.129.18" {
+		t.Fatalf("unexpected workspace target: %q", got)
+	}
+}
+
 func TestPodManagerGetServiceDNSUsesConfiguredDomain(t *testing.T) {
 	manager := newPodManager(
 		newMemoryPodClient(),

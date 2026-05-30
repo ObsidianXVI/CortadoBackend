@@ -423,6 +423,12 @@ func (m *PodManager) GetStatus(workspaceID string) (corev1.PodPhase, error) {
 }
 
 func (m *PodManager) GetServiceDNS(workspaceID string) string {
+	pod, err := m.pods.Get(context.Background(), workspaceID, metav1.GetOptions{})
+	if err == nil {
+		if ip := strings.TrimSpace(pod.Status.PodIP); ip != "" {
+			return ip
+		}
+	}
 	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, m.namespace, m.dnsDomain)
 }
 
