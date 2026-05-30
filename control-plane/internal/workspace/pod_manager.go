@@ -42,6 +42,7 @@ const (
 	defaultWorkspaceNPMCachePath               = defaultWorkspaceRuntimeRoot + "/npm-cache"
 	defaultWorkspacePubCachePath               = defaultWorkspaceRuntimeRoot + "/pub-cache"
 	defaultWorkspaceTMPPath                    = defaultWorkspaceRuntimeRoot + "/tmp"
+	defaultWorkspaceAgentEntrypoint            = "/usr/local/bin/cortado-agent"
 	defaultVolumeReleasePollInterval           = 250 * time.Millisecond
 	defaultVolumeReleaseTimeout                = 30 * time.Second
 	defaultWorkspaceStorageClass               = "cortado-workspace"
@@ -353,6 +354,8 @@ func (m *PodManager) Create(workspace Workspace) error {
 				{
 					Name:      "workspace",
 					Image:     workspace.Image,
+					Command:   []string{"/bin/sh", "-lc"},
+					Args:      []string{workspaceAgentLaunchScript()},
 					Resources: resources,
 					Env:       m.workspaceAgentEnv(workspace),
 					Ports: []corev1.ContainerPort{
@@ -424,6 +427,18 @@ func qdrantResources() corev1.ResourceRequirements {
 			corev1.ResourceEphemeralStorage: resource.MustParse(defaultQdrantEphemeralStorageLimit),
 		},
 	}
+}
+
+func workspaceAgentLaunchScript() string {
+	return strings.Join([]string{
+		`mkdir -p "$HOME"`,
+		`mkdir -p "$TMPDIR"`,
+		`mkdir -p "$XDG_CACHE_HOME"`,
+		`mkdir -p "$PUB_CACHE"`,
+		`mkdir -p "$GRADLE_USER_HOME"`,
+		`mkdir -p "$npm_config_cache"`,
+		`exec ` + defaultWorkspaceAgentEntrypoint,
+	}, " && ")
 }
 
 func (m *PodManager) Stop(workspaceID string) error {

@@ -1045,3 +1045,9 @@
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
 - M terraform/k8s/workspace-pod-test.yaml
+30/05/26 11:07 [FIX] (pending) `dev-pro-large` Fixed the redirected runtime-cache bootstrap gap for current workspace images by making the workspace container create its PVC-backed `HOME`/`TMPDIR`/cache directories in the pod launch command before `cortado-agent` starts, which removes the `Creation of temporary directory failed` error even before a new workspace image is built; also created the missing directories on the currently running workspace to unblock `flutter doctor` immediately.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go

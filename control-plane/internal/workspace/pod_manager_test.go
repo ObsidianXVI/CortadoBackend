@@ -91,6 +91,12 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if got := pod.Spec.Containers[0].Resources.Limits.StorageEphemeral().String(); got != defaultWorkspaceEphemeralStorage {
 		t.Fatalf("unexpected workspace ephemeral storage limit: got %q want %q", got, defaultWorkspaceEphemeralStorage)
 	}
+	if len(pod.Spec.Containers[0].Command) != 2 || pod.Spec.Containers[0].Command[0] != "/bin/sh" || pod.Spec.Containers[0].Command[1] != "-lc" {
+		t.Fatalf("unexpected workspace command: %#v", pod.Spec.Containers[0].Command)
+	}
+	if len(pod.Spec.Containers[0].Args) != 1 || !strings.Contains(pod.Spec.Containers[0].Args[0], `mkdir -p "$TMPDIR"`) || !strings.Contains(pod.Spec.Containers[0].Args[0], `exec `+defaultWorkspaceAgentEntrypoint) {
+		t.Fatalf("unexpected workspace args: %#v", pod.Spec.Containers[0].Args)
+	}
 	if len(pod.Spec.Containers) != 2 {
 		t.Fatalf("unexpected container count: got %d want %d", len(pod.Spec.Containers), 2)
 	}
@@ -146,6 +152,23 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 	if got := pvc.Spec.Resources.Requests.Storage().String(); got != defaultWorkspacePVCSize {
 		t.Fatalf("unexpected pvc size: got %q want %q", got, defaultWorkspacePVCSize)
+	}
+}
+
+func TestWorkspaceAgentLaunchScriptCreatesRuntimeDirsThenExecsAgent(t *testing.T) {
+	script := workspaceAgentLaunchScript()
+	for _, expected := range []string{
+		`mkdir -p "$HOME"`,
+		`mkdir -p "$TMPDIR"`,
+		`mkdir -p "$XDG_CACHE_HOME"`,
+		`mkdir -p "$PUB_CACHE"`,
+		`mkdir -p "$GRADLE_USER_HOME"`,
+		`mkdir -p "$npm_config_cache"`,
+		`exec ` + defaultWorkspaceAgentEntrypoint,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("launch script missing %q: %s", expected, script)
+		}
 	}
 }
 
