@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -356,6 +358,27 @@ func TestPodManagerStopIgnoresSnapshotTimeout(t *testing.T) {
 	}
 }
 
+func TestPodManagerStopIgnoresSnapshotDeadlineExceededStatus(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager.SetSnapshotter(&snapshotterStub{
+		err: status.Error(codes.DeadlineExceeded, "context deadline exceeded while waiting for connections to become ready"),
+	})
+
+	if err := manager.Stop("ws-123"); err != nil {
+		t.Fatalf("stop workspace with deadline-exceeded snapshot agent: %v", err)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod deletion after ignored snapshot failure, got %v", err)
+	}
+}
+
 func TestPodManagerStopIgnoresUnavailableSnapshotAgent(t *testing.T) {
 	pods := newMemoryPodClient()
 	_, _ = pods.Create(context.Background(), &corev1.Pod{
@@ -451,6 +474,47 @@ func TestPodManagerDeleteIgnoresUnavailableUsageFlusher(t *testing.T) {
 
 	if err := manager.Delete("ws-123"); err != nil {
 		t.Fatalf("delete workspace with unavailable usage flusher: %v", err)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod to be deleted, got %v", err)
+	}
+	if _, err := services.Get("ws-123"); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected service to be deleted, got %v", err)
+	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pvc to be deleted, got %v", err)
+	}
+}
+
+func TestPodManagerDeleteIgnoresDeadlineExceededUsageFlusher(t *testing.T) {
+	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
+	services := newMemoryServiceClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	_, _ = services.Create(context.Background(), &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	_, _ = pvcs.Create(context.Background(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123-pvc",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
+	manager.SetUsageFlusher(&usageFlusherStub{
+		err: status.Error(codes.DeadlineExceeded, "context deadline exceeded while waiting for connections to become ready"),
+	})
+
+	if err := manager.Delete("ws-123"); err != nil {
+		t.Fatalf("delete workspace with deadline-exceeded usage flusher: %v", err)
 	}
 	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected pod to be deleted, got %v", err)

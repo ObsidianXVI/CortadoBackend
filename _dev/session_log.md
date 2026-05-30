@@ -1008,3 +1008,6 @@
 - M control-plane/internal/workspace/pod_manager_test.go
 30/05/26 09:57 [FIX] `dev-pro-large` Added automatic workspace preemption sitreps in the control plane by teaching the workspace pod manager to detect Kubernetes preemption events and dump the triggering event, workspace container requests, victim-node allocation pressure, top colocated pods, and cluster-wide node allocation summaries straight into the logs whenever a workspace pod is evicted, so future scheduling incidents can be diagnosed from the server logs instead of ad-hoc kubectl inspection.
 - M control-plane/internal/workspace/pod_manager.go
+30/05/26 10:01 [FIX] `dev-pro-large` Hardened workspace cleanup compatibility one step further by treating gRPC `DeadlineExceeded` and `Canceled` snapshot/WAL-flush failures the same as the already-ignored unavailable and unimplemented agent cleanup errors, so deleting previously stopped workspaces no longer fails just because the agent connection never becomes ready during teardown.
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go

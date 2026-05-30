@@ -395,9 +395,7 @@ func (m *PodManager) Stop(workspaceID string) error {
 
 	if m.snapshotter != nil {
 		if err := m.snapshotter.CreateSnapshot(context.Background(), workspaceID); err != nil &&
-			!errors.Is(err, context.DeadlineExceeded) &&
-			!errors.Is(err, context.Canceled) &&
-			!isIgnorableAgentUnavailable(err) {
+			!isIgnorableAgentCleanupError(err) {
 			return fmt.Errorf("create workspace snapshot %q: %w", workspaceID, err)
 		}
 	}
@@ -413,9 +411,7 @@ func (m *PodManager) Delete(workspaceID string) error {
 	if _, err := m.pods.Get(context.Background(), workspaceID, metav1.GetOptions{}); err == nil {
 		if m.usageFlusher != nil {
 			if err := m.usageFlusher.FlushUsageWAL(context.Background(), workspaceID); err != nil &&
-				!errors.Is(err, context.DeadlineExceeded) &&
-				!errors.Is(err, context.Canceled) &&
-				!isIgnorableAgentUnavailable(err) {
+				!isIgnorableAgentCleanupError(err) {
 				return fmt.Errorf("flush usage WAL for workspace %q: %w", workspaceID, err)
 			}
 		}
@@ -459,16 +455,20 @@ func (m *PodManager) GetServiceDNS(workspaceID string) string {
 	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, m.namespace, m.dnsDomain)
 }
 
-func isIgnorableAgentUnavailable(err error) bool {
+func isIgnorableAgentCleanupError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
 	switch status.Code(err) {
-	case codes.Unavailable, codes.Unimplemented:
+	case codes.DeadlineExceeded, codes.Canceled, codes.Unavailable, codes.Unimplemented:
 		return true
 	}
 	message := err.Error()
-	return strings.Contains(message, "produced zero addresses") ||
+	return strings.Contains(message, "context deadline exceeded") ||
+		strings.Contains(message, "produced zero addresses") ||
 		strings.Contains(message, "code = Unimplemented")
 }
 
