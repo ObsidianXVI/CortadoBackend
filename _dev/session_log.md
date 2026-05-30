@@ -1021,7 +1021,7 @@
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
 - M terraform/k8s/workspace-pod-test.yaml
-30/05/26 10:37 [FIX] (pending) `dev-pro-large` Clarified the workspace resource model by keeping the existing memory control as RAM and adding explicit persistent disk sizing end to end: the control plane now stores `storageGb`, defaults and validates workspace PVCs at a 10 GB minimum, the Flutter package carries storage alongside CPU and memory, and `demo_app` now exposes editable storage input plus updated copy/docs so larger workspaces can be provisioned with predictable disk space.
+30/05/26 10:37 [FIX] (22ea686) `dev-pro-large` Clarified the workspace resource model by keeping the existing memory control as RAM and adding explicit persistent disk sizing end to end: the control plane now stores `storageGb`, defaults and validates workspace PVCs at a 10 GB minimum, the Flutter package carries storage alongside CPU and memory, and `demo_app` now exposes editable storage input plus updated copy/docs so larger workspaces can be provisioned with predictable disk space.
 - M control-plane/cmd/server/bootstrap.go
 - M control-plane/internal/api/workspaces.go
 - M control-plane/internal/workspace/model.go
