@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -214,6 +215,38 @@ func TestFileRoutesWriteContentRejectsInvalidCreateMissingDirs(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected write status: got %d want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestFileRoutesReadContentReturnsPathNotFound(t *testing.T) {
+	t.Setenv("CORTADO_ENV", "development")
+
+	now := time.Date(2026, time.May, 23, 20, 0, 0, 0, time.UTC)
+	router := NewRouter(RouterConfig{
+		WorkspaceSvc: &workspaceServiceStub{
+			getResult: workspace.Workspace{
+				ID:        "ws-123",
+				TenantID:  "dev-tenant",
+				Status:    workspace.StatusRunning,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+		WorkspaceFileSvc: &workspaceFileServiceStub{
+			readErr: workspace.ErrPathNotFound,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/workspaces/ws-123/files/content?path=lib/main.dart", nil)
+	req.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unexpected read status: got %d want %d", rec.Code, http.StatusNotFound)
+	}
+	if !strings.Contains(rec.Body.String(), "path not found") {
+		t.Fatalf("unexpected read error body: %q", rec.Body.String())
 	}
 }
 

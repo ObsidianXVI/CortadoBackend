@@ -16,6 +16,7 @@ var (
 	ErrConflict      = errors.New("workspace conflict")
 	ErrInvalid       = errors.New("invalid workspace request")
 	ErrNotFound      = errors.New("workspace not found")
+	ErrPathNotFound  = errors.New("path not found")
 	ErrTenantID      = errors.New("tenant id is required")
 	ErrWorkspace     = errors.New("workspace id is required")
 )

@@ -272,7 +272,7 @@ func mapAgentFileError(err error) error {
 		case codes.AlreadyExists:
 			return ErrAlreadyExists
 		case codes.NotFound:
-			return ErrNotFound
+			return fmt.Errorf("%w: %s", ErrPathNotFound, st.Message())
 		}
 	}
 

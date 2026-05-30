@@ -29,7 +29,7 @@ func TestMapAgentFileError(t *testing.T) {
 		{
 			name: "not found",
 			err:  status.Error(codes.NotFound, "missing"),
-			want: ErrNotFound,
+			want: ErrPathNotFound,
 		},
 	}
 

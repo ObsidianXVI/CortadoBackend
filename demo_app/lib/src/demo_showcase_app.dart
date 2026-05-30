@@ -1700,6 +1700,11 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       return false;
     }
 
+    if (!error.message.toLowerCase().contains('workspace not found')) {
+      _setInfoMessage(error.toString());
+      return false;
+    }
+
     await _statusSubscription?.cancel();
     _statusSubscription = null;
     await _disconnectWorkspaceSocket();
