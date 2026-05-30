@@ -1065,3 +1065,5 @@
 - M control-plane/internal/workspace/pod_manager.go
 30/05/26 11:56 [FIX] (e801103) `dev-pro-large` Hardened the demo workspace UX around missing workspaces by making refresh/start/stop/load/save paths treat `404 workspace not found` as a state-reset condition, clearing the cached workspace attachment and terminal/session binding so the UI no longer claims a workspace is still `RUNNING` after it has been deleted or when the current session no longer owns it.
 - M demo_app/lib/src/demo_showcase_app.dart
+30/05/26 12:11 [FIX] (7d28fa6) `dev-pro-large` Tightened the demo workspace binding again so terminal and file operations now prefer the actually attached workspace object over the editable text field, which eliminates another stale-ID path where a newly created or reattached workspace was healthy in backend state but the UI still issued file/socket calls against an older deleted workspace ID.
+- M demo_app/lib/src/demo_showcase_app.dart
