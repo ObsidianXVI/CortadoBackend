@@ -218,6 +218,7 @@
 - M terraform/envs/dev/variables.tf
 - M terraform/envs/prod/main.tf
 - M terraform/envs/prod/terraform.tfvars
+
 23/05/26 12:56 [FEAT] (3773b94) `dev-pro-large` Completed Task 2.2.2 by teaching the Flutter terminal to recover from broken WebSocket sessions with a reconnecting overlay, workspace restart/status polling, retry-aware PTY reopen handling, buffered pre-open input, and a resumed-session banner, then advanced the release pointer to Feature 2.3 Task 2.3.1 after adding widget-level coverage for the resume and reopen-retry flows.
 - M CURRENT_RELEASE.md
 - M CURRENT_TASK.md
@@ -1005,3 +1006,5 @@
 - M _dev/test_status.md
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
+30/05/26 09:57 [FIX] `dev-pro-large` Added automatic workspace preemption sitreps in the control plane by teaching the workspace pod manager to detect Kubernetes preemption events and dump the triggering event, workspace container requests, victim-node allocation pressure, top colocated pods, and cluster-wide node allocation summaries straight into the logs whenever a workspace pod is evicted, so future scheduling incidents can be diagnosed from the server logs instead of ad-hoc kubectl inspection.
+- M control-plane/internal/workspace/pod_manager.go

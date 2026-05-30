@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
@@ -62,7 +65,11 @@ const (
 
 type PodManagerConfig struct {
 	AgentPort                 int32
+	ClusterPods               podListClient
 	DNSDomain                 string
+	Events                    eventClient
+	Logf                      logfFunc
+	Nodes                     nodeClient
 	PVCSize                   string
 	ProjectID                 string
 	Region                    string
@@ -80,8 +87,12 @@ type PodManagerConfig struct {
 
 type PodManager struct {
 	agentPort                 int32
+	clusterPods               podListClient
 	dnsDomain                 string
+	events                    eventClient
+	logf                      logfFunc
 	namespace                 string
+	nodes                     nodeClient
 	pods                      podClient
 	podInformer               cache.SharedIndexInformer
 	pvcs                      pvcClient
@@ -105,6 +116,15 @@ type PodManager struct {
 
 func NewPodManager(client kubernetes.Interface, cfg PodManagerConfig) *PodManager {
 	cfg = withDefaultConfig(cfg)
+	if cfg.ClusterPods == nil {
+		cfg.ClusterPods = client.CoreV1().Pods(metav1.NamespaceAll)
+	}
+	if cfg.Nodes == nil {
+		cfg.Nodes = client.CoreV1().Nodes()
+	}
+	if cfg.Events == nil {
+		cfg.Events = client.CoreV1().Events(cfg.Namespace)
+	}
 
 	return newPodManager(
 		client.CoreV1().Pods(cfg.Namespace),
@@ -133,8 +153,12 @@ func newPodManager(pods podClient, pvcs pvcClient, services serviceClient, cfg P
 
 	manager := &PodManager{
 		agentPort:                 cfg.AgentPort,
+		clusterPods:               cfg.ClusterPods,
 		dnsDomain:                 cfg.DNSDomain,
+		events:                    cfg.Events,
+		logf:                      cfg.Logf,
 		namespace:                 cfg.Namespace,
+		nodes:                     cfg.Nodes,
 		pods:                      pods,
 		podInformer:               podInformer,
 		pvcs:                      pvcs,
@@ -189,6 +213,9 @@ func withDefaultConfig(cfg PodManagerConfig) PodManagerConfig {
 	}
 	if cfg.AgentPort == 0 {
 		cfg.AgentPort = defaultAgentPort
+	}
+	if cfg.Logf == nil {
+		cfg.Logf = log.Printf
 	}
 	return cfg
 }
@@ -464,10 +491,6 @@ func (m *PodManager) deleteService(workspaceID string) error {
 }
 
 func (m *PodManager) handlePodDelete(obj interface{}) {
-	if m.statusSink == nil {
-		return
-	}
-
 	pod, ok := podFromObject(obj)
 	if !ok {
 		return
@@ -478,14 +501,14 @@ func (m *PodManager) handlePodDelete(obj interface{}) {
 		return
 	}
 
-	_ = m.statusSink.OnPodDeleted(context.Background(), workspaceID)
+	m.maybeLogPreemptionSitrep(context.Background(), pod)
+
+	if m.statusSink != nil {
+		_ = m.statusSink.OnPodDeleted(context.Background(), workspaceID)
+	}
 }
 
 func (m *PodManager) handlePodUpsert(obj interface{}) {
-	if m.statusSink == nil {
-		return
-	}
-
 	pod, ok := podFromObject(obj)
 	if !ok {
 		return
@@ -496,13 +519,415 @@ func (m *PodManager) handlePodUpsert(obj interface{}) {
 		return
 	}
 
-	_ = m.statusSink.OnPodStatus(
-		context.Background(),
-		workspaceID,
-		pod.Status.Phase,
-		isPodReady(pod),
-		pod.DeletionTimestamp != nil,
+	if m.statusSink != nil {
+		_ = m.statusSink.OnPodStatus(
+			context.Background(),
+			workspaceID,
+			pod.Status.Phase,
+			isPodReady(pod),
+			pod.DeletionTimestamp != nil,
+		)
+	}
+}
+
+func (m *PodManager) maybeLogPreemptionSitrep(ctx context.Context, pod *corev1.Pod) {
+	if m.events == nil || m.logf == nil || pod == nil {
+		return
+	}
+
+	event, err := m.findPreemptionEvent(ctx, pod)
+	if err != nil {
+		m.logf("workspace preemption sitrep workspace=%s: inspect pod events: %v", pod.Name, err)
+		return
+	}
+	if event == nil {
+		return
+	}
+
+	report := m.buildPreemptionSitrep(ctx, pod, event)
+	m.logf("%s", report)
+}
+
+func (m *PodManager) findPreemptionEvent(ctx context.Context, pod *corev1.Pod) (*corev1.Event, error) {
+	selector := fields.AndSelectors(
+		fields.OneTermEqualSelector("involvedObject.kind", "Pod"),
+		fields.OneTermEqualSelector("involvedObject.name", pod.Name),
+	).String()
+
+	events, err := m.events.List(ctx, metav1.ListOptions{FieldSelector: selector})
+	if err != nil {
+		return nil, fmt.Errorf("list workspace pod events: %w", err)
+	}
+
+	var latest *corev1.Event
+	for i := range events.Items {
+		event := events.Items[i]
+		if pod.UID != "" && event.InvolvedObject.UID != "" && event.InvolvedObject.UID != pod.UID {
+			continue
+		}
+		if !isPreemptionEvent(event) {
+			continue
+		}
+		if latest == nil || eventTimestamp(event).After(eventTimestamp(*latest)) {
+			latest = event.DeepCopy()
+		}
+	}
+
+	return latest, nil
+}
+
+func isPreemptionEvent(event corev1.Event) bool {
+	reason := strings.ToLower(strings.TrimSpace(event.Reason))
+	message := strings.ToLower(strings.TrimSpace(event.Message))
+	return strings.Contains(reason, "preempt") || strings.Contains(message, "preempt")
+}
+
+func eventTimestamp(event corev1.Event) time.Time {
+	switch {
+	case !event.EventTime.IsZero():
+		return event.EventTime.Time
+	case !event.LastTimestamp.IsZero():
+		return event.LastTimestamp.Time
+	case !event.FirstTimestamp.IsZero():
+		return event.FirstTimestamp.Time
+	default:
+		return event.CreationTimestamp.Time
+	}
+}
+
+func (m *PodManager) buildPreemptionSitrep(ctx context.Context, pod *corev1.Pod, event *corev1.Event) string {
+	var lines []string
+	lines = append(lines,
+		fmt.Sprintf("workspace preemption sitrep workspace=%s namespace=%s", pod.Name, pod.Namespace),
+		fmt.Sprintf(
+			"  pod node=%s phase=%s qos=%s ready=%t deleting=%t podIP=%s",
+			emptyIfUnset(pod.Spec.NodeName),
+			pod.Status.Phase,
+			pod.Status.QOSClass,
+			isPodReady(pod),
+			pod.DeletionTimestamp != nil,
+			emptyIfUnset(pod.Status.PodIP),
+		),
+		fmt.Sprintf(
+			"  event type=%s reason=%s at=%s message=%q",
+			emptyIfUnset(event.Type),
+			emptyIfUnset(event.Reason),
+			eventTimestamp(*event).UTC().Format(time.RFC3339),
+			strings.TrimSpace(event.Message),
+		),
+		"  workspace containers:",
 	)
+
+	for _, container := range pod.Spec.Containers {
+		lines = append(lines, fmt.Sprintf(
+			"    - %s image=%s requests=%s limits=%s",
+			container.Name,
+			container.Image,
+			formatResourceList(container.Resources.Requests),
+			formatResourceList(container.Resources.Limits),
+		))
+	}
+
+	if pod.Spec.NodeName != "" {
+		lines = append(lines, m.describeVictimNode(ctx, pod.Spec.NodeName)...)
+	}
+	lines = append(lines, m.describeClusterNodes(ctx)...)
+
+	return strings.Join(lines, "\n")
+}
+
+func (m *PodManager) describeVictimNode(ctx context.Context, nodeName string) []string {
+	lines := []string{"  victim node:"}
+	if m.nodes == nil {
+		return append(lines, "    - unavailable: no node client configured")
+	}
+
+	node, err := m.nodes.Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return append(lines, fmt.Sprintf("    - unavailable: get node: %v", err))
+	}
+
+	podsByNode, err := m.listPodsByNode(ctx)
+	if err != nil {
+		lines = append(lines, fmt.Sprintf("    - node=%s allocatable=%s", node.Name, formatAllocatable(node.Status.Allocatable)))
+		return append(lines, fmt.Sprintf("    - pod allocation unavailable: %v", err))
+	}
+
+	scheduled := podsByNode[nodeName]
+	summary := summarizeNode(node, scheduled)
+	lines = append(lines, fmt.Sprintf(
+		"    - node=%s ready=%t allocatable=%s requested=%s usage=%s pods=%d",
+		node.Name,
+		nodeReady(node),
+		formatAllocatable(node.Status.Allocatable),
+		formatNodeTotals(summary.Requested),
+		formatPercentages(summary.Requested, node.Status.Allocatable),
+		len(scheduled),
+	))
+
+	for _, podSummary := range topPodsByRequest(scheduled, 6) {
+		lines = append(lines, fmt.Sprintf(
+			"      * %s/%s priority=%s qos=%s requests=%s",
+			podSummary.Namespace,
+			podSummary.Name,
+			emptyIfUnset(podSummary.PriorityClassName),
+			podSummary.QOSClass,
+			formatNodeTotals(podSummary.Requested),
+		))
+	}
+
+	return lines
+}
+
+func (m *PodManager) describeClusterNodes(ctx context.Context) []string {
+	lines := []string{"  cluster nodes:"}
+	if m.nodes == nil {
+		return append(lines, "    - unavailable: no node client configured")
+	}
+
+	nodes, err := m.nodes.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return append(lines, fmt.Sprintf("    - unavailable: list nodes: %v", err))
+	}
+
+	podsByNode, err := m.listPodsByNode(ctx)
+	if err != nil {
+		lines = append(lines, fmt.Sprintf("    - pod allocation unavailable: %v", err))
+	}
+
+	sort.Slice(nodes.Items, func(i, j int) bool {
+		return nodes.Items[i].Name < nodes.Items[j].Name
+	})
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		summary := summarizeNode(node, podsByNode[node.Name])
+		lines = append(lines, fmt.Sprintf(
+			"    - %s ready=%t allocatable=%s requested=%s usage=%s pods=%d",
+			node.Name,
+			nodeReady(node),
+			formatAllocatable(node.Status.Allocatable),
+			formatNodeTotals(summary.Requested),
+			formatPercentages(summary.Requested, node.Status.Allocatable),
+			len(podsByNode[node.Name]),
+		))
+	}
+
+	return lines
+}
+
+func (m *PodManager) listPodsByNode(ctx context.Context) (map[string][]*corev1.Pod, error) {
+	if m.clusterPods == nil {
+		return nil, errors.New("no cluster pod client configured")
+	}
+
+	podList, err := m.clusterPods.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list cluster pods: %w", err)
+	}
+
+	byNode := map[string][]*corev1.Pod{}
+	for i := range podList.Items {
+		pod := podList.Items[i].DeepCopy()
+		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		byNode[pod.Spec.NodeName] = append(byNode[pod.Spec.NodeName], pod)
+	}
+	return byNode, nil
+}
+
+type nodeSummary struct {
+	Requested resourceTotals
+}
+
+type podRequestSummary struct {
+	Name              string
+	Namespace         string
+	PriorityClassName string
+	QOSClass          corev1.PodQOSClass
+	Requested         resourceTotals
+}
+
+type resourceTotals struct {
+	cpuMilli       int64
+	ephemeralBytes int64
+	memoryBytes    int64
+}
+
+func summarizeNode(node *corev1.Node, pods []*corev1.Pod) nodeSummary {
+	summary := nodeSummary{}
+	for _, pod := range pods {
+		summary.Requested = summary.Requested.add(effectivePodRequests(pod))
+	}
+	return summary
+}
+
+func topPodsByRequest(pods []*corev1.Pod, limit int) []podRequestSummary {
+	summaries := make([]podRequestSummary, 0, len(pods))
+	for _, pod := range pods {
+		summaries = append(summaries, podRequestSummary{
+			Name:              pod.Name,
+			Namespace:         pod.Namespace,
+			PriorityClassName: pod.Spec.PriorityClassName,
+			QOSClass:          pod.Status.QOSClass,
+			Requested:         effectivePodRequests(pod),
+		})
+	}
+
+	sort.Slice(summaries, func(i, j int) bool {
+		if summaries[i].Requested.memoryBytes != summaries[j].Requested.memoryBytes {
+			return summaries[i].Requested.memoryBytes > summaries[j].Requested.memoryBytes
+		}
+		if summaries[i].Requested.cpuMilli != summaries[j].Requested.cpuMilli {
+			return summaries[i].Requested.cpuMilli > summaries[j].Requested.cpuMilli
+		}
+		if summaries[i].Namespace != summaries[j].Namespace {
+			return summaries[i].Namespace < summaries[j].Namespace
+		}
+		return summaries[i].Name < summaries[j].Name
+	})
+
+	if limit > 0 && len(summaries) > limit {
+		summaries = summaries[:limit]
+	}
+	return summaries
+}
+
+func effectivePodRequests(pod *corev1.Pod) resourceTotals {
+	var appTotals resourceTotals
+	for _, container := range pod.Spec.Containers {
+		appTotals = appTotals.add(resourceListTotals(container.Resources.Requests))
+	}
+
+	var maxInit resourceTotals
+	for _, container := range pod.Spec.InitContainers {
+		initTotals := resourceListTotals(container.Resources.Requests)
+		if initTotals.cpuMilli > maxInit.cpuMilli {
+			maxInit.cpuMilli = initTotals.cpuMilli
+		}
+		if initTotals.memoryBytes > maxInit.memoryBytes {
+			maxInit.memoryBytes = initTotals.memoryBytes
+		}
+		if initTotals.ephemeralBytes > maxInit.ephemeralBytes {
+			maxInit.ephemeralBytes = initTotals.ephemeralBytes
+		}
+	}
+
+	return resourceTotals{
+		cpuMilli:       max(appTotals.cpuMilli, maxInit.cpuMilli),
+		memoryBytes:    max(appTotals.memoryBytes, maxInit.memoryBytes),
+		ephemeralBytes: max(appTotals.ephemeralBytes, maxInit.ephemeralBytes),
+	}
+}
+
+func resourceListTotals(resources corev1.ResourceList) resourceTotals {
+	return resourceTotals{
+		cpuMilli:       resources.Cpu().MilliValue(),
+		memoryBytes:    resources.Memory().Value(),
+		ephemeralBytes: resourceValue(resources, corev1.ResourceEphemeralStorage),
+	}
+}
+
+func (r resourceTotals) add(other resourceTotals) resourceTotals {
+	return resourceTotals{
+		cpuMilli:       r.cpuMilli + other.cpuMilli,
+		memoryBytes:    r.memoryBytes + other.memoryBytes,
+		ephemeralBytes: r.ephemeralBytes + other.ephemeralBytes,
+	}
+}
+
+func formatAllocatable(resources corev1.ResourceList) string {
+	return fmt.Sprintf(
+		"cpu=%s memory=%s ephemeral=%s",
+		formatMilliCPU(resources.Cpu().MilliValue()),
+		formatBytes(resources.Memory().Value()),
+		formatBytes(resourceValue(resources, corev1.ResourceEphemeralStorage)),
+	)
+}
+
+func formatNodeTotals(totals resourceTotals) string {
+	return fmt.Sprintf(
+		"cpu=%s memory=%s ephemeral=%s",
+		formatMilliCPU(totals.cpuMilli),
+		formatBytes(totals.memoryBytes),
+		formatBytes(totals.ephemeralBytes),
+	)
+}
+
+func formatPercentages(totals resourceTotals, allocatable corev1.ResourceList) string {
+	return fmt.Sprintf(
+		"cpu=%s memory=%s ephemeral=%s",
+		percentString(totals.cpuMilli, allocatable.Cpu().MilliValue()),
+		percentString(totals.memoryBytes, allocatable.Memory().Value()),
+		percentString(totals.ephemeralBytes, resourceValue(allocatable, corev1.ResourceEphemeralStorage)),
+	)
+}
+
+func percentString(used, total int64) string {
+	if total <= 0 {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.0f%%", float64(used)/float64(total)*100)
+}
+
+func formatMilliCPU(milli int64) string {
+	if milli%1000 == 0 {
+		return fmt.Sprintf("%d", milli/1000)
+	}
+	return fmt.Sprintf("%.2f", float64(milli)/1000)
+}
+
+func formatBytes(bytes int64) string {
+	const gib = 1024 * 1024 * 1024
+	const mib = 1024 * 1024
+	switch {
+	case bytes == 0:
+		return "0"
+	case bytes%gib == 0:
+		return fmt.Sprintf("%dGi", bytes/gib)
+	case bytes >= gib:
+		return fmt.Sprintf("%.1fGi", float64(bytes)/gib)
+	case bytes%mib == 0:
+		return fmt.Sprintf("%dMi", bytes/mib)
+	default:
+		return fmt.Sprintf("%.1fMi", float64(bytes)/mib)
+	}
+}
+
+func formatResourceList(resources corev1.ResourceList) string {
+	if len(resources) == 0 {
+		return "none"
+	}
+	return fmt.Sprintf(
+		"cpu=%s memory=%s ephemeral=%s",
+		formatMilliCPU(resources.Cpu().MilliValue()),
+		formatBytes(resources.Memory().Value()),
+		formatBytes(resourceValue(resources, corev1.ResourceEphemeralStorage)),
+	)
+}
+
+func emptyIfUnset(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "<unset>"
+	}
+	return value
+}
+
+func nodeReady(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func resourceValue(resources corev1.ResourceList, name corev1.ResourceName) int64 {
+	quantity, ok := resources[name]
+	if !ok {
+		return 0
+	}
+	return quantity.Value()
 }
 
 func isPodReady(pod *corev1.Pod) bool {
@@ -676,6 +1101,10 @@ type podClient interface {
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 }
 
+type podListClient interface {
+	List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error)
+}
+
 type pvcClient interface {
 	Create(ctx context.Context, pvc *corev1.PersistentVolumeClaim, opts metav1.CreateOptions) (*corev1.PersistentVolumeClaim, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
@@ -686,3 +1115,14 @@ type serviceClient interface {
 	Create(ctx context.Context, service *corev1.Service, opts metav1.CreateOptions) (*corev1.Service, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 }
+
+type eventClient interface {
+	List(ctx context.Context, opts metav1.ListOptions) (*corev1.EventList, error)
+}
+
+type nodeClient interface {
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.Node, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*corev1.NodeList, error)
+}
+
+type logfFunc func(format string, args ...any)

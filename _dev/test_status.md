@@ -447,3 +447,8 @@
 30/05/26 08:29
 - PASS `cd control-plane && go test ./internal/workspace`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+30/05/26 09:57
+- PASS `cd control-plane && go test ./internal/workspace`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`

@@ -11,8 +11,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
@@ -590,6 +593,103 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 	}
 }
 
+func TestPodManagerHandlePodDeleteLogsPreemptionSitrep(t *testing.T) {
+	clusterPods := newMemoryPodClient()
+	logger := &logRecorder{}
+	manager := newPodManager(
+		newMemoryPodClient(),
+		newMemoryPVCClient(),
+		newMemoryServiceClient(),
+		PodManagerConfig{
+			ClusterPods: clusterPods,
+			Events: newMemoryEventClient([]corev1.Event{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "ws-123.18c8f7e3fcb6ec32",
+						Namespace:         defaultWorkspaceNamespace,
+						CreationTimestamp: metav1.NewTime(time.Date(2026, time.May, 30, 10, 0, 0, 0, time.UTC)),
+					},
+					InvolvedObject: corev1.ObjectReference{
+						Kind:      "Pod",
+						Name:      "ws-123",
+						Namespace: defaultWorkspaceNamespace,
+						UID:       "pod-uid",
+					},
+					Type:    corev1.EventTypeWarning,
+					Reason:  "Preempted",
+					Message: "Preempted by pod kube-system/gke-system-balloon-pod-dhrjs on node-a",
+				},
+			}),
+			Logf:  logger.Logf,
+			Nodes: newMemoryNodeClient([]corev1.Node{testNode("node-a", "16", "64Gi")}),
+		},
+	)
+
+	workspacePod := testWorkspacePod("ws-123", "pod-uid", "node-a", 8, 16)
+	_, _ = clusterPods.Create(context.Background(), workspacePod, metav1.CreateOptions{})
+	_, _ = clusterPods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gke-system-balloon-pod-dhrjs",
+			Namespace: "kube-system",
+		},
+		Spec: corev1.PodSpec{
+			NodeName:          "node-a",
+			PriorityClassName: "system-node-critical",
+			Containers: []corev1.Container{
+				{
+					Name: "balloon",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("12"),
+							corev1.ResourceMemory: resource.MustParse("56Gi"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{QOSClass: corev1.PodQOSGuaranteed},
+	}, metav1.CreateOptions{})
+
+	manager.handlePodDelete(cache.DeletedFinalStateUnknown{Obj: workspacePod.DeepCopy()})
+
+	if len(logger.lines) != 1 {
+		t.Fatalf("expected exactly one sitrep log, got %d", len(logger.lines))
+	}
+
+	report := logger.lines[0]
+	if !containsAll(
+		report,
+		"workspace preemption sitrep workspace=ws-123 namespace=cortado-workspaces",
+		"reason=Preempted",
+		"node=node-a",
+		"kube-system/gke-system-balloon-pod-dhrjs",
+		"cluster nodes:",
+	) {
+		t.Fatalf("unexpected sitrep report:\n%s", report)
+	}
+}
+
+func TestPodManagerHandlePodDeleteSkipsSitrepWithoutPreemptionEvent(t *testing.T) {
+	logger := &logRecorder{}
+	manager := newPodManager(
+		newMemoryPodClient(),
+		newMemoryPVCClient(),
+		newMemoryServiceClient(),
+		PodManagerConfig{
+			ClusterPods: newMemoryPodClient(),
+			Events:      newMemoryEventClient(nil),
+			Logf:        logger.Logf,
+			Nodes:       newMemoryNodeClient(nil),
+		},
+	)
+
+	manager.handlePodDelete(testWorkspacePod("ws-123", "pod-uid", "node-a", 1, 2))
+
+	if len(logger.lines) != 0 {
+		t.Fatalf("expected no sitrep logs, got %d", len(logger.lines))
+	}
+}
+
 type phaseEvent struct {
 	deleting    bool
 	phase       corev1.PodPhase
@@ -610,6 +710,10 @@ type usageFlusherStub struct {
 type snapshotterStub struct {
 	err         error
 	workspaceID string
+}
+
+type logRecorder struct {
+	lines []string
 }
 
 func (s *statusSinkStub) OnPodDeleted(_ context.Context, workspaceID string) error {
@@ -635,6 +739,10 @@ func (u *usageFlusherStub) FlushUsageWAL(_ context.Context, workspaceID string) 
 func (s *snapshotterStub) CreateSnapshot(_ context.Context, workspaceID string) error {
 	s.workspaceID = workspaceID
 	return s.err
+}
+
+func (l *logRecorder) Logf(format string, args ...any) {
+	l.lines = append(l.lines, fmt.Sprintf(format, args...))
 }
 
 type memoryPodClient struct {
@@ -758,6 +866,51 @@ func (c *memoryServiceClient) String() string {
 	return fmt.Sprintf("memoryServiceClient{%d}", len(c.objects))
 }
 
+type memoryEventClient struct {
+	events []corev1.Event
+}
+
+func newMemoryEventClient(events []corev1.Event) *memoryEventClient {
+	return &memoryEventClient{events: events}
+}
+
+func (c *memoryEventClient) List(_ context.Context, _ metav1.ListOptions) (*corev1.EventList, error) {
+	list := &corev1.EventList{}
+	for _, event := range c.events {
+		list.Items = append(list.Items, *event.DeepCopy())
+	}
+	return list, nil
+}
+
+type memoryNodeClient struct {
+	nodes map[string]*corev1.Node
+}
+
+func newMemoryNodeClient(nodes []corev1.Node) *memoryNodeClient {
+	objects := make(map[string]*corev1.Node, len(nodes))
+	for i := range nodes {
+		node := nodes[i].DeepCopy()
+		objects[node.Name] = node
+	}
+	return &memoryNodeClient{nodes: objects}
+}
+
+func (c *memoryNodeClient) Get(_ context.Context, name string, _ metav1.GetOptions) (*corev1.Node, error) {
+	node, ok := c.nodes[name]
+	if !ok {
+		return nil, apierrors.NewNotFound(corev1.Resource("nodes"), name)
+	}
+	return node.DeepCopy(), nil
+}
+
+func (c *memoryNodeClient) List(_ context.Context, _ metav1.ListOptions) (*corev1.NodeList, error) {
+	list := &corev1.NodeList{}
+	for _, node := range c.nodes {
+		list.Items = append(list.Items, *node.DeepCopy())
+	}
+	return list, nil
+}
+
 type memoryPVCClient struct {
 	mu      sync.Mutex
 	objects map[string]*corev1.PersistentVolumeClaim
@@ -867,4 +1020,61 @@ func containsAll(haystack string, needles ...string) bool {
 		}
 	}
 	return true
+}
+
+func testWorkspacePod(name, uid, nodeName string, cpu, memoryGi float64) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: defaultWorkspaceNamespace,
+			UID:       types.UID(uid),
+			Labels: map[string]string{
+				workspaceIDLabel: name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: nodeName,
+			Containers: []corev1.Container{
+				{
+					Name:  "workspace",
+					Image: "example.com/workspace:latest",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%gm", cpu*1000)),
+							corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%gGi", memoryGi)),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%gm", cpu*1000)),
+							corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%gGi", memoryGi)),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase:    corev1.PodRunning,
+			PodIP:    "10.13.0.10",
+			QOSClass: corev1.PodQOSBurstable,
+			Conditions: []corev1.PodCondition{{
+				Type:   corev1.PodReady,
+				Status: corev1.ConditionTrue,
+			}},
+		},
+	}
+}
+
+func testNode(name, cpu, memory string) corev1.Node {
+	return corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(cpu),
+				corev1.ResourceMemory: resource.MustParse(memory),
+			},
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
+		},
+	}
 }
