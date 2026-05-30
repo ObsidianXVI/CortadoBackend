@@ -1,7 +1,7 @@
 # demo_app
 
 This app is the Flutter Web showcase harness for Cortado's embedded editor and
-terminal story. It provisions one real Ubuntu workspace through the Cortado
+terminal story. It provisions one real Cortado workspace-agent image through the Cortado
 control plane, opens the same workspace file through multiple editor packages,
 and reuses one shared Cortado terminal for the shell/bootstrap flow. It now
 also supports Firebase email/password sign-up and sign-in inside the app so you
@@ -15,7 +15,8 @@ the platform-tenant / platform-key backend flow without leaving the demo UI.
 - Firebase-backed API key minting through `POST /v1/api-keys`
 - platform-tenant bootstrap plus platform API key minting through `/v1/platform-tenants/...`
 - real workspace provisioning/start/stop/delete against the current backend
-- one shared Ubuntu workspace image: `ubuntu:24.04`
+- one shared Cortado workspace image:
+  `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools`
 - manual bootstrap of Flutter inside the workspace terminal
 - the same `lib/main.dart` file edited through:
   - `flutter_monaco`
@@ -41,7 +42,7 @@ CORTADO_FIREBASE_MEASUREMENT_ID=
 CORTADO_FIREBASE_EMAIL=demo@example.com
 CORTADO_FIREBASE_PASSWORD=change-me
 CORTADO_FIREBASE_DEV_TENANT_ID=demo-tenant
-CORTADO_WORKSPACE_IMAGE=ubuntu:24.04
+CORTADO_WORKSPACE_IMAGE=us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools
 CORTADO_WORKSPACE_CPU=1
 CORTADO_WORKSPACE_MEMORY_GB=2
 CORTADO_FILE_PATH=lib/main.dart
@@ -79,7 +80,8 @@ Optional query params can override the env-backed defaults:
 2. For the browser-first path, press `Exchange Session` to turn the current Firebase sign-in into a normal Cortado session immediately.
 3. For the headless personal-key path, press `Assign Dev Tenant` if needed, then `Mint Personal Key`, then `New Session`.
 4. For the SaaS/backend path, use `Create Platform Tenant`, then `Mint Platform Key`. The session form is auto-filled with the new key; leave `Demo User ID` empty before pressing `New Session`.
-5. Press `Provision Workspace` to create a real workspace using `ubuntu:24.04`.
+5. Press `Provision Workspace` to create a real workspace using the Cortado
+   workspace image.
 6. Wait for the workspace to reach `RUNNING`.
 7. Use the shared terminal to run the bootstrap commands shown in the UI:
 

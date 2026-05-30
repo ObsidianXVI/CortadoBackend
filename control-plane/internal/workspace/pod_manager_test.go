@@ -489,7 +489,7 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 
 	select {
 	case event := <-sink.phaseCh:
-		if event.workspaceID != "ws-123" || event.phase != corev1.PodPending || event.deleting {
+		if event.workspaceID != "ws-123" || event.phase != corev1.PodPending || event.ready || event.deleting {
 			t.Fatalf("unexpected phase event: %#v", event)
 		}
 	case <-time.After(2 * time.Second):
@@ -513,6 +513,7 @@ func TestPodManagerRunPublishesPodLifecycleEvents(t *testing.T) {
 type phaseEvent struct {
 	deleting    bool
 	phase       corev1.PodPhase
+	ready       bool
 	workspaceID string
 }
 
@@ -536,10 +537,11 @@ func (s *statusSinkStub) OnPodDeleted(_ context.Context, workspaceID string) err
 	return nil
 }
 
-func (s *statusSinkStub) OnPodStatus(_ context.Context, workspaceID string, phase corev1.PodPhase, deleting bool) error {
+func (s *statusSinkStub) OnPodStatus(_ context.Context, workspaceID string, phase corev1.PodPhase, ready bool, deleting bool) error {
 	s.phaseCh <- phaseEvent{
 		deleting:    deleting,
 		phase:       phase,
+		ready:       ready,
 		workspaceID: workspaceID,
 	}
 	return nil

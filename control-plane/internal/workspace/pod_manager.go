@@ -43,7 +43,7 @@ const (
 
 type StatusSink interface {
 	OnPodDeleted(ctx context.Context, workspaceID string) error
-	OnPodStatus(ctx context.Context, workspaceID string, phase corev1.PodPhase, deleting bool) error
+	OnPodStatus(ctx context.Context, workspaceID string, phase corev1.PodPhase, ready bool, deleting bool) error
 }
 
 const (
@@ -491,8 +491,18 @@ func (m *PodManager) handlePodUpsert(obj interface{}) {
 		context.Background(),
 		workspaceID,
 		pod.Status.Phase,
+		isPodReady(pod),
 		pod.DeletionTimestamp != nil,
 	)
+}
+
+func isPodReady(pod *corev1.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string) (bool, error) {

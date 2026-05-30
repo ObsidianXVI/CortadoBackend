@@ -150,7 +150,7 @@ func TestServiceOnPodStatusTracksRunningAndDeleting(t *testing.T) {
 		Now:         func() time.Time { return time.Date(2026, time.May, 23, 17, 0, 0, 0, time.UTC) },
 	})
 
-	if err := service.OnPodStatus(context.Background(), "ws-123", corev1.PodRunning, false); err != nil {
+	if err := service.OnPodStatus(context.Background(), "ws-123", corev1.PodRunning, true, false); err != nil {
 		t.Fatalf("mark running: %v", err)
 	}
 	ws, err := repository.Get(context.Background(), "ws-123")
@@ -161,7 +161,7 @@ func TestServiceOnPodStatusTracksRunningAndDeleting(t *testing.T) {
 		t.Fatalf("unexpected running status: %q", ws.Status)
 	}
 
-	if err := service.OnPodStatus(context.Background(), "ws-123", corev1.PodRunning, true); err != nil {
+	if err := service.OnPodStatus(context.Background(), "ws-123", corev1.PodRunning, true, true); err != nil {
 		t.Fatalf("mark stopping: %v", err)
 	}
 	ws, err = repository.Get(context.Background(), "ws-123")
@@ -181,6 +181,33 @@ func TestServiceOnPodStatusTracksRunningAndDeleting(t *testing.T) {
 	}
 	if ws.Status != StatusStopped {
 		t.Fatalf("unexpected stopped status: %q", ws.Status)
+	}
+}
+
+func TestServiceOnPodStatusRequiresReadyPodForRunning(t *testing.T) {
+	repository := newMemoryRepository(
+		Workspace{
+			ID:       "ws-123",
+			TenantID: "tenant-1",
+			Status:   StatusCreating,
+		},
+	)
+	service := NewService(ServiceConfig{
+		Provisioner: &provisionerStub{},
+		Repository:  repository,
+		Now:         func() time.Time { return time.Date(2026, time.May, 30, 7, 45, 0, 0, time.UTC) },
+	})
+
+	if err := service.OnPodStatus(context.Background(), "ws-123", corev1.PodRunning, false, false); err != nil {
+		t.Fatalf("handle unready pod: %v", err)
+	}
+
+	ws, err := repository.Get(context.Background(), "ws-123")
+	if err != nil {
+		t.Fatalf("get workspace after unready running pod: %v", err)
+	}
+	if ws.Status != StatusCreating {
+		t.Fatalf("unexpected status for unready running pod: %q", ws.Status)
 	}
 }
 

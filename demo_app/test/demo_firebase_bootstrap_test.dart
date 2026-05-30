@@ -101,7 +101,8 @@ DemoBootstrapConfig _testConfig() {
     userId: '',
     workspaceId: '',
     shell: '/bin/bash',
-    image: 'ubuntu:24.04',
+    image:
+        'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools',
     filePath: 'lib/main.dart',
     cpu: 1,
     memoryGb: 2,

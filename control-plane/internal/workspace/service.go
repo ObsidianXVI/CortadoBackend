@@ -304,7 +304,7 @@ func (s *Service) OnPodDeleted(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
-func (s *Service) OnPodStatus(ctx context.Context, workspaceID string, phase corev1.PodPhase, deleting bool) error {
+func (s *Service) OnPodStatus(ctx context.Context, workspaceID string, phase corev1.PodPhase, ready bool, deleting bool) error {
 	workspace, err := s.repository.Get(ctx, workspaceID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -322,7 +322,7 @@ func (s *Service) OnPodStatus(ctx context.Context, workspaceID string, phase cor
 			return nil
 		}
 		_, err = s.repository.UpdateStatus(ctx, workspaceID, StatusStopping, s.now().UTC())
-	case phase == corev1.PodRunning:
+	case phase == corev1.PodRunning && ready:
 		if workspace.Status == StatusRunning {
 			return nil
 		}

@@ -962,3 +962,16 @@
 - M _dev/test_status.md
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
+30/05/26 07:47 [FIX] (pending) `dev-pro-large` Fixed the demo workspace bootstrap path by switching the demo’s default image from a generic Ubuntu container to the real Cortado workspace-agent image, and tightened workspace lifecycle tracking so the control plane only promotes a workspace to `RUNNING` after Kubernetes reports the pod `Ready`, which prevents dead agent containers from surfacing as healthy workspaces that later fail terminal or file RPCs with zero-address resolver errors.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
+- M control-plane/internal/workspace/service.go
+- M control-plane/internal/workspace/service_test.go
+- M demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/src/demo_bootstrap_config.dart
+- M demo_app/test/demo_firebase_bootstrap_test.dart
+- M demo_app/test/widget_test.dart
