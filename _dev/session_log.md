@@ -1035,7 +1035,7 @@
 - M flutter/lib/src/filesystem/vfs_node.dart
 - M flutter/lib/src/local_daemon/local_daemon_models.dart
 - M flutter/lib/src/workspace_models.dart
-30/05/26 10:58 [FIX] (pending) `dev-pro-large` Traced the recurring `flutter doctor` workspace shutdowns to Kubernetes `Evicted` events on the workspace container’s implicit `ephemeral-storage: 1Gi` limit rather than an internal Cortado stop path, then fixed the runtime to steer shell/tool caches onto the provisioned workspace PVC and to request an explicit 4 Gi ephemeral-storage budget for the workspace container so Flutter bootstrap commands stop exhausting the writable layer.
+30/05/26 10:58 [FIX] (3dc6792) `dev-pro-large` Traced the recurring `flutter doctor` workspace shutdowns to Kubernetes `Evicted` events on the workspace container’s implicit `ephemeral-storage: 1Gi` limit rather than an internal Cortado stop path, then fixed the runtime to steer shell/tool caches onto the provisioned workspace PVC and to request an explicit 4 Gi ephemeral-storage budget for the workspace container so Flutter bootstrap commands stop exhausting the writable layer.
 - M CURRENT_TASK.md
 - M _dev/session_log.md
 - M _dev/test_status.md
