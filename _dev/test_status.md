@@ -492,3 +492,10 @@
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd agent && CGO_ENABLED=0 go build ./...`
 - PASS `kubectl apply --dry-run=client -f terraform/k8s/workspace-pod-test.yaml`
+30/05/26 11:38
+- PASS `cd control-plane && go test ./internal/api ./internal/gateway`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`

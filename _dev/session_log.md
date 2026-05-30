@@ -1058,3 +1058,6 @@
 - M demo_app/.env.example
 - M demo_app/README.md
 - M demo_app/lib/src/demo_bootstrap_config.dart
+30/05/26 11:38 [FIX] (2aec744) `dev-pro-large` Fixed the remaining `Load File`/terminal mismatch after re-login by making the websocket workspace connect route enforce the same tenant-scoped workspace lookup as the REST workspace/file endpoints, while the demo app now clears cached workspace/session state before rebinding so a failed refresh cannot leave a stale `RUNNING` workspace attached to a new Cortado session.
+- M control-plane/internal/api/router.go
+- M demo_app/lib/src/demo_showcase_app.dart
