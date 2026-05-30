@@ -416,3 +416,5 @@
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
 - PASS `cd flutter && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 - PASS `cd flutter && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/middleware ./internal/api ./cmd/server`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

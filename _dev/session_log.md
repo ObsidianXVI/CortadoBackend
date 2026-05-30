@@ -936,3 +936,10 @@
 - A demo_app/test/demo_firebase_bootstrap_test.dart
 - M flutter/lib/src/auth/cortado_firebase_auth.dart
 - M flutter/test/cortado_firebase_auth_test.dart
+30/05/26 05:56 [FIX] (pending) `dev-pro-large` Fixed Flutter web access to the local control plane by adding top-level CORS middleware that answers browser preflight requests and allows the auth headers used by the demo app, so Firebase session exchange and the rest of the HTTP API can be called from the browser origin.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/cmd/server/main.go
+- A control-plane/internal/middleware/cors.go
+- A control-plane/internal/middleware/cors_test.go

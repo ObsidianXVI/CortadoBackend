@@ -156,6 +156,7 @@ func main() {
 	}
 
 	httpHandler := api.NewRouter(routerConfig)
+	httpHandler = cpmiddleware.NewCORSMiddleware()(httpHandler)
 
 	server := &http.Server{
 		Addr:              ":" + port,
