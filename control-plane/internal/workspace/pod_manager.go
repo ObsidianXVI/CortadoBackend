@@ -27,21 +27,24 @@ import (
 )
 
 const (
-	defaultAgentPort                 int32 = 9090
-	defaultClusterDNSDomain                = "cluster.local"
-	defaultWorkspaceMountPath              = "/workspace"
-	defaultWorkspaceNamespace              = "cortado-workspaces"
-	defaultWorkspacePVCSize                = "10Gi"
-	defaultVolumeReleasePollInterval       = 250 * time.Millisecond
-	defaultVolumeReleaseTimeout            = 30 * time.Second
-	defaultWorkspaceStorageClass           = "cortado-workspace"
-	defaultWorkspaceServiceAccount         = "workspace-sa"
-	defaultQdrantImage                     = "qdrant/qdrant:v1.12.0"
-	defaultQdrantMountPath                 = "/qdrant/storage"
-	defaultQdrantSubPath                   = ".cortado/qdrant"
-	defaultQdrantCPURequest                = "100m"
-	defaultQdrantMemoryRequest             = "256Mi"
-	workspaceIDLabel                       = "cortado/workspace-id"
+	defaultAgentPort                  int32 = 9090
+	defaultClusterDNSDomain                 = "cluster.local"
+	defaultWorkspaceMountPath               = "/workspace"
+	defaultWorkspaceNamespace               = "cortado-workspaces"
+	defaultWorkspacePVCSize                 = "10Gi"
+	defaultWorkspacePriorityClassName       = "workspace-priority"
+	defaultVolumeReleasePollInterval        = 250 * time.Millisecond
+	defaultVolumeReleaseTimeout             = 30 * time.Second
+	defaultWorkspaceStorageClass            = "cortado-workspace"
+	defaultWorkspaceServiceAccount          = "workspace-sa"
+	defaultQdrantImage                      = "qdrant/qdrant:v1.12.0"
+	defaultQdrantMountPath                  = "/qdrant/storage"
+	defaultQdrantSubPath                    = ".cortado/qdrant"
+	defaultQdrantCPURequest                 = "100m"
+	defaultQdrantCPULimit                   = "100m"
+	defaultQdrantMemoryRequest              = "256Mi"
+	defaultQdrantMemoryLimit                = "256Mi"
+	workspaceIDLabel                        = "cortado/workspace-id"
 )
 
 type StatusSink interface {
@@ -317,6 +320,7 @@ func (m *PodManager) Create(workspace Workspace) error {
 		},
 		Spec: corev1.PodSpec{
 			ServiceAccountName: m.serviceAccountName,
+			PriorityClassName:  defaultWorkspacePriorityClassName,
 			Containers: []corev1.Container{
 				{
 					Name:      "workspace",
@@ -384,6 +388,10 @@ func qdrantResources() corev1.ResourceRequirements {
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse(defaultQdrantCPURequest),
 			corev1.ResourceMemory: resource.MustParse(defaultQdrantMemoryRequest),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse(defaultQdrantCPULimit),
+			corev1.ResourceMemory: resource.MustParse(defaultQdrantMemoryLimit),
 		},
 	}
 }

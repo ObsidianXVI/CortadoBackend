@@ -457,3 +457,10 @@
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd agent && CGO_ENABLED=0 go build ./...`
+30/05/26 10:09
+- PASS `cd control-plane && go test ./internal/workspace`
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `kubectl apply -f scripts/k8s/workspace-bootstrap.yaml`
+- PASS `kubectl get priorityclass workspace-priority -o=jsonpath='{.metadata.name} {.value} {.preemptionPolicy}'`

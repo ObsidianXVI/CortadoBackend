@@ -1011,3 +1011,9 @@
 30/05/26 10:01 [FIX] `dev-pro-large` Hardened workspace cleanup compatibility one step further by treating gRPC `DeadlineExceeded` and `Canceled` snapshot/WAL-flush failures the same as the already-ignored unavailable and unimplemented agent cleanup errors, so deleting previously stopped workspaces no longer fails just because the agent connection never becomes ready during teardown.
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
+30/05/26 10:09 [FIX] `dev-pro-large` Hardened workspace scheduling against Autopilot preemption pressure by introducing a cluster bootstrap `workspace-priority` `PriorityClass`, assigning it to all workspace pods, and giving the qdrant sidecar explicit CPU and memory limits that match its requests so workspace pods now land above default-priority workloads with `Guaranteed` QoS instead of remaining easy victims of balloon-pod-era repacking and memory eviction.
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
+- M scripts/k8s/workspace-bootstrap.yaml
+- M terraform/k8s/workspace-namespace.yaml
+- M terraform/k8s/workspace-pod-test.yaml

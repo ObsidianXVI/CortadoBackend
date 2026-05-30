@@ -26,6 +26,7 @@ metadata:
     cortado/test-pod: "true"
     cortado/workspace-id: workspace-pod-test
 spec:
+  priorityClassName: workspace-priority
   serviceAccountName: workspace-sa
   restartPolicy: Never
   containers:
@@ -40,6 +41,9 @@ spec:
       image: qdrant/qdrant:v1.12.0
       resources:
         requests:
+          memory: 256Mi
+          cpu: 100m
+        limits:
           memory: 256Mi
           cpu: 100m
       volumeMounts:

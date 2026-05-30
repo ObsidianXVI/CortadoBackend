@@ -57,6 +57,9 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if pod.Spec.ServiceAccountName != defaultWorkspaceServiceAccount {
 		t.Fatalf("unexpected pod service account: %q", pod.Spec.ServiceAccountName)
 	}
+	if pod.Spec.PriorityClassName != defaultWorkspacePriorityClassName {
+		t.Fatalf("unexpected pod priority class: %q", pod.Spec.PriorityClassName)
+	}
 	if pod.Labels[workspaceIDLabel] != "ws-123" {
 		t.Fatalf("unexpected pod labels: %#v", pod.Labels)
 	}
@@ -81,6 +84,12 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 	if got := qdrant.Resources.Requests.Memory().String(); got != defaultQdrantMemoryRequest {
 		t.Fatalf("unexpected qdrant memory request: got %q want %q", got, defaultQdrantMemoryRequest)
+	}
+	if got := qdrant.Resources.Limits.Cpu().String(); got != defaultQdrantCPULimit {
+		t.Fatalf("unexpected qdrant cpu limit: got %q want %q", got, defaultQdrantCPULimit)
+	}
+	if got := qdrant.Resources.Limits.Memory().String(); got != defaultQdrantMemoryLimit {
+		t.Fatalf("unexpected qdrant memory limit: got %q want %q", got, defaultQdrantMemoryLimit)
 	}
 	if len(qdrant.VolumeMounts) != 1 {
 		t.Fatalf("unexpected qdrant volume mounts: %#v", qdrant.VolumeMounts)
