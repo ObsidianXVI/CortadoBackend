@@ -246,6 +246,12 @@
 - PASS `cd flutter && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+30/05/26 10:58
+- PASS `cd control-plane && go test ./internal/workspace ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go test ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `kubectl apply --dry-run=client -f terraform/k8s/workspace-pod-test.yaml`
 26/05/26 01:58
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && go build ./...`

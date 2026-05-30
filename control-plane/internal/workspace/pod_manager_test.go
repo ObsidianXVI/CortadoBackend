@@ -85,6 +85,12 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if got := pod.Spec.Containers[0].Resources.Requests.Memory().Value(); got != 2*1024*1024*1024 {
 		t.Fatalf("unexpected memory request: got %d want %d", got, 2*1024*1024*1024)
 	}
+	if got := pod.Spec.Containers[0].Resources.Requests.StorageEphemeral().String(); got != defaultWorkspaceEphemeralStorage {
+		t.Fatalf("unexpected workspace ephemeral storage request: got %q want %q", got, defaultWorkspaceEphemeralStorage)
+	}
+	if got := pod.Spec.Containers[0].Resources.Limits.StorageEphemeral().String(); got != defaultWorkspaceEphemeralStorage {
+		t.Fatalf("unexpected workspace ephemeral storage limit: got %q want %q", got, defaultWorkspaceEphemeralStorage)
+	}
 	if len(pod.Spec.Containers) != 2 {
 		t.Fatalf("unexpected container count: got %d want %d", len(pod.Spec.Containers), 2)
 	}
@@ -106,6 +112,12 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 	if got := qdrant.Resources.Limits.Memory().String(); got != defaultQdrantMemoryLimit {
 		t.Fatalf("unexpected qdrant memory limit: got %q want %q", got, defaultQdrantMemoryLimit)
+	}
+	if got := qdrant.Resources.Requests.StorageEphemeral().String(); got != defaultQdrantEphemeralStorageRequest {
+		t.Fatalf("unexpected qdrant ephemeral storage request: got %q want %q", got, defaultQdrantEphemeralStorageRequest)
+	}
+	if got := qdrant.Resources.Limits.StorageEphemeral().String(); got != defaultQdrantEphemeralStorageLimit {
+		t.Fatalf("unexpected qdrant ephemeral storage limit: got %q want %q", got, defaultQdrantEphemeralStorageLimit)
 	}
 	if len(qdrant.VolumeMounts) != 1 {
 		t.Fatalf("unexpected qdrant volume mounts: %#v", qdrant.VolumeMounts)
@@ -221,6 +233,24 @@ func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 	}
 	if env[envWorkspaceStorageGB] != "10" {
 		t.Fatalf("unexpected storage env: %#v", env)
+	}
+	if env[envUserHome] != defaultWorkspaceHomePath {
+		t.Fatalf("unexpected HOME env: %#v", env)
+	}
+	if env[envTMPDIR] != defaultWorkspaceTMPPath {
+		t.Fatalf("unexpected TMPDIR env: %#v", env)
+	}
+	if env[envXDGCacheHome] != defaultWorkspaceCachePath {
+		t.Fatalf("unexpected XDG cache env: %#v", env)
+	}
+	if env[envPubCache] != defaultWorkspacePubCachePath {
+		t.Fatalf("unexpected PUB_CACHE env: %#v", env)
+	}
+	if env[envGradleUserHome] != defaultWorkspaceGradlePath {
+		t.Fatalf("unexpected GRADLE_USER_HOME env: %#v", env)
+	}
+	if env[envNPMConfigCache] != defaultWorkspaceNPMCachePath {
+		t.Fatalf("unexpected npm cache env: %#v", env)
 	}
 }
 

@@ -39,8 +39,26 @@ spec:
   containers:
     - name: workspace-agent
       image: ${workspace_image}
+      env:
+        - name: HOME
+          value: /workspace/.cortado/runtime/home
+        - name: TMPDIR
+          value: /workspace/.cortado/runtime/tmp
+        - name: XDG_CACHE_HOME
+          value: /workspace/.cortado/runtime/cache
+        - name: PUB_CACHE
+          value: /workspace/.cortado/runtime/pub-cache
+        - name: GRADLE_USER_HOME
+          value: /workspace/.cortado/runtime/gradle
+        - name: npm_config_cache
+          value: /workspace/.cortado/runtime/npm-cache
       ports:
         - containerPort: 9090
+      resources:
+        requests:
+          ephemeral-storage: 4Gi
+        limits:
+          ephemeral-storage: 4Gi
       volumeMounts:
         - name: workspace-data
           mountPath: /workspace
@@ -50,9 +68,11 @@ spec:
         requests:
           memory: 256Mi
           cpu: 100m
+          ephemeral-storage: 1Gi
         limits:
           memory: 256Mi
           cpu: 100m
+          ephemeral-storage: 1Gi
       volumeMounts:
         - name: workspace-data
           mountPath: /qdrant/storage

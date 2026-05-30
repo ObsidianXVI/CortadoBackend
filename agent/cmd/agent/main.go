@@ -27,6 +27,9 @@ func main() {
 	if port == "" {
 		port = defaultGRPCPort
 	}
+	if err := ensureRuntimeDirsFromEnv(); err != nil {
+		log.Fatalf("prepare runtime dirs: %v", err)
+	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {

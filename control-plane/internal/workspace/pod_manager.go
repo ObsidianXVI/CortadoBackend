@@ -27,26 +27,36 @@ import (
 )
 
 const (
-	defaultAgentPort                  int32 = 9090
-	defaultClusterDNSDomain                 = "cluster.local"
-	defaultWorkspaceMountPath               = "/workspace"
-	defaultWorkspaceNamespace               = "cortado-workspaces"
-	defaultWorkspacePVCSize                 = "10Gi"
-	defaultWorkspacePriorityClassName       = "workspace-priority"
-	defaultWorkspaceAppName                 = "cortado-workspace-agent"
-	defaultVolumeReleasePollInterval        = 250 * time.Millisecond
-	defaultVolumeReleaseTimeout             = 30 * time.Second
-	defaultWorkspaceStorageClass            = "cortado-workspace"
-	defaultWorkspaceServiceAccount          = "workspace-sa"
-	defaultQdrantImage                      = "qdrant/qdrant:v1.12.0"
-	defaultQdrantMountPath                  = "/qdrant/storage"
-	defaultQdrantSubPath                    = ".cortado/qdrant"
-	defaultQdrantCPURequest                 = "100m"
-	defaultQdrantCPULimit                   = "100m"
-	defaultQdrantMemoryRequest              = "256Mi"
-	defaultQdrantMemoryLimit                = "256Mi"
-	workspaceAppNameLabel                   = "app.kubernetes.io/name"
-	workspaceIDLabel                        = "cortado/workspace-id"
+	defaultAgentPort                     int32 = 9090
+	defaultClusterDNSDomain                    = "cluster.local"
+	defaultWorkspaceMountPath                  = "/workspace"
+	defaultWorkspaceNamespace                  = "cortado-workspaces"
+	defaultWorkspaceRuntimeRoot                = defaultWorkspaceMountPath + "/.cortado/runtime"
+	defaultWorkspaceHomePath                   = defaultWorkspaceRuntimeRoot + "/home"
+	defaultWorkspaceCachePath                  = defaultWorkspaceRuntimeRoot + "/cache"
+	defaultWorkspacePVCSize                    = "10Gi"
+	defaultWorkspacePriorityClassName          = "workspace-priority"
+	defaultWorkspaceAppName                    = "cortado-workspace-agent"
+	defaultWorkspaceEphemeralStorage           = "4Gi"
+	defaultWorkspaceGradlePath                 = defaultWorkspaceRuntimeRoot + "/gradle"
+	defaultWorkspaceNPMCachePath               = defaultWorkspaceRuntimeRoot + "/npm-cache"
+	defaultWorkspacePubCachePath               = defaultWorkspaceRuntimeRoot + "/pub-cache"
+	defaultWorkspaceTMPPath                    = defaultWorkspaceRuntimeRoot + "/tmp"
+	defaultVolumeReleasePollInterval           = 250 * time.Millisecond
+	defaultVolumeReleaseTimeout                = 30 * time.Second
+	defaultWorkspaceStorageClass               = "cortado-workspace"
+	defaultWorkspaceServiceAccount             = "workspace-sa"
+	defaultQdrantImage                         = "qdrant/qdrant:v1.12.0"
+	defaultQdrantEphemeralStorageLimit         = "1Gi"
+	defaultQdrantEphemeralStorageRequest       = "1Gi"
+	defaultQdrantMountPath                     = "/qdrant/storage"
+	defaultQdrantSubPath                       = ".cortado/qdrant"
+	defaultQdrantCPURequest                    = "100m"
+	defaultQdrantCPULimit                      = "100m"
+	defaultQdrantMemoryRequest                 = "256Mi"
+	defaultQdrantMemoryLimit                   = "256Mi"
+	workspaceAppNameLabel                      = "app.kubernetes.io/name"
+	workspaceIDLabel                           = "cortado/workspace-id"
 )
 
 type StatusSink interface {
@@ -58,6 +68,10 @@ const (
 	envGoogleCloudProject        = "GOOGLE_CLOUD_PROJECT"
 	envTenantID                  = "CORTADO_TENANT_ID"
 	envUsageEventsTopic          = "CORTADO_USAGE_EVENTS_TOPIC"
+	envUserHome                  = "HOME"
+	envNPMConfigCache            = "npm_config_cache"
+	envPubCache                  = "PUB_CACHE"
+	envTMPDIR                    = "TMPDIR"
 	envWorkspaceCPU              = "CORTADO_WORKSPACE_CPU"
 	envWorkspaceID               = "CORTADO_WORKSPACE_ID"
 	envWorkspaceMemoryGB         = "CORTADO_WORKSPACE_MEMORY_GB"
@@ -66,6 +80,8 @@ const (
 	envWorkspaceSnapshotPassword = "CORTADO_SNAPSHOT_PASSWORD"
 	envWorkspaceStorageGB        = "CORTADO_WORKSPACE_STORAGE_GB"
 	envWorkspaceUserID           = "CORTADO_USER_ID"
+	envXDGCacheHome              = "XDG_CACHE_HOME"
+	envGradleUserHome            = "GRADLE_USER_HOME"
 )
 
 const gibBytes = 1024 * 1024 * 1024
@@ -398,12 +414,14 @@ func (m *PodManager) Create(workspace Workspace) error {
 func qdrantResources() corev1.ResourceRequirements {
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse(defaultQdrantCPURequest),
-			corev1.ResourceMemory: resource.MustParse(defaultQdrantMemoryRequest),
+			corev1.ResourceCPU:              resource.MustParse(defaultQdrantCPURequest),
+			corev1.ResourceMemory:           resource.MustParse(defaultQdrantMemoryRequest),
+			corev1.ResourceEphemeralStorage: resource.MustParse(defaultQdrantEphemeralStorageRequest),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse(defaultQdrantCPULimit),
-			corev1.ResourceMemory: resource.MustParse(defaultQdrantMemoryLimit),
+			corev1.ResourceCPU:              resource.MustParse(defaultQdrantCPULimit),
+			corev1.ResourceMemory:           resource.MustParse(defaultQdrantMemoryLimit),
+			corev1.ResourceEphemeralStorage: resource.MustParse(defaultQdrantEphemeralStorageLimit),
 		},
 	}
 }
@@ -1053,7 +1071,12 @@ func normalizedStorageGB(storageGB float64) float64 {
 func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{Name: envGoogleCloudProject, Value: m.projectID},
+		{Name: envUserHome, Value: defaultWorkspaceHomePath},
+		{Name: envGradleUserHome, Value: defaultWorkspaceGradlePath},
+		{Name: envNPMConfigCache, Value: defaultWorkspaceNPMCachePath},
+		{Name: envPubCache, Value: defaultWorkspacePubCachePath},
 		{Name: envTenantID, Value: workspace.TenantID},
+		{Name: envTMPDIR, Value: defaultWorkspaceTMPPath},
 		{Name: envUsageEventsTopic, Value: m.usageEventsTopic},
 		{Name: envWorkspaceCPU, Value: strconv.FormatFloat(workspace.Resources.CPU, 'f', -1, 64)},
 		{Name: envWorkspaceID, Value: workspace.ID},
@@ -1061,6 +1084,7 @@ func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
 		{Name: envWorkspaceRegion, Value: m.region},
 		{Name: envWorkspaceStorageGB, Value: strconv.FormatFloat(normalizedStorageGB(workspace.Resources.StorageGB), 'f', -1, 64)},
 		{Name: envWorkspaceUserID, Value: workspace.UserID},
+		{Name: envXDGCacheHome, Value: defaultWorkspaceCachePath},
 	}
 	if m.snapshotBucket != "" {
 		env = append(env, corev1.EnvVar{Name: envWorkspaceSnapshotBucket, Value: m.snapshotBucket})
@@ -1117,8 +1141,9 @@ func workspaceResources(cpu, memGB float64) (corev1.ResourceRequirements, error)
 	memoryQuantity := resource.MustParse(fmt.Sprintf("%dMi", memoryMi))
 
 	resources := corev1.ResourceList{
-		corev1.ResourceCPU:    cpuQuantity,
-		corev1.ResourceMemory: memoryQuantity,
+		corev1.ResourceCPU:              cpuQuantity,
+		corev1.ResourceMemory:           memoryQuantity,
+		corev1.ResourceEphemeralStorage: resource.MustParse(defaultWorkspaceEphemeralStorage),
 	}
 
 	return corev1.ResourceRequirements{
