@@ -1391,15 +1391,25 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
     }
 
     await _runBusy('Refreshing workspace status', () async {
-      await _refreshWorkspaceState();
+      final refreshed = await _guardWorkspaceLookup(
+        workspaceId,
+        () async {
+          await _refreshWorkspaceState();
+          return true;
+        },
+      );
+      if (refreshed != true) {
+        return;
+      }
       _setInfoMessage(
-        'Attached to workspace $_workspaceId in '
+        'Attached to workspace $workspaceId in '
         '${_workspaceStatus?.status.name.toUpperCase()}.',
       );
     });
@@ -1409,15 +1419,25 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
     }
 
     await _runBusy('Starting workspace', () async {
-      await _workspaceManager!.start(_workspaceId);
-      await _refreshWorkspaceState();
-      _setInfoMessage('Start requested for workspace $_workspaceId.');
+      final started = await _guardWorkspaceLookup(
+        workspaceId,
+        () async {
+          await _workspaceManager!.start(workspaceId);
+          await _refreshWorkspaceState();
+          return true;
+        },
+      );
+      if (started != true) {
+        return;
+      }
+      _setInfoMessage('Start requested for workspace $workspaceId.');
     });
   }
 
@@ -1425,16 +1445,26 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
     }
 
     await _runBusy('Stopping workspace', () async {
-      await _workspaceManager!.stop(_workspaceId);
+      final stopped = await _guardWorkspaceLookup(
+        workspaceId,
+        () async {
+          await _workspaceManager!.stop(workspaceId);
+          return true;
+        },
+      );
+      if (stopped != true) {
+        return;
+      }
       await _disconnectWorkspaceSocket();
       await _refreshWorkspaceState();
-      _setInfoMessage('Stop requested for workspace $_workspaceId.');
+      _setInfoMessage('Stop requested for workspace $workspaceId.');
     });
   }
 
@@ -1442,15 +1472,22 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
     }
 
     await _runBusy('Deleting workspace', () async {
-      final deletedWorkspace = await _workspaceManager!.deleteWorkspace(
-        _workspaceId,
+      final deletedWorkspace = await _guardWorkspaceLookup(
+        workspaceId,
+        () => _workspaceManager!.deleteWorkspace(
+          workspaceId,
+        ),
       );
+      if (deletedWorkspace == null) {
+        return;
+      }
 
       await _statusSubscription?.cancel();
       _statusSubscription = null;
@@ -1471,7 +1508,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
     }
@@ -1481,17 +1519,23 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     }
 
     await _runBusy('Loading file', () async {
-      final bytes = await _workspaceManager!.readFile(
-        _workspaceId,
-        path: _filePath,
+      final bytes = await _guardWorkspaceLookup(
+        workspaceId,
+        () => _workspaceManager!.readFile(
+          workspaceId,
+          path: _filePath,
+        ),
       );
+      if (bytes == null) {
+        return;
+      }
       setState(() {
         _draftCode = utf8.decode(bytes, allowMalformed: true);
         _loadedFilePath = _filePath;
         _documentRevision++;
       });
 
-      _setInfoMessage('Loaded $_filePath from workspace $_workspaceId.');
+      _setInfoMessage('Loaded $_filePath from workspace $workspaceId.');
     });
   }
 
@@ -1499,21 +1543,28 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    if (_workspaceId.isEmpty || _filePath.isEmpty) {
+    final workspaceId = _workspaceId;
+    if (workspaceId.isEmpty || _filePath.isEmpty) {
       _setInfoMessage('Workspace ID and target file are required.');
       return;
     }
 
     await _runBusy('Saving file', () async {
-      await _workspaceManager!.writeFile(
-        _workspaceId,
-        path: _filePath,
-        content: utf8.encode(_draftCode),
+      final saved = await _guardWorkspaceLookup(
+        workspaceId,
+        () => _workspaceManager!.writeFile(
+          workspaceId,
+          path: _filePath,
+          content: utf8.encode(_draftCode),
+        ),
       );
+      if (saved == null) {
+        return;
+      }
       setState(() {
         _loadedFilePath = _filePath;
       });
-      _setInfoMessage('Saved $_filePath to workspace $_workspaceId.');
+      _setInfoMessage('Saved $_filePath to workspace $workspaceId.');
     });
   }
 
@@ -1536,7 +1587,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
         }
       },
       onError: (Object error, StackTrace stackTrace) {
-        _setInfoMessage(error.toString());
+        unawaited(_handleWorkspaceLookupError(workspaceId, error));
       },
     );
   }
@@ -1613,6 +1664,49 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _connectedWorkspaceId = null;
     _sessionMode = null;
     _clearLoadedFile();
+  }
+
+  Future<T?> _guardWorkspaceLookup<T>(
+    String workspaceId,
+    Future<T> Function() action,
+  ) async {
+    try {
+      return await action();
+    } catch (error) {
+      final handled = await _handleWorkspaceLookupError(workspaceId, error);
+      if (handled) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<bool> _handleWorkspaceLookupError(
+    String workspaceId,
+    Object error,
+  ) async {
+    if (error is! WorkspaceRequestException || error.statusCode != 404) {
+      _setInfoMessage(error.toString());
+      return false;
+    }
+
+    await _statusSubscription?.cancel();
+    _statusSubscription = null;
+    await _disconnectWorkspaceSocket();
+    if (!mounted) {
+      return true;
+    }
+
+    setState(() {
+      _workspace = null;
+      _workspaceStatus = null;
+      _connectedWorkspaceId = null;
+      _clearLoadedFile();
+    });
+    _setInfoMessage(
+      'Workspace $workspaceId was not found. It may have been deleted, or it belongs to a different Cortado session. Provision a new workspace or refresh using a workspace ID owned by the current session.',
+    );
+    return true;
   }
 
   bool _ensureWorkspaceManager() {
