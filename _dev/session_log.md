@@ -990,3 +990,12 @@
 - M control-plane/internal/workspace/agent_idle_client.go
 - M control-plane/internal/workspace/idle_monitor.go
 - M control-plane/internal/workspace/idle_monitor_test.go
+30/05/26 07:49 [FIX] (pending) `dev-pro-large` Updated the demo app’s default workspace image to the newer `cortado-workspace:781d613` tag after confirming the older image still lacked the `ReadFile` / file-service RPCs, so newly provisioned demo workspaces match the current control-plane and Flutter package expectations for terminal plus file load/save flows.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/src/demo_bootstrap_config.dart
+- M demo_app/test/demo_firebase_bootstrap_test.dart
+- M demo_app/test/widget_test.dart

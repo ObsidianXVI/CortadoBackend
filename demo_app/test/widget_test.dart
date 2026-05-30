@@ -18,7 +18,7 @@ void main() {
         'CORTADO_DEMO_API_KEY': 'local-demo-key',
         'CORTADO_DEMO_USER_ID': 'demo-user',
         'CORTADO_WORKSPACE_IMAGE':
-            'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools',
+            'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613',
         'CORTADO_FIREBASE_API_KEY': 'firebase-api-key',
         'CORTADO_FIREBASE_PROJECT_ID': 'demo-firebase-project',
         'CORTADO_FIREBASE_APP_ID': '1:123:web:abc',
@@ -35,7 +35,7 @@ void main() {
     expect(config.shell, '/bin/zsh');
     expect(
       config.image,
-      'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools',
+      'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613',
     );
     expect(config.filePath, 'lib/main.dart');
     expect(config.cpu, 1.5);
@@ -60,7 +60,7 @@ void main() {
             workspaceId: '',
             shell: '/bin/bash',
             image:
-                'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260523-102947-workspace-tools',
+                'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613',
             filePath: 'lib/main.dart',
             cpu: 1,
             memoryGb: 2,

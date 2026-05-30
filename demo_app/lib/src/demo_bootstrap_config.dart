@@ -25,7 +25,7 @@ class DemoBootstrapConfig {
   static const String defaultShell = '/bin/bash';
   static const String defaultImage =
       'us-central1-docker.pkg.dev/cortado-ide/cortado-dev/'
-      'cortado-workspace:20260523-102947-workspace-tools';
+      'cortado-workspace:781d613';
   static const String defaultFilePath = 'lib/main.dart';
   static const double defaultCpu = 1;
   static const double defaultMemoryGb = 2;
