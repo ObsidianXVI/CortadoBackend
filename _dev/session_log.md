@@ -1063,3 +1063,5 @@
 - M demo_app/lib/src/demo_showcase_app.dart
 30/05/26 11:47 [FIX] (13ba9d7) `dev-pro-large` Fixed local/demo workspace stop behavior so snapshot creation is attempted only when the snapshot repository is actually configured, which prevents `Stop Workspace` from failing with `snapshot repository is not configured` in environments that intentionally omit restic snapshot settings while still preserving snapshot behavior in configured deployments.
 - M control-plane/internal/workspace/pod_manager.go
+30/05/26 11:56 [FIX] (e801103) `dev-pro-large` Hardened the demo workspace UX around missing workspaces by making refresh/start/stop/load/save paths treat `404 workspace not found` as a state-reset condition, clearing the cached workspace attachment and terminal/session binding so the UI no longer claims a workspace is still `RUNNING` after it has been deleted or when the current session no longer owns it.
+- M demo_app/lib/src/demo_showcase_app.dart

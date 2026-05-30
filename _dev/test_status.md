@@ -504,3 +504,6 @@
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
 - PASS `cd agent && CGO_ENABLED=0 go build ./...`
+30/05/26 11:56
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
