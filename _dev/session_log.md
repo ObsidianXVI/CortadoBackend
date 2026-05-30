@@ -943,3 +943,10 @@
 - M control-plane/cmd/server/main.go
 - A control-plane/internal/middleware/cors.go
 - A control-plane/internal/middleware/cors_test.go
+30/05/26 06:08 [FIX] (pending) `dev-pro-large` Fixed first-login Firebase session exchange provisioning against Firestore by replacing struct-plus-`MergeAll` tenant writes with explicit map payloads for personal tenants, platform tenants, and tenant metadata, and added store-level coverage for the merge-safe document shapes.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/store/firestore_auth_store.go
+- M control-plane/internal/store/firestore_tenant_store.go
+- A control-plane/internal/store/firestore_store_test.go

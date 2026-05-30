@@ -120,7 +120,11 @@ func (s *FirestoreAuthStore) EnsurePersonalTenant(ctx context.Context, tenant au
 	if strings.TrimSpace(tenant.TenantID) == "" {
 		return fmt.Errorf("save personal tenant document: tenant id is required")
 	}
-	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(ctx, tenant, firestore.MergeAll); err != nil {
+	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(
+		ctx,
+		personalTenantDocument(tenant),
+		firestore.MergeAll,
+	); err != nil {
 		return fmt.Errorf("save personal tenant document: %w", err)
 	}
 	return nil
@@ -192,10 +196,36 @@ func (s *FirestoreAuthStore) SavePlatformTenant(ctx context.Context, tenant auth
 	if strings.TrimSpace(tenant.TenantID) == "" {
 		return fmt.Errorf("save platform tenant document: tenant id is required")
 	}
-	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(ctx, tenant, firestore.MergeAll); err != nil {
+	if _, err := s.client.Collection(s.tenantsCollection).Doc(tenant.TenantID).Set(
+		ctx,
+		platformTenantDocument(tenant),
+		firestore.MergeAll,
+	); err != nil {
 		return fmt.Errorf("save platform tenant document: %w", err)
 	}
 	return nil
+}
+
+func personalTenantDocument(tenant auth.PersonalTenantRecord) map[string]any {
+	return map[string]any{
+		"createdAt":   tenant.CreatedAt,
+		"displayName": tenant.DisplayName,
+		"kind":        tenant.Kind,
+		"ownerUserId": tenant.OwnerUserID,
+		"tenantId":    tenant.TenantID,
+		"updatedAt":   tenant.UpdatedAt,
+	}
+}
+
+func platformTenantDocument(tenant auth.PlatformTenantRecord) map[string]any {
+	return map[string]any{
+		"createdAt":   tenant.CreatedAt,
+		"displayName": tenant.DisplayName,
+		"kind":        tenant.Kind,
+		"ownerUserId": tenant.OwnerUserID,
+		"tenantId":    tenant.TenantID,
+		"updatedAt":   tenant.UpdatedAt,
+	}
 }
 
 func (s *FirestoreAuthStore) SaveRefreshToken(ctx context.Context, token auth.RefreshTokenRecord) error {
