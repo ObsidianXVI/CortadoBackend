@@ -165,6 +165,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       TextEditingController(text: widget.initialConfig.cpu.toString());
   late final TextEditingController _memoryController =
       TextEditingController(text: widget.initialConfig.memoryGb.toString());
+  late final TextEditingController _storageController =
+      TextEditingController(text: widget.initialConfig.storageGb.toString());
 
   CortadoAuthSession? _authSession;
   WorkspaceManager? _workspaceManager;
@@ -222,6 +224,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _filePathController.dispose();
     _cpuController.dispose();
     _memoryController.dispose();
+    _storageController.dispose();
     _statusSubscription?.cancel();
     unawaited(_client?.dispose() ?? Future<void>.value());
     unawaited(_workspaceManager?.dispose() ?? Future<void>.value());
@@ -692,6 +695,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
               _buildField(_imageController, 'Workspace Image', 260),
               _buildField(_cpuController, 'CPU', 120),
               _buildField(_memoryController, 'Memory (GB)', 120),
+              _buildField(_storageController, 'Storage (GB)', 120),
               _buildField(_shellController, 'Shell', 180),
               _buildField(_filePathController, 'Target File', 220),
             ],
@@ -774,7 +778,8 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
                 Chip(
                   label: Text(
                     'Resources ${_workspace!.resources.cpu.toStringAsFixed(1)} CPU / '
-                    '${_workspace!.resources.memoryGb.toStringAsFixed(1)} GB',
+                    '${_workspace!.resources.memoryGb.toStringAsFixed(1)} GB RAM / '
+                    '${_workspace!.resources.storageGb.toStringAsFixed(1)} GB disk',
                   ),
                 ),
               if (_sessionMode != null) Chip(label: Text(_sessionMode!.label)),
@@ -1353,13 +1358,19 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
           DemoBootstrapConfig.defaultCpu;
       final memory = double.tryParse(_memoryController.text.trim()) ??
           DemoBootstrapConfig.defaultMemoryGb;
+      final storage = double.tryParse(_storageController.text.trim()) ??
+          DemoBootstrapConfig.defaultStorageGb;
       final image = _imageController.text.trim().isEmpty
           ? DemoBootstrapConfig.defaultImage
           : _imageController.text.trim();
 
       final workspace = await _workspaceManager!.create(
         image: image,
-        resources: WorkspaceResources(cpu: cpu, memoryGb: memory),
+        resources: WorkspaceResources(
+          cpu: cpu,
+          memoryGb: memory,
+          storageGb: storage,
+        ),
       );
 
       _workspace = workspace;

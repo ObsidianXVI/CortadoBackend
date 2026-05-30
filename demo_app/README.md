@@ -45,6 +45,7 @@ CORTADO_FIREBASE_DEV_TENANT_ID=demo-tenant
 CORTADO_WORKSPACE_IMAGE=us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613
 CORTADO_WORKSPACE_CPU=1
 CORTADO_WORKSPACE_MEMORY_GB=2
+CORTADO_WORKSPACE_STORAGE_GB=10
 CORTADO_FILE_PATH=lib/main.dart
 CORTADO_SHELL=/bin/bash
 ```
@@ -60,6 +61,8 @@ Notes:
   custom claim before minting a Cortado API key.
 - `CORTADO_FIREBASE_DEV_TENANT_ID` controls which dev tenant the app asks the
   control plane to assign. If omitted, the backend falls back to `demo-tenant`.
+- `CORTADO_WORKSPACE_MEMORY_GB` is RAM. `CORTADO_WORKSPACE_STORAGE_GB` controls
+  the persistent workspace disk and is enforced with a 10 GB minimum.
 
 ## Run
 

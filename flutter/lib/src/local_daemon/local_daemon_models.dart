@@ -24,7 +24,8 @@ enum CortadoLocalDaemonSyncState {
 }
 
 @freezed
-class CortadoLocalDaemonAvailability with _$CortadoLocalDaemonAvailability {
+sealed class CortadoLocalDaemonAvailability
+    with _$CortadoLocalDaemonAvailability {
   const CortadoLocalDaemonAvailability._();
 
   const factory CortadoLocalDaemonAvailability({
@@ -39,7 +40,7 @@ class CortadoLocalDaemonAvailability with _$CortadoLocalDaemonAvailability {
 }
 
 @freezed
-class CortadoLocalDaemonSyncStatus with _$CortadoLocalDaemonSyncStatus {
+sealed class CortadoLocalDaemonSyncStatus with _$CortadoLocalDaemonSyncStatus {
   const CortadoLocalDaemonSyncStatus._();
 
   const factory CortadoLocalDaemonSyncStatus({
@@ -55,7 +56,7 @@ class CortadoLocalDaemonSyncStatus with _$CortadoLocalDaemonSyncStatus {
 }
 
 @freezed
-class CortadoLocalDaemonConflict with _$CortadoLocalDaemonConflict {
+sealed class CortadoLocalDaemonConflict with _$CortadoLocalDaemonConflict {
   const CortadoLocalDaemonConflict._();
 
   const factory CortadoLocalDaemonConflict({

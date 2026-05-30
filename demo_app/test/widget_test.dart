@@ -11,7 +11,8 @@ void main() {
         '?workspaceId=ws-123'
         '&shell=%2Fbin%2Fzsh'
         '&cpu=1.5'
-        '&memoryGb=3',
+        '&memoryGb=3'
+        '&storageGb=14',
       ),
       env: const <String, String>{
         'CORTADO_BASE_URL': 'https://control-plane.example.run.app',
@@ -40,6 +41,7 @@ void main() {
     expect(config.filePath, 'lib/main.dart');
     expect(config.cpu, 1.5);
     expect(config.memoryGb, 3);
+    expect(config.storageGb, 14);
     expect(config.firebaseApiKey, 'firebase-api-key');
     expect(config.firebaseProjectId, 'demo-firebase-project');
     expect(config.firebaseAppId, '1:123:web:abc');
@@ -64,6 +66,7 @@ void main() {
             filePath: 'lib/main.dart',
             cpu: 1,
             memoryGb: 2,
+            storageGb: 10,
             firebaseApiKey: '',
             firebaseAuthDomain: '',
             firebaseProjectId: '',

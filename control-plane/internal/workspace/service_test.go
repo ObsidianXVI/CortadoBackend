@@ -35,15 +35,41 @@ func TestServiceCreateWorkspacePersistsAndProvisions(t *testing.T) {
 	if provisioner.createdWorkspace.ID != "ws-123" {
 		t.Fatalf("unexpected provisioned workspace: %q", provisioner.createdWorkspace.ID)
 	}
-	if provisioner.createdWorkspace.Resources.CPU != 1 || provisioner.createdWorkspace.Resources.MemoryGB != 2 {
+	if provisioner.createdWorkspace.Resources.CPU != 1 ||
+		provisioner.createdWorkspace.Resources.MemoryGB != 2 ||
+		provisioner.createdWorkspace.Resources.StorageGB != minimumWorkspaceStorageGB {
 		t.Fatalf(
-			"unexpected default resources: cpu=%v mem=%v",
+			"unexpected default resources: cpu=%v mem=%v storage=%v",
 			provisioner.createdWorkspace.Resources.CPU,
 			provisioner.createdWorkspace.Resources.MemoryGB,
+			provisioner.createdWorkspace.Resources.StorageGB,
 		)
 	}
 	if ws.LastActive != now {
 		t.Fatalf("unexpected last active time: %v", ws.LastActive)
+	}
+}
+
+func TestServiceCreateWorkspaceRejectsStorageBelowMinimum(t *testing.T) {
+	repository := newMemoryRepository()
+	provisioner := &provisionerStub{}
+	service := NewService(ServiceConfig{
+		Provisioner: provisioner,
+		Repository:  repository,
+	})
+
+	_, err := service.CreateWorkspace(context.Background(), CreateParams{
+		Image:    "example.com/cortado/workspace:test",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Resources: Resources{
+			CPU:       1,
+			MemoryGB:  2,
+			StorageGB: 5,
+		},
+	})
+	if err == nil || !errors.Is(err, ErrInvalid) {
+		t.Fatalf("expected invalid storage error, got %v", err)
 	}
 }
 

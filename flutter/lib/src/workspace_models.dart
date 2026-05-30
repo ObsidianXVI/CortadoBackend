@@ -21,10 +21,11 @@ enum WorkspaceLifecycleState {
 }
 
 @freezed
-class WorkspaceResources with _$WorkspaceResources {
+sealed class WorkspaceResources with _$WorkspaceResources {
   const factory WorkspaceResources({
     required double cpu,
     @JsonKey(name: 'memoryGb') required double memoryGb,
+    @JsonKey(name: 'storageGb') required double storageGb,
   }) = _WorkspaceResources;
 
   factory WorkspaceResources.fromJson(Map<String, dynamic> json) =>
@@ -32,7 +33,7 @@ class WorkspaceResources with _$WorkspaceResources {
 }
 
 @freezed
-class Workspace with _$Workspace {
+sealed class Workspace with _$Workspace {
   const Workspace._();
 
   const factory Workspace({
@@ -59,7 +60,7 @@ class Workspace with _$Workspace {
 }
 
 @freezed
-class WorkspaceStatus with _$WorkspaceStatus {
+sealed class WorkspaceStatus with _$WorkspaceStatus {
   const WorkspaceStatus._();
 
   const factory WorkspaceStatus({

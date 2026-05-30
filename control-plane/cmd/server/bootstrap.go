@@ -20,6 +20,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	container "google.golang.org/api/container/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -56,6 +57,9 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 		UsageEventsTopic: os.Getenv("CORTADO_USAGE_EVENTS_TOPIC"),
 	})
 	service := workspace.NewService(workspace.ServiceConfig{
+		DefaultResources: workspace.Resources{
+			StorageGB: workspaceStorageGBFromEnv(os.Getenv("CORTADO_WORKSPACE_PVC_SIZE")),
+		},
 		Provisioner: podManager,
 		Repository:  repository,
 	})
@@ -69,6 +73,17 @@ func newWorkspaceService(ctx context.Context, projectID string, firestoreClient 
 	podManager.Run(ctx)
 
 	return service, podManager, nil
+}
+
+func workspaceStorageGBFromEnv(value string) float64 {
+	if strings.TrimSpace(value) == "" {
+		return 0
+	}
+	quantity, err := resource.ParseQuantity(value)
+	if err != nil {
+		return 0
+	}
+	return quantity.AsApproximateFloat64() / (1024 * 1024 * 1024)
 }
 
 func newAuthStore(firestoreClient *firestore.Client) *store.FirestoreAuthStore {

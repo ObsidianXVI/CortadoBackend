@@ -238,6 +238,14 @@
 24/05/26 00:02
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/workspace`
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./...`
+30/05/26 10:37
+- PASS `cd control-plane && go test ./...`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+- PASS `cd agent && CGO_ENABLED=0 go build ./...`
+- PASS `cd flutter && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+- PASS `cd flutter && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 26/05/26 01:58
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && go build ./...`

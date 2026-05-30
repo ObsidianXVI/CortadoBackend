@@ -45,6 +45,42 @@ void main() {
       final body =
           jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
       expect(body['image'], 'ghcr.io/acme/image:tag');
+      expect(body.containsKey('resources'), isFalse);
+    });
+
+    test('create serializes cpu, memory, and storage resources', () async {
+      final requests = <RecordedRequest>[];
+      final client = RecordingClient((request, body) async {
+        requests.add(RecordedRequest(DateTime.now(), request, body));
+        return _stringResponse(
+          200,
+          jsonEncode({'workspace': _sampleWorkspaceJson(id: 'w2')}),
+        );
+      });
+
+      final manager = WorkspaceManager(
+        baseUrl: 'http://localhost:8080/api',
+        httpClient: client,
+        useBrowserAuth: false,
+      );
+
+      await manager.create(
+        image: 'ghcr.io/acme/image:tag',
+        resources: const WorkspaceResources(
+          cpu: 1.5,
+          memoryGb: 3,
+          storageGb: 14,
+        ),
+      );
+
+      final req = requests.single.request as http.Request;
+      final body =
+          jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
+      expect(body['resources'], <String, Object?>{
+        'cpu': 1.5,
+        'memoryGb': 3.0,
+        'storageGb': 14.0,
+      });
     });
 
     test(
@@ -521,7 +557,11 @@ Map<String, Object?> _sampleWorkspaceJson(
       'tenantId': 't1',
       'userId': 'u1',
       'image': 'img',
-      'resources': <String, Object?>{'cpu': 1.0, 'memoryGb': 2.0},
+      'resources': <String, Object?>{
+        'cpu': 1.0,
+        'memoryGb': 2.0,
+        'storageGb': 10.0,
+      },
       'status': _encodeState(state),
       'createdAt': DateTime.now().toIso8601String(),
       'updatedAt': DateTime.now().toIso8601String(),

@@ -6,9 +6,9 @@ part of 'local_daemon_models.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$CortadoLocalDaemonSyncStatusImpl _$$CortadoLocalDaemonSyncStatusImplFromJson(
+_CortadoLocalDaemonSyncStatus _$CortadoLocalDaemonSyncStatusFromJson(
         Map<String, dynamic> json) =>
-    _$CortadoLocalDaemonSyncStatusImpl(
+    _CortadoLocalDaemonSyncStatus(
       localPath: json['localPath'] as String,
       message: json['message'] as String?,
       state: $enumDecode(_$CortadoLocalDaemonSyncStateEnumMap, json['state']),
@@ -16,8 +16,8 @@ _$CortadoLocalDaemonSyncStatusImpl _$$CortadoLocalDaemonSyncStatusImplFromJson(
       workspacePath: json['workspacePath'] as String? ?? '/',
     );
 
-Map<String, dynamic> _$$CortadoLocalDaemonSyncStatusImplToJson(
-        _$CortadoLocalDaemonSyncStatusImpl instance) =>
+Map<String, dynamic> _$CortadoLocalDaemonSyncStatusToJson(
+        _CortadoLocalDaemonSyncStatus instance) =>
     <String, dynamic>{
       'localPath': instance.localPath,
       'message': instance.message,
@@ -32,9 +32,9 @@ const _$CortadoLocalDaemonSyncStateEnumMap = {
   CortadoLocalDaemonSyncState.syncing: 'SYNCING',
 };
 
-_$CortadoLocalDaemonConflictImpl _$$CortadoLocalDaemonConflictImplFromJson(
+_CortadoLocalDaemonConflict _$CortadoLocalDaemonConflictFromJson(
         Map<String, dynamic> json) =>
-    _$CortadoLocalDaemonConflictImpl(
+    _CortadoLocalDaemonConflict(
       lastSyncedClock: (json['lastSyncedClock'] as num).toInt(),
       localClock: (json['localClock'] as num).toInt(),
       localPath: json['path'] as String,
@@ -44,8 +44,8 @@ _$CortadoLocalDaemonConflictImpl _$$CortadoLocalDaemonConflictImplFromJson(
       workspacePath: json['workspacePath'] as String?,
     );
 
-Map<String, dynamic> _$$CortadoLocalDaemonConflictImplToJson(
-        _$CortadoLocalDaemonConflictImpl instance) =>
+Map<String, dynamic> _$CortadoLocalDaemonConflictToJson(
+        _CortadoLocalDaemonConflict instance) =>
     <String, dynamic>{
       'lastSyncedClock': instance.lastSyncedClock,
       'localClock': instance.localClock,

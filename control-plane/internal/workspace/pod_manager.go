@@ -68,6 +68,8 @@ const (
 	envWorkspaceUserID           = "CORTADO_USER_ID"
 )
 
+const gibBytes = 1024 * 1024 * 1024
+
 type PodManagerConfig struct {
 	AgentPort                 int32
 	ClusterPods               podListClient
@@ -286,7 +288,7 @@ func (m *PodManager) Create(workspace Workspace) error {
 		serviceCreated = true
 	}
 
-	pvcCreated, err := m.ensurePersistentVolumeClaim(workspace.ID)
+	pvcCreated, err := m.ensurePersistentVolumeClaim(workspace.ID, workspace.Resources.StorageGB)
 	if err != nil {
 		if serviceCreated {
 			if cleanupErr := m.deleteService(workspace.ID); cleanupErr != nil {
@@ -957,7 +959,7 @@ func isPodReady(pod *corev1.Pod) bool {
 	return false
 }
 
-func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string) (bool, error) {
+func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string, storageGB float64) (bool, error) {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workspacePVCName(workspaceID),
@@ -971,7 +973,7 @@ func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string) (bool, erro
 			StorageClassName: ptr(m.storageClassName),
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: m.pvcSize,
+					corev1.ResourceStorage: storageQuantity(storageGB),
 				},
 			},
 		},
@@ -1035,8 +1037,17 @@ func workspaceLabels(workspaceID string) map[string]string {
 	}
 }
 
-func (m *PodManager) storageGB() float64 {
-	return m.pvcSize.AsApproximateFloat64() / (1024 * 1024 * 1024)
+func storageQuantity(storageGB float64) resource.Quantity {
+	storageGB = normalizedStorageGB(storageGB)
+	bytes := int64(math.Ceil(storageGB * gibBytes))
+	return *resource.NewQuantity(bytes, resource.BinarySI)
+}
+
+func normalizedStorageGB(storageGB float64) float64 {
+	if storageGB < minimumWorkspaceStorageGB {
+		return minimumWorkspaceStorageGB
+	}
+	return storageGB
 }
 
 func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
@@ -1048,7 +1059,7 @@ func (m *PodManager) workspaceAgentEnv(workspace Workspace) []corev1.EnvVar {
 		{Name: envWorkspaceID, Value: workspace.ID},
 		{Name: envWorkspaceMemoryGB, Value: strconv.FormatFloat(workspace.Resources.MemoryGB, 'f', -1, 64)},
 		{Name: envWorkspaceRegion, Value: m.region},
-		{Name: envWorkspaceStorageGB, Value: strconv.FormatFloat(m.storageGB(), 'f', -1, 64)},
+		{Name: envWorkspaceStorageGB, Value: strconv.FormatFloat(normalizedStorageGB(workspace.Resources.StorageGB), 'f', -1, 64)},
 		{Name: envWorkspaceUserID, Value: workspace.UserID},
 	}
 	if m.snapshotBucket != "" {

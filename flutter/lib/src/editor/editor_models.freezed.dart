@@ -1,7 +1,7 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
-// ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
+// ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark, unreachable_switch_case
 
 part of 'editor_models.dart';
 
@@ -9,132 +9,80 @@ part of 'editor_models.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
 
 /// @nodoc
 mixin _$OpenTab {
-  String get path => throw _privateConstructorUsedError;
-  String get title => throw _privateConstructorUsedError;
-  String get languageId => throw _privateConstructorUsedError;
-  String get content => throw _privateConstructorUsedError;
-  String get savedHash => throw _privateConstructorUsedError;
-  String get currentHash => throw _privateConstructorUsedError;
-  bool get isLoading => throw _privateConstructorUsedError;
-  bool get isSaving => throw _privateConstructorUsedError;
-  bool get loaded => throw _privateConstructorUsedError;
-  bool get readOnly => throw _privateConstructorUsedError;
-  String? get errorMessage => throw _privateConstructorUsedError;
+  String get path;
+  String get title;
+  String get languageId;
+  String get content;
+  String get savedHash;
+  String get currentHash;
+  bool get isLoading;
+  bool get isSaving;
+  bool get loaded;
+  bool get readOnly;
+  String? get errorMessage;
 
   /// Create a copy of OpenTab
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
-  $OpenTabCopyWith<OpenTab> get copyWith => throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $OpenTabCopyWith<$Res> {
-  factory $OpenTabCopyWith(OpenTab value, $Res Function(OpenTab) then) =
-      _$OpenTabCopyWithImpl<$Res, OpenTab>;
-  @useResult
-  $Res call(
-      {String path,
-      String title,
-      String languageId,
-      String content,
-      String savedHash,
-      String currentHash,
-      bool isLoading,
-      bool isSaving,
-      bool loaded,
-      bool readOnly,
-      String? errorMessage});
-}
-
-/// @nodoc
-class _$OpenTabCopyWithImpl<$Res, $Val extends OpenTab>
-    implements $OpenTabCopyWith<$Res> {
-  _$OpenTabCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  /// Create a copy of OpenTab
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
+  $OpenTabCopyWith<OpenTab> get copyWith =>
+      _$OpenTabCopyWithImpl<OpenTab>(this as OpenTab, _$identity);
+
   @override
-  $Res call({
-    Object? path = null,
-    Object? title = null,
-    Object? languageId = null,
-    Object? content = null,
-    Object? savedHash = null,
-    Object? currentHash = null,
-    Object? isLoading = null,
-    Object? isSaving = null,
-    Object? loaded = null,
-    Object? readOnly = null,
-    Object? errorMessage = freezed,
-  }) {
-    return _then(_value.copyWith(
-      path: null == path
-          ? _value.path
-          : path // ignore: cast_nullable_to_non_nullable
-              as String,
-      title: null == title
-          ? _value.title
-          : title // ignore: cast_nullable_to_non_nullable
-              as String,
-      languageId: null == languageId
-          ? _value.languageId
-          : languageId // ignore: cast_nullable_to_non_nullable
-              as String,
-      content: null == content
-          ? _value.content
-          : content // ignore: cast_nullable_to_non_nullable
-              as String,
-      savedHash: null == savedHash
-          ? _value.savedHash
-          : savedHash // ignore: cast_nullable_to_non_nullable
-              as String,
-      currentHash: null == currentHash
-          ? _value.currentHash
-          : currentHash // ignore: cast_nullable_to_non_nullable
-              as String,
-      isLoading: null == isLoading
-          ? _value.isLoading
-          : isLoading // ignore: cast_nullable_to_non_nullable
-              as bool,
-      isSaving: null == isSaving
-          ? _value.isSaving
-          : isSaving // ignore: cast_nullable_to_non_nullable
-              as bool,
-      loaded: null == loaded
-          ? _value.loaded
-          : loaded // ignore: cast_nullable_to_non_nullable
-              as bool,
-      readOnly: null == readOnly
-          ? _value.readOnly
-          : readOnly // ignore: cast_nullable_to_non_nullable
-              as bool,
-      errorMessage: freezed == errorMessage
-          ? _value.errorMessage
-          : errorMessage // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is OpenTab &&
+            (identical(other.path, path) || other.path == path) &&
+            (identical(other.title, title) || other.title == title) &&
+            (identical(other.languageId, languageId) ||
+                other.languageId == languageId) &&
+            (identical(other.content, content) || other.content == content) &&
+            (identical(other.savedHash, savedHash) ||
+                other.savedHash == savedHash) &&
+            (identical(other.currentHash, currentHash) ||
+                other.currentHash == currentHash) &&
+            (identical(other.isLoading, isLoading) ||
+                other.isLoading == isLoading) &&
+            (identical(other.isSaving, isSaving) ||
+                other.isSaving == isSaving) &&
+            (identical(other.loaded, loaded) || other.loaded == loaded) &&
+            (identical(other.readOnly, readOnly) ||
+                other.readOnly == readOnly) &&
+            (identical(other.errorMessage, errorMessage) ||
+                other.errorMessage == errorMessage));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      path,
+      title,
+      languageId,
+      content,
+      savedHash,
+      currentHash,
+      isLoading,
+      isSaving,
+      loaded,
+      readOnly,
+      errorMessage);
+
+  @override
+  String toString() {
+    return 'OpenTab(path: $path, title: $title, languageId: $languageId, content: $content, savedHash: $savedHash, currentHash: $currentHash, isLoading: $isLoading, isSaving: $isSaving, loaded: $loaded, readOnly: $readOnly, errorMessage: $errorMessage)';
   }
 }
 
 /// @nodoc
-abstract class _$$OpenTabImplCopyWith<$Res> implements $OpenTabCopyWith<$Res> {
-  factory _$$OpenTabImplCopyWith(
-          _$OpenTabImpl value, $Res Function(_$OpenTabImpl) then) =
-      __$$OpenTabImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $OpenTabCopyWith<$Res> {
+  factory $OpenTabCopyWith(OpenTab value, $Res Function(OpenTab) _then) =
+      _$OpenTabCopyWithImpl;
   @useResult
   $Res call(
       {String path,
@@ -151,12 +99,11 @@ abstract class _$$OpenTabImplCopyWith<$Res> implements $OpenTabCopyWith<$Res> {
 }
 
 /// @nodoc
-class __$$OpenTabImplCopyWithImpl<$Res>
-    extends _$OpenTabCopyWithImpl<$Res, _$OpenTabImpl>
-    implements _$$OpenTabImplCopyWith<$Res> {
-  __$$OpenTabImplCopyWithImpl(
-      _$OpenTabImpl _value, $Res Function(_$OpenTabImpl) _then)
-      : super(_value, _then);
+class _$OpenTabCopyWithImpl<$Res> implements $OpenTabCopyWith<$Res> {
+  _$OpenTabCopyWithImpl(this._self, this._then);
+
+  final OpenTab _self;
+  final $Res Function(OpenTab) _then;
 
   /// Create a copy of OpenTab
   /// with the given fields replaced by the non-null parameter values.
@@ -175,59 +122,285 @@ class __$$OpenTabImplCopyWithImpl<$Res>
     Object? readOnly = null,
     Object? errorMessage = freezed,
   }) {
-    return _then(_$OpenTabImpl(
+    return _then(_self.copyWith(
       path: null == path
-          ? _value.path
+          ? _self.path
           : path // ignore: cast_nullable_to_non_nullable
               as String,
       title: null == title
-          ? _value.title
+          ? _self.title
           : title // ignore: cast_nullable_to_non_nullable
               as String,
       languageId: null == languageId
-          ? _value.languageId
+          ? _self.languageId
           : languageId // ignore: cast_nullable_to_non_nullable
               as String,
       content: null == content
-          ? _value.content
+          ? _self.content
           : content // ignore: cast_nullable_to_non_nullable
               as String,
       savedHash: null == savedHash
-          ? _value.savedHash
+          ? _self.savedHash
           : savedHash // ignore: cast_nullable_to_non_nullable
               as String,
       currentHash: null == currentHash
-          ? _value.currentHash
+          ? _self.currentHash
           : currentHash // ignore: cast_nullable_to_non_nullable
               as String,
       isLoading: null == isLoading
-          ? _value.isLoading
+          ? _self.isLoading
           : isLoading // ignore: cast_nullable_to_non_nullable
               as bool,
       isSaving: null == isSaving
-          ? _value.isSaving
+          ? _self.isSaving
           : isSaving // ignore: cast_nullable_to_non_nullable
               as bool,
       loaded: null == loaded
-          ? _value.loaded
+          ? _self.loaded
           : loaded // ignore: cast_nullable_to_non_nullable
               as bool,
       readOnly: null == readOnly
-          ? _value.readOnly
+          ? _self.readOnly
           : readOnly // ignore: cast_nullable_to_non_nullable
               as bool,
       errorMessage: freezed == errorMessage
-          ? _value.errorMessage
+          ? _self.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [OpenTab].
+extension OpenTabPatterns on OpenTab {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_OpenTab value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_OpenTab value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_OpenTab value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String path,
+            String title,
+            String languageId,
+            String content,
+            String savedHash,
+            String currentHash,
+            bool isLoading,
+            bool isSaving,
+            bool loaded,
+            bool readOnly,
+            String? errorMessage)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab() when $default != null:
+        return $default(
+            _that.path,
+            _that.title,
+            _that.languageId,
+            _that.content,
+            _that.savedHash,
+            _that.currentHash,
+            _that.isLoading,
+            _that.isSaving,
+            _that.loaded,
+            _that.readOnly,
+            _that.errorMessage);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String path,
+            String title,
+            String languageId,
+            String content,
+            String savedHash,
+            String currentHash,
+            bool isLoading,
+            bool isSaving,
+            bool loaded,
+            bool readOnly,
+            String? errorMessage)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab():
+        return $default(
+            _that.path,
+            _that.title,
+            _that.languageId,
+            _that.content,
+            _that.savedHash,
+            _that.currentHash,
+            _that.isLoading,
+            _that.isSaving,
+            _that.loaded,
+            _that.readOnly,
+            _that.errorMessage);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String path,
+            String title,
+            String languageId,
+            String content,
+            String savedHash,
+            String currentHash,
+            bool isLoading,
+            bool isSaving,
+            bool loaded,
+            bool readOnly,
+            String? errorMessage)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpenTab() when $default != null:
+        return $default(
+            _that.path,
+            _that.title,
+            _that.languageId,
+            _that.content,
+            _that.savedHash,
+            _that.currentHash,
+            _that.isLoading,
+            _that.isSaving,
+            _that.loaded,
+            _that.readOnly,
+            _that.errorMessage);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-class _$OpenTabImpl extends _OpenTab {
-  const _$OpenTabImpl(
+class _OpenTab extends OpenTab {
+  const _OpenTab(
       {required this.path,
       required this.title,
       required this.languageId,
@@ -271,16 +444,19 @@ class _$OpenTabImpl extends _OpenTab {
   @override
   final String? errorMessage;
 
+  /// Create a copy of OpenTab
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'OpenTab(path: $path, title: $title, languageId: $languageId, content: $content, savedHash: $savedHash, currentHash: $currentHash, isLoading: $isLoading, isSaving: $isSaving, loaded: $loaded, readOnly: $readOnly, errorMessage: $errorMessage)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$OpenTabCopyWith<_OpenTab> get copyWith =>
+      __$OpenTabCopyWithImpl<_OpenTab>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$OpenTabImpl &&
+            other is _OpenTab &&
             (identical(other.path, path) || other.path == path) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.languageId, languageId) ||
@@ -316,156 +492,334 @@ class _$OpenTabImpl extends _OpenTab {
       readOnly,
       errorMessage);
 
-  /// Create a copy of OpenTab
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  @pragma('vm:prefer-inline')
-  _$$OpenTabImplCopyWith<_$OpenTabImpl> get copyWith =>
-      __$$OpenTabImplCopyWithImpl<_$OpenTabImpl>(this, _$identity);
-}
-
-abstract class _OpenTab extends OpenTab {
-  const factory _OpenTab(
-      {required final String path,
-      required final String title,
-      required final String languageId,
-      final String content,
-      final String savedHash,
-      final String currentHash,
-      final bool isLoading,
-      final bool isSaving,
-      final bool loaded,
-      final bool readOnly,
-      final String? errorMessage}) = _$OpenTabImpl;
-  const _OpenTab._() : super._();
-
-  @override
-  String get path;
-  @override
-  String get title;
-  @override
-  String get languageId;
-  @override
-  String get content;
-  @override
-  String get savedHash;
-  @override
-  String get currentHash;
-  @override
-  bool get isLoading;
-  @override
-  bool get isSaving;
-  @override
-  bool get loaded;
-  @override
-  bool get readOnly;
-  @override
-  String? get errorMessage;
-
-  /// Create a copy of OpenTab
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$OpenTabImplCopyWith<_$OpenTabImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-mixin _$TabsState {
-  List<OpenTab> get tabs => throw _privateConstructorUsedError;
-  String? get activePath => throw _privateConstructorUsedError;
-
-  /// Create a copy of TabsState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  $TabsStateCopyWith<TabsState> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $TabsStateCopyWith<$Res> {
-  factory $TabsStateCopyWith(TabsState value, $Res Function(TabsState) then) =
-      _$TabsStateCopyWithImpl<$Res, TabsState>;
-  @useResult
-  $Res call({List<OpenTab> tabs, String? activePath});
-}
-
-/// @nodoc
-class _$TabsStateCopyWithImpl<$Res, $Val extends TabsState>
-    implements $TabsStateCopyWith<$Res> {
-  _$TabsStateCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  /// Create a copy of TabsState
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? tabs = null,
-    Object? activePath = freezed,
-  }) {
-    return _then(_value.copyWith(
-      tabs: null == tabs
-          ? _value.tabs
-          : tabs // ignore: cast_nullable_to_non_nullable
-              as List<OpenTab>,
-      activePath: freezed == activePath
-          ? _value.activePath
-          : activePath // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  String toString() {
+    return 'OpenTab(path: $path, title: $title, languageId: $languageId, content: $content, savedHash: $savedHash, currentHash: $currentHash, isLoading: $isLoading, isSaving: $isSaving, loaded: $loaded, readOnly: $readOnly, errorMessage: $errorMessage)';
   }
 }
 
 /// @nodoc
-abstract class _$$TabsStateImplCopyWith<$Res>
-    implements $TabsStateCopyWith<$Res> {
-  factory _$$TabsStateImplCopyWith(
-          _$TabsStateImpl value, $Res Function(_$TabsStateImpl) then) =
-      __$$TabsStateImplCopyWithImpl<$Res>;
+abstract mixin class _$OpenTabCopyWith<$Res> implements $OpenTabCopyWith<$Res> {
+  factory _$OpenTabCopyWith(_OpenTab value, $Res Function(_OpenTab) _then) =
+      __$OpenTabCopyWithImpl;
   @override
   @useResult
-  $Res call({List<OpenTab> tabs, String? activePath});
+  $Res call(
+      {String path,
+      String title,
+      String languageId,
+      String content,
+      String savedHash,
+      String currentHash,
+      bool isLoading,
+      bool isSaving,
+      bool loaded,
+      bool readOnly,
+      String? errorMessage});
 }
 
 /// @nodoc
-class __$$TabsStateImplCopyWithImpl<$Res>
-    extends _$TabsStateCopyWithImpl<$Res, _$TabsStateImpl>
-    implements _$$TabsStateImplCopyWith<$Res> {
-  __$$TabsStateImplCopyWithImpl(
-      _$TabsStateImpl _value, $Res Function(_$TabsStateImpl) _then)
-      : super(_value, _then);
+class __$OpenTabCopyWithImpl<$Res> implements _$OpenTabCopyWith<$Res> {
+  __$OpenTabCopyWithImpl(this._self, this._then);
 
-  /// Create a copy of TabsState
+  final _OpenTab _self;
+  final $Res Function(_OpenTab) _then;
+
+  /// Create a copy of OpenTab
   /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? tabs = null,
-    Object? activePath = freezed,
+    Object? path = null,
+    Object? title = null,
+    Object? languageId = null,
+    Object? content = null,
+    Object? savedHash = null,
+    Object? currentHash = null,
+    Object? isLoading = null,
+    Object? isSaving = null,
+    Object? loaded = null,
+    Object? readOnly = null,
+    Object? errorMessage = freezed,
   }) {
-    return _then(_$TabsStateImpl(
-      tabs: null == tabs
-          ? _value._tabs
-          : tabs // ignore: cast_nullable_to_non_nullable
-              as List<OpenTab>,
-      activePath: freezed == activePath
-          ? _value.activePath
-          : activePath // ignore: cast_nullable_to_non_nullable
+    return _then(_OpenTab(
+      path: null == path
+          ? _self.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      title: null == title
+          ? _self.title
+          : title // ignore: cast_nullable_to_non_nullable
+              as String,
+      languageId: null == languageId
+          ? _self.languageId
+          : languageId // ignore: cast_nullable_to_non_nullable
+              as String,
+      content: null == content
+          ? _self.content
+          : content // ignore: cast_nullable_to_non_nullable
+              as String,
+      savedHash: null == savedHash
+          ? _self.savedHash
+          : savedHash // ignore: cast_nullable_to_non_nullable
+              as String,
+      currentHash: null == currentHash
+          ? _self.currentHash
+          : currentHash // ignore: cast_nullable_to_non_nullable
+              as String,
+      isLoading: null == isLoading
+          ? _self.isLoading
+          : isLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isSaving: null == isSaving
+          ? _self.isSaving
+          : isSaving // ignore: cast_nullable_to_non_nullable
+              as bool,
+      loaded: null == loaded
+          ? _self.loaded
+          : loaded // ignore: cast_nullable_to_non_nullable
+              as bool,
+      readOnly: null == readOnly
+          ? _self.readOnly
+          : readOnly // ignore: cast_nullable_to_non_nullable
+              as bool,
+      errorMessage: freezed == errorMessage
+          ? _self.errorMessage
+          : errorMessage // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
 /// @nodoc
+mixin _$TabsState {
+  List<OpenTab> get tabs;
+  String? get activePath;
 
-class _$TabsStateImpl extends _TabsState {
-  const _$TabsStateImpl(
+  /// Create a copy of TabsState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $TabsStateCopyWith<TabsState> get copyWith =>
+      _$TabsStateCopyWithImpl<TabsState>(this as TabsState, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is TabsState &&
+            const DeepCollectionEquality().equals(other.tabs, tabs) &&
+            (identical(other.activePath, activePath) ||
+                other.activePath == activePath));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, const DeepCollectionEquality().hash(tabs), activePath);
+
+  @override
+  String toString() {
+    return 'TabsState(tabs: $tabs, activePath: $activePath)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $TabsStateCopyWith<$Res> {
+  factory $TabsStateCopyWith(TabsState value, $Res Function(TabsState) _then) =
+      _$TabsStateCopyWithImpl;
+  @useResult
+  $Res call({List<OpenTab> tabs, String? activePath});
+}
+
+/// @nodoc
+class _$TabsStateCopyWithImpl<$Res> implements $TabsStateCopyWith<$Res> {
+  _$TabsStateCopyWithImpl(this._self, this._then);
+
+  final TabsState _self;
+  final $Res Function(TabsState) _then;
+
+  /// Create a copy of TabsState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? tabs = null,
+    Object? activePath = freezed,
+  }) {
+    return _then(_self.copyWith(
+      tabs: null == tabs
+          ? _self.tabs
+          : tabs // ignore: cast_nullable_to_non_nullable
+              as List<OpenTab>,
+      activePath: freezed == activePath
+          ? _self.activePath
+          : activePath // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [TabsState].
+extension TabsStatePatterns on TabsState {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_TabsState value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_TabsState value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_TabsState value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(List<OpenTab> tabs, String? activePath)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState() when $default != null:
+        return $default(_that.tabs, _that.activePath);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(List<OpenTab> tabs, String? activePath) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState():
+        return $default(_that.tabs, _that.activePath);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(List<OpenTab> tabs, String? activePath)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TabsState() when $default != null:
+        return $default(_that.tabs, _that.activePath);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+class _TabsState extends TabsState {
+  const _TabsState(
       {final List<OpenTab> tabs = const <OpenTab>[], this.activePath})
       : _tabs = tabs,
         super._();
@@ -482,16 +836,19 @@ class _$TabsStateImpl extends _TabsState {
   @override
   final String? activePath;
 
+  /// Create a copy of TabsState
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'TabsState(tabs: $tabs, activePath: $activePath)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$TabsStateCopyWith<_TabsState> get copyWith =>
+      __$TabsStateCopyWithImpl<_TabsState>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$TabsStateImpl &&
+            other is _TabsState &&
             const DeepCollectionEquality().equals(other._tabs, _tabs) &&
             (identical(other.activePath, activePath) ||
                 other.activePath == activePath));
@@ -501,29 +858,49 @@ class _$TabsStateImpl extends _TabsState {
   int get hashCode => Object.hash(
       runtimeType, const DeepCollectionEquality().hash(_tabs), activePath);
 
+  @override
+  String toString() {
+    return 'TabsState(tabs: $tabs, activePath: $activePath)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$TabsStateCopyWith<$Res>
+    implements $TabsStateCopyWith<$Res> {
+  factory _$TabsStateCopyWith(
+          _TabsState value, $Res Function(_TabsState) _then) =
+      __$TabsStateCopyWithImpl;
+  @override
+  @useResult
+  $Res call({List<OpenTab> tabs, String? activePath});
+}
+
+/// @nodoc
+class __$TabsStateCopyWithImpl<$Res> implements _$TabsStateCopyWith<$Res> {
+  __$TabsStateCopyWithImpl(this._self, this._then);
+
+  final _TabsState _self;
+  final $Res Function(_TabsState) _then;
+
   /// Create a copy of TabsState
   /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   @pragma('vm:prefer-inline')
-  _$$TabsStateImplCopyWith<_$TabsStateImpl> get copyWith =>
-      __$$TabsStateImplCopyWithImpl<_$TabsStateImpl>(this, _$identity);
+  $Res call({
+    Object? tabs = null,
+    Object? activePath = freezed,
+  }) {
+    return _then(_TabsState(
+      tabs: null == tabs
+          ? _self._tabs
+          : tabs // ignore: cast_nullable_to_non_nullable
+              as List<OpenTab>,
+      activePath: freezed == activePath
+          ? _self.activePath
+          : activePath // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
 }
 
-abstract class _TabsState extends TabsState {
-  const factory _TabsState(
-      {final List<OpenTab> tabs, final String? activePath}) = _$TabsStateImpl;
-  const _TabsState._() : super._();
-
-  @override
-  List<OpenTab> get tabs;
-  @override
-  String? get activePath;
-
-  /// Create a copy of TabsState
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  _$$TabsStateImplCopyWith<_$TabsStateImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
+// dart format on

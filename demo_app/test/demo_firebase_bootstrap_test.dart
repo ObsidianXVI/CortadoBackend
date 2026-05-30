@@ -106,6 +106,7 @@ DemoBootstrapConfig _testConfig() {
     filePath: 'lib/main.dart',
     cpu: 1,
     memoryGb: 2,
+    storageGb: 10,
     firebaseApiKey: 'firebase-api-key',
     firebaseAuthDomain: 'cortado-ide.firebaseapp.com',
     firebaseProjectId: 'cortado-ide',

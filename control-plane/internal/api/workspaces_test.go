@@ -26,8 +26,9 @@ func TestWorkspaceRoutesCreateListAndGet(t *testing.T) {
 			UserID:   "dev-user",
 			Image:    "example.com/cortado/workspace:test",
 			Resources: workspace.Resources{
-				CPU:      2,
-				MemoryGB: 4,
+				CPU:       2,
+				MemoryGB:  4,
+				StorageGB: 12,
 			},
 			Status:    workspace.StatusCreating,
 			CreatedAt: now,
@@ -52,7 +53,7 @@ func TestWorkspaceRoutesCreateListAndGet(t *testing.T) {
 	}
 	router := NewRouter(RouterConfig{WorkspaceSvc: service})
 
-	createBody := bytes.NewBufferString(`{"image":"example.com/cortado/workspace:test","resources":{"cpu":2,"memoryGb":4}}`)
+	createBody := bytes.NewBufferString(`{"image":"example.com/cortado/workspace:test","resources":{"cpu":2,"memoryGb":4,"storageGb":12}}`)
 	createReq := httptest.NewRequest(http.MethodPost, "/v1/workspaces", createBody)
 	createReq.Header.Set("X-Cortado-Dev-Token", "dev-bypass")
 	createRec := httptest.NewRecorder()
@@ -64,6 +65,9 @@ func TestWorkspaceRoutesCreateListAndGet(t *testing.T) {
 	}
 	if service.createParams.TenantID != "dev-tenant" || service.createParams.UserID != "dev-user" {
 		t.Fatalf("unexpected create actor: %+v", service.createParams)
+	}
+	if service.createParams.Resources.StorageGB != 12 {
+		t.Fatalf("unexpected create storage: %+v", service.createParams.Resources)
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/v1/workspaces", nil)

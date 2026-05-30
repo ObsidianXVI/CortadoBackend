@@ -3,7 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'editor_models.freezed.dart';
 
 @freezed
-class OpenTab with _$OpenTab {
+sealed class OpenTab with _$OpenTab {
   const OpenTab._();
 
   const factory OpenTab({
@@ -24,7 +24,7 @@ class OpenTab with _$OpenTab {
 }
 
 @freezed
-class TabsState with _$TabsState {
+sealed class TabsState with _$TabsState {
   const TabsState._();
 
   const factory TabsState({

@@ -31,8 +31,9 @@ type createWorkspaceRequest struct {
 }
 
 type createWorkspaceResources struct {
-	CPU      float64 `json:"cpu"`
-	MemoryGB float64 `json:"memoryGb"`
+	CPU       float64 `json:"cpu"`
+	MemoryGB  float64 `json:"memoryGb"`
+	StorageGB float64 `json:"storageGb"`
 }
 
 type workspaceEnvelope struct {
@@ -67,8 +68,9 @@ func (h *workspacesHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.Resources != nil {
 		params.Resources = workspace.Resources{
-			CPU:      request.Resources.CPU,
-			MemoryGB: request.Resources.MemoryGB,
+			CPU:       request.Resources.CPU,
+			MemoryGB:  request.Resources.MemoryGB,
+			StorageGB: request.Resources.StorageGB,
 		}
 	}
 

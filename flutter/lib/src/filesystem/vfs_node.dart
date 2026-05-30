@@ -9,7 +9,7 @@ enum VfsNodeSyncState {
 }
 
 @freezed
-class VfsNode with _$VfsNode {
+sealed class VfsNode with _$VfsNode {
   const VfsNode._();
 
   const factory VfsNode.file({

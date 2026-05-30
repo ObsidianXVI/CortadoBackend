@@ -20,6 +20,8 @@ var (
 	ErrWorkspace     = errors.New("workspace id is required")
 )
 
+const minimumWorkspaceStorageGB = 10.0
+
 type Repository interface {
 	Create(ctx context.Context, workspace Workspace) error
 	Delete(ctx context.Context, workspaceID string) error
@@ -69,6 +71,9 @@ func NewService(cfg ServiceConfig) *Service {
 	if cfg.DefaultResources.MemoryGB <= 0 {
 		cfg.DefaultResources.MemoryGB = 2
 	}
+	if cfg.DefaultResources.StorageGB < minimumWorkspaceStorageGB {
+		cfg.DefaultResources.StorageGB = minimumWorkspaceStorageGB
+	}
 	if cfg.IDGenerator == nil {
 		cfg.IDGenerator = func() string {
 			return "ws-" + uuid.NewString()
@@ -101,8 +106,14 @@ func (s *Service) CreateWorkspace(ctx context.Context, params CreateParams) (Wor
 	if params.Resources.MemoryGB == 0 {
 		params.Resources.MemoryGB = s.defaultResources.MemoryGB
 	}
-	if params.Resources.CPU < 0 || params.Resources.MemoryGB < 0 {
+	if params.Resources.StorageGB == 0 {
+		params.Resources.StorageGB = s.defaultResources.StorageGB
+	}
+	if params.Resources.CPU < 0 || params.Resources.MemoryGB < 0 || params.Resources.StorageGB < 0 {
 		return Workspace{}, fmt.Errorf("%w: workspace resources must be positive", ErrInvalid)
+	}
+	if params.Resources.StorageGB < minimumWorkspaceStorageGB {
+		return Workspace{}, fmt.Errorf("%w: workspace storage must be at least %.0fGB", ErrInvalid, minimumWorkspaceStorageGB)
 	}
 
 	now := s.now().UTC()

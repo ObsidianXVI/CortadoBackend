@@ -9,6 +9,7 @@ class DemoBootstrapConfig {
     required this.filePath,
     required this.cpu,
     required this.memoryGb,
+    required this.storageGb,
     required this.firebaseApiKey,
     required this.firebaseAuthDomain,
     required this.firebaseProjectId,
@@ -29,6 +30,7 @@ class DemoBootstrapConfig {
   static const String defaultFilePath = 'lib/main.dart';
   static const double defaultCpu = 1;
   static const double defaultMemoryGb = 2;
+  static const double defaultStorageGb = 10;
 
   final String baseUrl;
   final String apiKey;
@@ -39,6 +41,7 @@ class DemoBootstrapConfig {
   final String filePath;
   final double cpu;
   final double memoryGb;
+  final double storageGb;
   final String firebaseApiKey;
   final String firebaseAuthDomain;
   final String firebaseProjectId;
@@ -111,6 +114,20 @@ class DemoBootstrapConfig {
                 env['CORTADO_WORKSPACE_MEMORY_GB'],
           ) ??
           defaultMemoryGb,
+      storageGb: _parseDouble(
+            _firstNonEmpty(
+                  query,
+                  const <String>[
+                    'storageGb',
+                    'storage_gb',
+                    'storage',
+                    'diskGb',
+                    'disk_gb'
+                  ],
+                ) ??
+                env['CORTADO_WORKSPACE_STORAGE_GB'],
+          ) ??
+          defaultStorageGb,
       firebaseApiKey: _firstNonEmpty(
             query,
             const <String>['firebaseApiKey', 'firebase_api_key'],
@@ -177,6 +194,7 @@ class DemoBootstrapConfig {
     String? filePath,
     double? cpu,
     double? memoryGb,
+    double? storageGb,
     String? firebaseApiKey,
     String? firebaseAuthDomain,
     String? firebaseProjectId,
@@ -198,6 +216,7 @@ class DemoBootstrapConfig {
       filePath: filePath ?? this.filePath,
       cpu: cpu ?? this.cpu,
       memoryGb: memoryGb ?? this.memoryGb,
+      storageGb: storageGb ?? this.storageGb,
       firebaseApiKey: firebaseApiKey ?? this.firebaseApiKey,
       firebaseAuthDomain: firebaseAuthDomain ?? this.firebaseAuthDomain,
       firebaseProjectId: firebaseProjectId ?? this.firebaseProjectId,

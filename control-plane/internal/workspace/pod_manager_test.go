@@ -137,6 +137,35 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 }
 
+func TestPodManagerCreateUsesWorkspaceStorageForPVC(t *testing.T) {
+	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
+	services := newMemoryServiceClient()
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
+
+	if err := manager.Create(Workspace{
+		ID:       "ws-456",
+		TenantID: "tenant-1",
+		UserID:   "user-1",
+		Image:    "example.com/cortado/workspace:test",
+		Resources: Resources{
+			CPU:       1,
+			MemoryGB:  2,
+			StorageGB: 14,
+		},
+	}); err != nil {
+		t.Fatalf("create workspace pod: %v", err)
+	}
+
+	pvc, err := pvcs.Get(context.Background(), "ws-456-pvc", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get workspace pvc: %v", err)
+	}
+	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "14Gi" {
+		t.Fatalf("unexpected pvc size: got %q want %q", got, "14Gi")
+	}
+}
+
 func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 	pods := newMemoryPodClient()
 	manager := newPodManager(
@@ -189,6 +218,9 @@ func TestPodManagerCreateInjectsUsageEnv(t *testing.T) {
 	}
 	if env[envWorkspaceID] != "ws-123" || env[envTenantID] != "tenant-1" || env[envWorkspaceUserID] != "user-1" {
 		t.Fatalf("unexpected workspace identity env: %#v", env)
+	}
+	if env[envWorkspaceStorageGB] != "10" {
+		t.Fatalf("unexpected storage env: %#v", env)
 	}
 }
 

@@ -6,22 +6,21 @@ part of 'workspace_models.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$WorkspaceResourcesImpl _$$WorkspaceResourcesImplFromJson(
-        Map<String, dynamic> json) =>
-    _$WorkspaceResourcesImpl(
+_WorkspaceResources _$WorkspaceResourcesFromJson(Map<String, dynamic> json) =>
+    _WorkspaceResources(
       cpu: (json['cpu'] as num).toDouble(),
       memoryGb: (json['memoryGb'] as num).toDouble(),
+      storageGb: (json['storageGb'] as num).toDouble(),
     );
 
-Map<String, dynamic> _$$WorkspaceResourcesImplToJson(
-        _$WorkspaceResourcesImpl instance) =>
+Map<String, dynamic> _$WorkspaceResourcesToJson(_WorkspaceResources instance) =>
     <String, dynamic>{
       'cpu': instance.cpu,
       'memoryGb': instance.memoryGb,
+      'storageGb': instance.storageGb,
     };
 
-_$WorkspaceImpl _$$WorkspaceImplFromJson(Map<String, dynamic> json) =>
-    _$WorkspaceImpl(
+_Workspace _$WorkspaceFromJson(Map<String, dynamic> json) => _Workspace(
       id: json['id'] as String,
       tenantId: json['tenantId'] as String,
       userId: json['userId'] as String,
@@ -36,7 +35,7 @@ _$WorkspaceImpl _$$WorkspaceImplFromJson(Map<String, dynamic> json) =>
           : DateTime.parse(json['lastActiveAt'] as String),
     );
 
-Map<String, dynamic> _$$WorkspaceImplToJson(_$WorkspaceImpl instance) =>
+Map<String, dynamic> _$WorkspaceToJson(_Workspace instance) =>
     <String, dynamic>{
       'id': instance.id,
       'tenantId': instance.tenantId,
@@ -58,9 +57,8 @@ const _$WorkspaceLifecycleStateEnumMap = {
   WorkspaceLifecycleState.deleted: 'DELETED',
 };
 
-_$WorkspaceStatusImpl _$$WorkspaceStatusImplFromJson(
-        Map<String, dynamic> json) =>
-    _$WorkspaceStatusImpl(
+_WorkspaceStatus _$WorkspaceStatusFromJson(Map<String, dynamic> json) =>
+    _WorkspaceStatus(
       workspaceId: json['workspaceId'] as String,
       status: $enumDecode(_$WorkspaceLifecycleStateEnumMap, json['status']),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -69,8 +67,7 @@ _$WorkspaceStatusImpl _$$WorkspaceStatusImplFromJson(
           : DateTime.parse(json['lastActiveAt'] as String),
     );
 
-Map<String, dynamic> _$$WorkspaceStatusImplToJson(
-        _$WorkspaceStatusImpl instance) =>
+Map<String, dynamic> _$WorkspaceStatusToJson(_WorkspaceStatus instance) =>
     <String, dynamic>{
       'workspaceId': instance.workspaceId,
       'status': _$WorkspaceLifecycleStateEnumMap[instance.status]!,

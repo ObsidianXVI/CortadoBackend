@@ -14,8 +14,9 @@ const (
 )
 
 type Resources struct {
-	CPU      float64 `firestore:"cpu" json:"cpu"`
-	MemoryGB float64 `firestore:"memoryGb" json:"memoryGb"`
+	CPU       float64 `firestore:"cpu" json:"cpu"`
+	MemoryGB  float64 `firestore:"memoryGb" json:"memoryGb"`
+	StorageGB float64 `firestore:"storageGb" json:"storageGb"`
 }
 
 type Workspace struct {
