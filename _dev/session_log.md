@@ -1017,3 +1017,7 @@
 - M scripts/k8s/workspace-bootstrap.yaml
 - M terraform/k8s/workspace-namespace.yaml
 - M terraform/k8s/workspace-pod-test.yaml
+30/05/26 10:18 [FIX] `dev-pro-large` Added workload-level scheduling spread for workspace pods by giving them a shared app label and a `kubernetes.io/hostname` topology spread constraint with `DoNotSchedule`, so the scheduler stops repeatedly landing new workspaces on the same saturated node when another node is available, while keeping the Terraform smoke manifest aligned with the runtime pod template.
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
+- M terraform/k8s/workspace-pod-test.yaml

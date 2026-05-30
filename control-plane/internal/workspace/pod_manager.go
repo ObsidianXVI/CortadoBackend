@@ -33,6 +33,7 @@ const (
 	defaultWorkspaceNamespace               = "cortado-workspaces"
 	defaultWorkspacePVCSize                 = "10Gi"
 	defaultWorkspacePriorityClassName       = "workspace-priority"
+	defaultWorkspaceAppName                 = "cortado-workspace-agent"
 	defaultVolumeReleasePollInterval        = 250 * time.Millisecond
 	defaultVolumeReleaseTimeout             = 30 * time.Second
 	defaultWorkspaceStorageClass            = "cortado-workspace"
@@ -44,6 +45,7 @@ const (
 	defaultQdrantCPULimit                   = "100m"
 	defaultQdrantMemoryRequest              = "256Mi"
 	defaultQdrantMemoryLimit                = "256Mi"
+	workspaceAppNameLabel                   = "app.kubernetes.io/name"
 	workspaceIDLabel                        = "cortado/workspace-id"
 )
 
@@ -258,9 +260,7 @@ func (m *PodManager) Create(workspace Workspace) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workspace.ID,
 			Namespace: m.namespace,
-			Labels: map[string]string{
-				workspaceIDLabel: workspace.ID,
-			},
+			Labels:    workspaceLabels(workspace.ID),
 		},
 		Spec: corev1.ServiceSpec{
 			ClusterIP: "None",
@@ -314,13 +314,23 @@ func (m *PodManager) Create(workspace Workspace) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workspace.ID,
 			Namespace: m.namespace,
-			Labels: map[string]string{
-				workspaceIDLabel: workspace.ID,
-			},
+			Labels:    workspaceLabels(workspace.ID),
 		},
 		Spec: corev1.PodSpec{
 			ServiceAccountName: m.serviceAccountName,
 			PriorityClassName:  defaultWorkspacePriorityClassName,
+			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+				{
+					MaxSkew:           1,
+					TopologyKey:       "kubernetes.io/hostname",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							workspaceAppNameLabel: defaultWorkspaceAppName,
+						},
+					},
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:      "workspace",
@@ -952,9 +962,7 @@ func (m *PodManager) ensurePersistentVolumeClaim(workspaceID string) (bool, erro
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      workspacePVCName(workspaceID),
 			Namespace: m.namespace,
-			Labels: map[string]string{
-				workspaceIDLabel: workspaceID,
-			},
+			Labels:    workspaceLabels(workspaceID),
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -1018,6 +1026,13 @@ func (m *PodManager) deletePersistentVolumeClaim(workspaceID string) error {
 
 func workspacePVCName(workspaceID string) string {
 	return workspaceID + "-pvc"
+}
+
+func workspaceLabels(workspaceID string) map[string]string {
+	return map[string]string{
+		workspaceAppNameLabel: defaultWorkspaceAppName,
+		workspaceIDLabel:      workspaceID,
+	}
 }
 
 func (m *PodManager) storageGB() float64 {

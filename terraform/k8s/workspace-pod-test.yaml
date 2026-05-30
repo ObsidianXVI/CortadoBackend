@@ -29,6 +29,13 @@ spec:
   priorityClassName: workspace-priority
   serviceAccountName: workspace-sa
   restartPolicy: Never
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: cortado-workspace-agent
   containers:
     - name: workspace-agent
       image: ${workspace_image}

@@ -49,6 +49,9 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	if service.Spec.Selector[workspaceIDLabel] != "ws-123" {
 		t.Fatalf("unexpected service selector: %#v", service.Spec.Selector)
 	}
+	if service.Labels[workspaceAppNameLabel] != defaultWorkspaceAppName {
+		t.Fatalf("unexpected service labels: %#v", service.Labels)
+	}
 
 	pod, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{})
 	if err != nil {
@@ -62,6 +65,19 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 	}
 	if pod.Labels[workspaceIDLabel] != "ws-123" {
 		t.Fatalf("unexpected pod labels: %#v", pod.Labels)
+	}
+	if pod.Labels[workspaceAppNameLabel] != defaultWorkspaceAppName {
+		t.Fatalf("unexpected workspace app label: %#v", pod.Labels)
+	}
+	if len(pod.Spec.TopologySpreadConstraints) != 1 {
+		t.Fatalf("unexpected topology spread constraints: %#v", pod.Spec.TopologySpreadConstraints)
+	}
+	constraint := pod.Spec.TopologySpreadConstraints[0]
+	if constraint.TopologyKey != "kubernetes.io/hostname" || constraint.WhenUnsatisfiable != corev1.DoNotSchedule || constraint.MaxSkew != 1 {
+		t.Fatalf("unexpected topology spread constraint: %#v", constraint)
+	}
+	if constraint.LabelSelector == nil || constraint.LabelSelector.MatchLabels[workspaceAppNameLabel] != defaultWorkspaceAppName {
+		t.Fatalf("unexpected topology spread selector: %#v", constraint.LabelSelector)
 	}
 	if got := pod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue(); got != 500 {
 		t.Fatalf("unexpected cpu request: got %d want %d", got, 500)
@@ -105,6 +121,9 @@ func TestPodManagerCreateCreatesHeadlessServiceAndPod(t *testing.T) {
 		t.Fatalf("get workspace pvc: %v", err)
 	}
 	if pvc.Labels[workspaceIDLabel] != "ws-123" {
+		t.Fatalf("unexpected pvc labels: %#v", pvc.Labels)
+	}
+	if pvc.Labels[workspaceAppNameLabel] != defaultWorkspaceAppName {
 		t.Fatalf("unexpected pvc labels: %#v", pvc.Labels)
 	}
 	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName != defaultWorkspaceStorageClass {
