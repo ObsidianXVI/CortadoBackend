@@ -436,10 +436,13 @@ func isIgnorableAgentUnavailable(err error) bool {
 	if err == nil {
 		return false
 	}
-	if status.Code(err) == codes.Unavailable {
+	switch status.Code(err) {
+	case codes.Unavailable, codes.Unimplemented:
 		return true
 	}
-	return strings.Contains(err.Error(), "produced zero addresses")
+	message := err.Error()
+	return strings.Contains(message, "produced zero addresses") ||
+		strings.Contains(message, "code = Unimplemented")
 }
 
 func (m *PodManager) deletePod(workspaceID string) error {

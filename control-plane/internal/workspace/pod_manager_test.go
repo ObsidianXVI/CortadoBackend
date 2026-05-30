@@ -374,6 +374,27 @@ func TestPodManagerStopIgnoresUnavailableSnapshotAgent(t *testing.T) {
 	}
 }
 
+func TestPodManagerStopIgnoresUnimplementedSnapshotAgent(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager.SetSnapshotter(&snapshotterStub{
+		err: errors.New("rpc error: code = Unimplemented desc = unknown method CreateSnapshot for service agent.v1.WorkspaceAgentService"),
+	})
+
+	if err := manager.Stop("ws-123"); err != nil {
+		t.Fatalf("stop workspace with unimplemented snapshot agent: %v", err)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod deletion after ignored snapshot failure, got %v", err)
+	}
+}
+
 func TestPodManagerGetStatusReturnsPodPhase(t *testing.T) {
 	pods := newMemoryPodClient()
 	pvcs := newMemoryPVCClient()
@@ -427,6 +448,47 @@ func TestPodManagerDeleteIgnoresUnavailableUsageFlusher(t *testing.T) {
 
 	if err := manager.Delete("ws-123"); err != nil {
 		t.Fatalf("delete workspace with unavailable usage flusher: %v", err)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod to be deleted, got %v", err)
+	}
+	if _, err := services.Get("ws-123"); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected service to be deleted, got %v", err)
+	}
+	if _, err := pvcs.Get(context.Background(), "ws-123-pvc", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pvc to be deleted, got %v", err)
+	}
+}
+
+func TestPodManagerDeleteIgnoresUnimplementedUsageFlusher(t *testing.T) {
+	pods := newMemoryPodClient()
+	pvcs := newMemoryPVCClient()
+	services := newMemoryServiceClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	_, _ = services.Create(context.Background(), &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	_, _ = pvcs.Create(context.Background(), &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123-pvc",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, pvcs, services, PodManagerConfig{})
+	manager.SetUsageFlusher(&usageFlusherStub{
+		err: errors.New("rpc error: code = Unimplemented desc = unknown method FlushUsageWAL for service agent.v1.WorkspaceAgentService"),
+	})
+
+	if err := manager.Delete("ws-123"); err != nil {
+		t.Fatalf("delete workspace with unimplemented usage flusher: %v", err)
 	}
 	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected pod to be deleted, got %v", err)

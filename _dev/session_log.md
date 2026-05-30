@@ -999,3 +999,9 @@
 - M demo_app/lib/src/demo_bootstrap_config.dart
 - M demo_app/test/demo_firebase_bootstrap_test.dart
 - M demo_app/test/widget_test.dart
+30/05/26 08:29 [FIX] (pending) `dev-pro-large` Extended workspace cleanup compatibility to ignore `Unimplemented` snapshot and usage-flush RPCs from older but otherwise usable workspace-agent images, so local demo workspaces on mixed-version images can still be stopped or deleted successfully while terminal/debugging work continues.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go

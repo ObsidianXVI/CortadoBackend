@@ -444,3 +444,6 @@
 30/05/26 07:49
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 - PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+30/05/26 08:29
+- PASS `cd control-plane && go test ./internal/workspace`
+- PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
