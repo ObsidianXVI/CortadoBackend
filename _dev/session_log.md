@@ -983,3 +983,10 @@
 - M control-plane/cmd/server/main.go
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
+30/05/26 07:46 [FIX] (pending) `dev-pro-large` Made the idle monitor backward-compatible with older workspace-agent images by treating `GetIdleStatus` as optional, so a locally running control plane can still use terminal/file features against an older but otherwise healthy workspace agent without flooding logs or conflating version skew with the already-fixed network routing issue.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/agent_idle_client.go
+- M control-plane/internal/workspace/idle_monitor.go
+- M control-plane/internal/workspace/idle_monitor_test.go

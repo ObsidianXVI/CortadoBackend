@@ -93,11 +93,56 @@ func TestIdleMonitorStopsStaleWorkspaceWithoutAgentSignal(t *testing.T) {
 }
 
 type idleInspectorStub struct {
+	err      error
 	statuses map[string]IdleStatus
 }
 
 func (s idleInspectorStub) GetIdleStatus(_ context.Context, workspaceID string) (IdleStatus, error) {
+	if s.err != nil {
+		return IdleStatus{}, s.err
+	}
 	return s.statuses[workspaceID], nil
+}
+
+func TestIdleMonitorIgnoresUnsupportedIdleStatus(t *testing.T) {
+	now := time.Date(2026, time.May, 30, 7, 50, 0, 0, time.UTC)
+	repository := newMemoryRepository(
+		Workspace{
+			ID:         "ws-unsupported",
+			TenantID:   "tenant-1",
+			Status:     StatusRunning,
+			LastActive: now.Add(-10 * time.Minute),
+		},
+	)
+	provisioner := &provisionerStub{}
+	service := NewService(ServiceConfig{
+		Provisioner: provisioner,
+		Repository:  repository,
+		Now:         func() time.Time { return now },
+	})
+	monitor := NewIdleMonitor(IdleMonitorConfig{
+		IdleInspector: idleInspectorStub{
+			err: ErrIdleStatusUnsupported,
+		},
+		Logger:       log.New(ioDiscard{}, "", 0),
+		Now:          func() time.Time { return now },
+		PollInterval: time.Minute,
+		Service:      service,
+		StaleTimeout: 30 * time.Minute,
+	})
+
+	monitor.pollOnce(context.Background())
+
+	ws, err := repository.Get(context.Background(), "ws-unsupported")
+	if err != nil {
+		t.Fatalf("get workspace after unsupported idle poll: %v", err)
+	}
+	if ws.Status != StatusRunning {
+		t.Fatalf("unexpected workspace status after unsupported idle poll: %q", ws.Status)
+	}
+	if provisioner.stoppedWorkspaceID != "" {
+		t.Fatalf("workspace should not have been stopped, got %q", provisioner.stoppedWorkspaceID)
+	}
 }
 
 type ioDiscard struct{}

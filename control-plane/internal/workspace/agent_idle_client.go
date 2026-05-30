@@ -2,19 +2,24 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	agentpb "github.com/your-org/cortado/agent/gen/agent/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 const (
 	defaultAgentIdleAddressPort = 9090
 	defaultIdleStatusTimeout    = 10 * time.Second
 )
+
+var ErrIdleStatusUnsupported = errors.New("workspace agent does not implement GetIdleStatus")
 
 type ServiceResolver interface {
 	GetServiceDNS(workspaceID string) string
@@ -72,6 +77,9 @@ func (i *AgentIdleInspector) GetIdleStatus(ctx context.Context, workspaceID stri
 
 	response, err := agentpb.NewWorkspaceAgentServiceClient(conn).GetIdleStatus(callCtx, &agentpb.GetIdleStatusRequest{})
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return IdleStatus{}, ErrIdleStatusUnsupported
+		}
 		return IdleStatus{}, fmt.Errorf("get idle status from workspace %q: %w", workspaceID, err)
 	}
 

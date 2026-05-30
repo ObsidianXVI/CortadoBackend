@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 )
@@ -102,6 +103,9 @@ func (m *IdleMonitor) pollOnce(ctx context.Context) {
 			for _, ws := range running {
 				idleStatus, idleErr := m.idleInspector.GetIdleStatus(ctx, ws.ID)
 				if idleErr != nil {
+					if errors.Is(idleErr, ErrIdleStatusUnsupported) {
+						continue
+					}
 					m.logger.Printf("get idle status workspace=%s: %v", ws.ID, idleErr)
 					continue
 				}
