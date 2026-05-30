@@ -197,6 +197,15 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   bool get _hasUserScopedSession =>
       _authSession != null && (_sessionMode?.isUserScoped ?? false);
   String get _workspaceId => _workspaceIdController.text.trim();
+  String get _attachedWorkspaceId => _workspace?.id.trim() ?? '';
+  String get _activeWorkspaceId {
+    final attached = _attachedWorkspaceId;
+    if (attached.isNotEmpty) {
+      return attached;
+    }
+    return _workspaceId;
+  }
+
   String get _filePath => _filePathController.text.trim();
   bool get _hasLoadedFile => _loadedFilePath.isNotEmpty;
   @override
@@ -1508,7 +1517,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    final workspaceId = _workspaceId;
+    final workspaceId = _activeWorkspaceId;
     if (workspaceId.isEmpty) {
       _setInfoMessage('Enter a workspace ID first.');
       return;
@@ -1543,7 +1552,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     if (!_ensureWorkspaceManager()) {
       return;
     }
-    final workspaceId = _workspaceId;
+    final workspaceId = _activeWorkspaceId;
     if (workspaceId.isEmpty || _filePath.isEmpty) {
       _setInfoMessage('Workspace ID and target file are required.');
       return;
@@ -1617,23 +1626,24 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   }
 
   Future<void> _maybeConnectWorkspaceSocket() async {
-    if (_client == null || _workspaceId.isEmpty) {
+    final workspaceId = _activeWorkspaceId;
+    if (_client == null || workspaceId.isEmpty) {
       return;
     }
     if (_workspaceStatus?.status != WorkspaceLifecycleState.running) {
       return;
     }
-    if (_connectedWorkspaceId == _workspaceId) {
+    if (_connectedWorkspaceId == workspaceId) {
       return;
     }
 
     try {
-      await _client!.connect(_workspaceId);
+      await _client!.connect(workspaceId);
       if (!mounted) {
         return;
       }
       setState(() {
-        _connectedWorkspaceId = _workspaceId;
+        _connectedWorkspaceId = workspaceId;
       });
     } catch (error) {
       _setInfoMessage('Terminal socket attach failed: $error');
