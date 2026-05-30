@@ -950,3 +950,9 @@
 - M control-plane/internal/store/firestore_auth_store.go
 - M control-plane/internal/store/firestore_tenant_store.go
 - A control-plane/internal/store/firestore_store_test.go
+30/05/26 06:11 [FIX] (pending) `dev-pro-large` Fixed the development tenant-claim bootstrap path by stripping reserved Firebase/OIDC token fields before calling `SetCustomUserClaims`, so browser sign-ins no longer fail claim assignment on built-in keys like `auth_time` while preserving real custom claims and the requested tenant assignment.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/auth/dev_bootstrap.go
+- M control-plane/internal/auth/dev_bootstrap_test.go

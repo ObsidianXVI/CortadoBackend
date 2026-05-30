@@ -44,6 +44,55 @@ func TestDevFirebaseBootstrapServiceAssignsDefaultTenantClaim(t *testing.T) {
 	}
 }
 
+func TestDevFirebaseBootstrapServiceSkipsReservedTokenClaims(t *testing.T) {
+	t.Parallel()
+
+	manager := &firebaseClaimsManagerStub{}
+	service, err := NewDevFirebaseBootstrapService(DevFirebaseBootstrapConfig{
+		DefaultTenantID: "demo-tenant",
+		Enabled:         true,
+		Manager:         manager,
+		TenantClaim:     "tenant_id",
+	})
+	if err != nil {
+		t.Fatalf("new dev firebase bootstrap service: %v", err)
+	}
+
+	_, err = service.AssignTenantClaim(
+		context.Background(),
+		&VerifiedFirebaseToken{
+			UID: "firebase-user-1",
+			Claims: map[string]any{
+				"auth_time": 1710000000,
+				"firebase":  map[string]any{"sign_in_provider": "password"},
+				"iss":       "https://securetoken.google.com/cortado-ide",
+				"role":      "tester",
+				"tenant_id": "old-tenant",
+			},
+		},
+		"demo-tenant",
+	)
+	if err != nil {
+		t.Fatalf("assign tenant claim: %v", err)
+	}
+
+	if _, found := manager.claims["auth_time"]; found {
+		t.Fatalf("expected reserved auth_time claim to be removed: %#v", manager.claims)
+	}
+	if _, found := manager.claims["firebase"]; found {
+		t.Fatalf("expected reserved firebase claim to be removed: %#v", manager.claims)
+	}
+	if _, found := manager.claims["iss"]; found {
+		t.Fatalf("expected reserved iss claim to be removed: %#v", manager.claims)
+	}
+	if got := manager.claims["role"]; got != "tester" {
+		t.Fatalf("expected custom role claim to be preserved, got %v", got)
+	}
+	if got := manager.claims["tenant_id"]; got != "demo-tenant" {
+		t.Fatalf("expected tenant claim to be updated, got %v", got)
+	}
+}
+
 func TestDevFirebaseBootstrapServiceRejectsWhenDisabled(t *testing.T) {
 	t.Parallel()
 

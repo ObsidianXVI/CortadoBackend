@@ -422,3 +422,6 @@
 - PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/store ./internal/auth ./internal/api ./internal/middleware`
 - PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
 - PASS `cd agent && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`
+30/05/26 06:11
+- PASS `cd control-plane && GOTOOLCHAIN=local go test ./internal/auth ./internal/api ./internal/middleware`
+- PASS `cd control-plane && CGO_ENABLED=0 GOTOOLCHAIN=local go build ./...`

@@ -6,6 +6,26 @@ import (
 	"strings"
 )
 
+var reservedFirebaseCustomClaimKeys = map[string]struct{}{
+	"acr":       {},
+	"amr":       {},
+	"at_hash":   {},
+	"aud":       {},
+	"auth_time": {},
+	"azp":       {},
+	"cnf":       {},
+	"c_hash":    {},
+	"exp":       {},
+	"firebase":  {},
+	"iat":       {},
+	"iss":       {},
+	"jti":       {},
+	"nbf":       {},
+	"nonce":     {},
+	"sub":       {},
+	"user_id":   {},
+}
+
 var ErrDevBootstrapDisabled = errors.New("dev firebase bootstrap is disabled")
 
 type FirebaseIdentityManager interface {
@@ -70,7 +90,7 @@ func (s *DevFirebaseBootstrapService) AssignTenantClaim(
 		resolvedTenantID = s.defaultTenantID
 	}
 
-	claims := MergeFirebaseClaims(token.Claims, map[string]any{
+	claims := MergeFirebaseClaims(sanitizeFirebaseCustomClaims(token.Claims), map[string]any{
 		s.tenantClaim: resolvedTenantID,
 	})
 	if err := s.manager.SetCustomUserClaims(ctx, token.UID, claims); err != nil {
@@ -81,4 +101,19 @@ func (s *DevFirebaseBootstrapService) AssignTenantClaim(
 		TenantID: resolvedTenantID,
 		UserID:   strings.TrimSpace(token.UID),
 	}, nil
+}
+
+func sanitizeFirebaseCustomClaims(claims map[string]any) map[string]any {
+	sanitized := make(map[string]any, len(claims))
+	for key, value := range claims {
+		normalized := strings.TrimSpace(key)
+		if normalized == "" {
+			continue
+		}
+		if _, reserved := reservedFirebaseCustomClaimKeys[normalized]; reserved {
+			continue
+		}
+		sanitized[normalized] = value
+	}
+	return sanitized
 }
