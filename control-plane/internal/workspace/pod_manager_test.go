@@ -437,7 +437,10 @@ func TestPodManagerStopCreatesSnapshotBeforeDeletingPod(t *testing.T) {
 			Namespace: defaultWorkspaceNamespace,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+	})
 	snapshotter := &snapshotterStub{}
 	manager.SetSnapshotter(snapshotter)
 
@@ -452,7 +455,7 @@ func TestPodManagerStopCreatesSnapshotBeforeDeletingPod(t *testing.T) {
 	}
 }
 
-func TestPodManagerStopIgnoresSnapshotTimeout(t *testing.T) {
+func TestPodManagerStopSkipsSnapshotWhenRepositoryIsNotConfigured(t *testing.T) {
 	pods := newMemoryPodClient()
 	_, _ = pods.Create(context.Background(), &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -461,6 +464,32 @@ func TestPodManagerStopIgnoresSnapshotTimeout(t *testing.T) {
 		},
 	}, metav1.CreateOptions{})
 	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	snapshotter := &snapshotterStub{}
+	manager.SetSnapshotter(snapshotter)
+
+	if err := manager.Stop("ws-123"); err != nil {
+		t.Fatalf("stop workspace without snapshot repository: %v", err)
+	}
+	if snapshotter.workspaceID != "" {
+		t.Fatalf("expected snapshot to be skipped, got workspace %q", snapshotter.workspaceID)
+	}
+	if _, err := pods.Get(context.Background(), "ws-123", metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected pod to be deleted after stop, got %v", err)
+	}
+}
+
+func TestPodManagerStopIgnoresSnapshotTimeout(t *testing.T) {
+	pods := newMemoryPodClient()
+	_, _ = pods.Create(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ws-123",
+			Namespace: defaultWorkspaceNamespace,
+		},
+	}, metav1.CreateOptions{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+	})
 	manager.SetSnapshotter(&snapshotterStub{err: context.DeadlineExceeded})
 
 	if err := manager.Stop("ws-123"); err != nil {
@@ -479,7 +508,10 @@ func TestPodManagerStopIgnoresSnapshotDeadlineExceededStatus(t *testing.T) {
 			Namespace: defaultWorkspaceNamespace,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+	})
 	manager.SetSnapshotter(&snapshotterStub{
 		err: status.Error(codes.DeadlineExceeded, "context deadline exceeded while waiting for connections to become ready"),
 	})
@@ -500,7 +532,10 @@ func TestPodManagerStopIgnoresUnavailableSnapshotAgent(t *testing.T) {
 			Namespace: defaultWorkspaceNamespace,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+	})
 	manager.SetSnapshotter(&snapshotterStub{
 		err: errors.New("rpc error: code = Unavailable desc = name resolver error: produced zero addresses"),
 	})
@@ -521,7 +556,10 @@ func TestPodManagerStopIgnoresUnimplementedSnapshotAgent(t *testing.T) {
 			Namespace: defaultWorkspaceNamespace,
 		},
 	}, metav1.CreateOptions{})
-	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{})
+	manager := newPodManager(pods, newMemoryPVCClient(), newMemoryServiceClient(), PodManagerConfig{
+		SnapshotBucket:   "cortado-snapshots-cortado-ide-dev",
+		SnapshotPassword: "snapshot-secret",
+	})
 	manager.SetSnapshotter(&snapshotterStub{
 		err: errors.New("rpc error: code = Unimplemented desc = unknown method CreateSnapshot for service agent.v1.WorkspaceAgentService"),
 	})

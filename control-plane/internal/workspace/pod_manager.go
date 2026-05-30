@@ -446,7 +446,7 @@ func (m *PodManager) Stop(workspaceID string) error {
 		return errors.New("workspaceID is required")
 	}
 
-	if m.snapshotter != nil {
+	if m.snapshotter != nil && m.snapshotsEnabled() {
 		if err := m.snapshotter.CreateSnapshot(context.Background(), workspaceID); err != nil &&
 			!isIgnorableAgentCleanupError(err) {
 			return fmt.Errorf("create workspace snapshot %q: %w", workspaceID, err)
@@ -506,6 +506,10 @@ func (m *PodManager) GetServiceDNS(workspaceID string) string {
 		}
 	}
 	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, m.namespace, m.dnsDomain)
+}
+
+func (m *PodManager) snapshotsEnabled() bool {
+	return strings.TrimSpace(m.snapshotBucket) != "" && strings.TrimSpace(m.snapshotPassword) != ""
 }
 
 func isIgnorableAgentCleanupError(err error) bool {
