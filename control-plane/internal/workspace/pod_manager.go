@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -364,7 +367,10 @@ func (m *PodManager) Stop(workspaceID string) error {
 	}
 
 	if m.snapshotter != nil {
-		if err := m.snapshotter.CreateSnapshot(context.Background(), workspaceID); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		if err := m.snapshotter.CreateSnapshot(context.Background(), workspaceID); err != nil &&
+			!errors.Is(err, context.DeadlineExceeded) &&
+			!errors.Is(err, context.Canceled) &&
+			!isIgnorableAgentUnavailable(err) {
 			return fmt.Errorf("create workspace snapshot %q: %w", workspaceID, err)
 		}
 	}
@@ -379,7 +385,10 @@ func (m *PodManager) Delete(workspaceID string) error {
 
 	if _, err := m.pods.Get(context.Background(), workspaceID, metav1.GetOptions{}); err == nil {
 		if m.usageFlusher != nil {
-			if err := m.usageFlusher.FlushUsageWAL(context.Background(), workspaceID); err != nil {
+			if err := m.usageFlusher.FlushUsageWAL(context.Background(), workspaceID); err != nil &&
+				!errors.Is(err, context.DeadlineExceeded) &&
+				!errors.Is(err, context.Canceled) &&
+				!isIgnorableAgentUnavailable(err) {
 				return fmt.Errorf("flush usage WAL for workspace %q: %w", workspaceID, err)
 			}
 		}
@@ -415,6 +424,16 @@ func (m *PodManager) GetStatus(workspaceID string) (corev1.PodPhase, error) {
 
 func (m *PodManager) GetServiceDNS(workspaceID string) string {
 	return fmt.Sprintf("%s.%s.svc.%s", workspaceID, m.namespace, m.dnsDomain)
+}
+
+func isIgnorableAgentUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if status.Code(err) == codes.Unavailable {
+		return true
+	}
+	return strings.Contains(err.Error(), "produced zero addresses")
 }
 
 func (m *PodManager) deletePod(workspaceID string) error {

@@ -956,3 +956,9 @@
 - M _dev/test_status.md
 - M control-plane/internal/auth/dev_bootstrap.go
 - M control-plane/internal/auth/dev_bootstrap_test.go
+30/05/26 07:29 [FIX] (pending) `dev-pro-large` Fixed workspace cleanup for never-scheduled pods by treating unreachable-agent flush/snapshot RPCs as ignorable during stop/delete, which lets stale or manually deleted workspaces with zero headless-service endpoints clean up successfully instead of failing on `name resolver error: produced zero addresses`.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M control-plane/internal/workspace/pod_manager.go
+- M control-plane/internal/workspace/pod_manager_test.go
