@@ -1542,6 +1542,15 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   }
 
   Future<void> _refreshWorkspaceState() async {
+    if (mounted) {
+      setState(() {
+        _workspace = null;
+        _workspaceStatus = null;
+        _connectedWorkspaceId = null;
+      });
+      _clearLoadedFile();
+    }
+
     final workspace = await _workspaceManager!.getWorkspace(_workspaceId);
     if (!mounted) {
       return;
@@ -1599,8 +1608,11 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _client = null;
     _workspaceManager = null;
     _authSession = null;
+    _workspace = null;
+    _workspaceStatus = null;
     _connectedWorkspaceId = null;
     _sessionMode = null;
+    _clearLoadedFile();
   }
 
   bool _ensureWorkspaceManager() {
@@ -1682,8 +1694,18 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       baseUrl: baseUrl,
       authSession: session,
     );
-    _connectedWorkspaceId = null;
-    _sessionMode = mode;
+    if (mounted) {
+      setState(() {
+        _workspace = null;
+        _workspaceStatus = null;
+        _connectedWorkspaceId = null;
+        _sessionMode = mode;
+      });
+      _clearLoadedFile();
+    } else {
+      _connectedWorkspaceId = null;
+      _sessionMode = mode;
+    }
     _setInfoMessage(infoMessage);
 
     if (_workspaceId.isNotEmpty) {

@@ -77,6 +77,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if connectHandler == nil {
 		connectHandler = gateway.NewConnectHandler(gateway.ConnectHandlerConfig{})
 	}
+	if cfg.WorkspaceSvc != nil {
+		connectHandler = authorizeWorkspaceConnect(cfg.WorkspaceSvc, connectHandler)
+	}
 	var jwksJSON []byte
 	if cfg.JWKSProvider != nil {
 		jwksJSON = cfg.JWKSProvider.JWKS()
@@ -160,4 +163,21 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	return router
+}
+
+func authorizeWorkspaceConnect(service WorkspaceService, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenantID, _, ok := requestActor(r)
+		if !ok {
+			http.Error(w, "missing tenant context", http.StatusUnauthorized)
+			return
+		}
+
+		if _, err := service.GetWorkspace(r.Context(), tenantID, chi.URLParam(r, "id")); err != nil {
+			writeWorkspaceError(w, err)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
