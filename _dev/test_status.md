@@ -255,6 +255,11 @@
 30/05/26 11:07
 - PASS `cd control-plane && go test ./internal/workspace`
 - PASS `cd control-plane && CGO_ENABLED=0 go build ./...`
+30/05/26 11:14
+- PASS `docker build --build-arg INCLUDE_DART_SDK=true -t us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260530-1112-file-rpc agent`
+- PASS `docker push us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260530-1112-file-rpc`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter test`
+- PASS `cd demo_app && /home/OBSiDIAN/tools/flutter/bin/flutter analyze`
 26/05/26 01:58
 - PASS `cd control-plane && go test ./...`
 - PASS `cd control-plane && go build ./...`

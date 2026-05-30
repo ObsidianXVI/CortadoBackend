@@ -16,7 +16,7 @@ the platform-tenant / platform-key backend flow without leaving the demo UI.
 - platform-tenant bootstrap plus platform API key minting through `/v1/platform-tenants/...`
 - real workspace provisioning/start/stop/delete against the current backend
 - one shared Cortado workspace image:
-  `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613`
+  `us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260530-1112-file-rpc`
 - manual bootstrap of Flutter inside the workspace terminal
 - the same `lib/main.dart` file edited through:
   - `flutter_monaco`
@@ -42,7 +42,7 @@ CORTADO_FIREBASE_MEASUREMENT_ID=
 CORTADO_FIREBASE_EMAIL=demo@example.com
 CORTADO_FIREBASE_PASSWORD=change-me
 CORTADO_FIREBASE_DEV_TENANT_ID=demo-tenant
-CORTADO_WORKSPACE_IMAGE=us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:781d613
+CORTADO_WORKSPACE_IMAGE=us-central1-docker.pkg.dev/cortado-ide/cortado-dev/cortado-workspace:20260530-1112-file-rpc
 CORTADO_WORKSPACE_CPU=1
 CORTADO_WORKSPACE_MEMORY_GB=2
 CORTADO_WORKSPACE_STORAGE_GB=10

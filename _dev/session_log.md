@@ -1051,3 +1051,10 @@
 - M _dev/test_status.md
 - M control-plane/internal/workspace/pod_manager.go
 - M control-plane/internal/workspace/pod_manager_test.go
+30/05/26 11:14 [FIX] (pending) `dev-pro-large` Confirmed the current demo workspace image `781d613` still lacked the `ReadFile` RPC, built and pushed a fresh `cortado-workspace:20260530-1112-file-rpc` image from the current agent code, and updated the demo defaults/docs to provision future workspaces from that new tag so `Load File` and `Save File` land on an image that matches today’s control-plane and Flutter package contracts.
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M demo_app/.env.example
+- M demo_app/README.md
+- M demo_app/lib/src/demo_bootstrap_config.dart
