@@ -1067,3 +1067,8 @@
 - M demo_app/lib/src/demo_showcase_app.dart
 30/05/26 12:11 [FIX] (7d28fa6) `dev-pro-large` Tightened the demo workspace binding again so terminal and file operations now prefer the actually attached workspace object over the editable text field, which eliminates another stale-ID path where a newly created or reattached workspace was healthy in backend state but the UI still issued file/socket calls against an older deleted workspace ID.
 - M demo_app/lib/src/demo_showcase_app.dart
+30/05/26 12:20 [FIX] (2db3d99) `dev-pro-large` Fixed a deeper file-routing bug by separating missing path/file errors from missing workspace errors in the control plane and demo: agent `NotFound` responses from file RPCs now propagate as path-specific 404s instead of masquerading as `workspace not found`, which had been causing healthy workspaces to look deleted whenever `Load File` targeted a file that did not exist yet.
+- M control-plane/internal/api/workspaces.go
+- M control-plane/internal/workspace/agent_file_client.go
+- M control-plane/internal/workspace/service.go
+- M demo_app/lib/src/demo_showcase_app.dart
