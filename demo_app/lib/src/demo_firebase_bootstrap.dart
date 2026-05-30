@@ -121,10 +121,7 @@ class DemoFirebaseBootstrap {
       return _auth!;
     }
 
-    final existingApp = Firebase.apps.where((app) => app.name == _appName);
-    if (existingApp.isNotEmpty) {
-      _app = existingApp.first;
-    } else {
+    try {
       _app = await Firebase.initializeApp(
         name: _appName,
         options: FirebaseOptions(
@@ -137,6 +134,11 @@ class DemoFirebaseBootstrap {
           storageBucket: _nullable(config.firebaseStorageBucket),
         ),
       );
+    } on FirebaseException catch (error) {
+      if (error.code != 'duplicate-app') {
+        rethrow;
+      }
+      _app = Firebase.app(_appName);
     }
 
     _auth = FirebaseAuth.instanceFor(app: _app!);
@@ -172,37 +174,94 @@ class DemoFirebaseBootstrap {
 
   Future<DemoIssuedApiKey> mintApiKey(String baseUrl) async {
     final idToken = await currentIdToken(forceRefresh: true);
-    final response = await http.post(
-      _endpoint(baseUrl, '/v1/api-keys'),
-      headers: <String, String>{
-        'Authorization': 'Bearer $idToken',
-      },
-    );
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw StateError(_errorMessage(response));
-    }
-
-    return DemoIssuedApiKey.fromJson(_decodeObject(response.body));
+    return mintApiKeyWithBearerToken(baseUrl, bearerToken: idToken);
   }
 
   Future<List<DemoApiKeyRecord>> listApiKeys(String baseUrl) async {
     final idToken = await currentIdToken(forceRefresh: true);
-    final response = await http.get(
-      _endpoint(baseUrl, '/v1/api-keys'),
-      headers: <String, String>{
-        'Authorization': 'Bearer $idToken',
-      },
-    );
-    if (response.statusCode != 200) {
-      throw StateError(_errorMessage(response));
-    }
+    return listApiKeysWithBearerToken(baseUrl, bearerToken: idToken);
+  }
 
-    final payload = _decodeObject(response.body);
-    final rawKeys = payload['apiKeys'] as List<Object?>? ?? const <Object?>[];
-    return rawKeys
-        .whereType<Map<Object?, Object?>>()
-        .map((json) => DemoApiKeyRecord.fromJson(json.cast<String, dynamic>()))
-        .toList(growable: false);
+  Future<DemoIssuedApiKey> mintApiKeyWithSession(
+    String baseUrl,
+    CortadoAuthSession session, {
+    http.Client? client,
+  }) async {
+    final accessToken = await _requireSessionAccessToken(session);
+    return mintApiKeyWithBearerToken(
+      baseUrl,
+      bearerToken: accessToken,
+      client: client,
+    );
+  }
+
+  Future<List<DemoApiKeyRecord>> listApiKeysWithSession(
+    String baseUrl,
+    CortadoAuthSession session, {
+    http.Client? client,
+  }) async {
+    final accessToken = await _requireSessionAccessToken(session);
+    return listApiKeysWithBearerToken(
+      baseUrl,
+      bearerToken: accessToken,
+      client: client,
+    );
+  }
+
+  Future<DemoIssuedApiKey> mintApiKeyWithBearerToken(
+    String baseUrl, {
+    required String bearerToken,
+    http.Client? client,
+  }) async {
+    final transport = client ?? http.Client();
+    try {
+      final response = await transport.post(
+        _endpoint(baseUrl, '/v1/api-keys'),
+        headers: <String, String>{
+          'Authorization': 'Bearer ${bearerToken.trim()}',
+        },
+      );
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw StateError(_errorMessage(response));
+      }
+
+      return DemoIssuedApiKey.fromJson(_decodeObject(response.body));
+    } finally {
+      if (client == null) {
+        transport.close();
+      }
+    }
+  }
+
+  Future<List<DemoApiKeyRecord>> listApiKeysWithBearerToken(
+    String baseUrl, {
+    required String bearerToken,
+    http.Client? client,
+  }) async {
+    final transport = client ?? http.Client();
+    try {
+      final response = await transport.get(
+        _endpoint(baseUrl, '/v1/api-keys'),
+        headers: <String, String>{
+          'Authorization': 'Bearer ${bearerToken.trim()}',
+        },
+      );
+      if (response.statusCode != 200) {
+        throw StateError(_errorMessage(response));
+      }
+
+      final payload = _decodeObject(response.body);
+      final rawKeys = payload['apiKeys'] as List<Object?>? ?? const <Object?>[];
+      return rawKeys
+          .whereType<Map<Object?, Object?>>()
+          .map(
+              (json) => DemoApiKeyRecord.fromJson(json.cast<String, dynamic>()))
+          .toList(growable: false);
+    } finally {
+      if (client == null) {
+        transport.close();
+      }
+    }
   }
 
   Future<DemoTenantAssignment> assignDevelopmentTenant(
@@ -333,15 +392,20 @@ class DemoFirebaseBootstrap {
   static Future<Map<String, String>> _sessionHeaders(
     CortadoAuthSession session,
   ) async {
+    return <String, String>{
+      'Authorization': 'Bearer ${await _requireSessionAccessToken(session)}',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  static Future<String> _requireSessionAccessToken(
+    CortadoAuthSession session,
+  ) async {
     final accessToken = await session.accessTokenForHttpRequest();
     if (accessToken == null || accessToken.trim().isEmpty) {
       throw StateError('Create a Cortado session first.');
     }
-
-    return <String, String>{
-      'Authorization': 'Bearer ${accessToken.trim()}',
-      'Content-Type': 'application/json',
-    };
+    return accessToken.trim();
   }
 
   static Uri _endpoint(String baseUrl, String path) {

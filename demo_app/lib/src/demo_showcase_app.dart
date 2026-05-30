@@ -1065,18 +1065,23 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     await _runBusy('Minting Cortado API key', () async {
       final baseUrl = _baseUrlController.text.trim();
       DemoIssuedApiKey issued;
-      try {
-        issued = await _firebaseBootstrap.mintApiKey(baseUrl);
-      } on StateError catch (error) {
-        if (!error.toString().contains('firebase tenant claim is required')) {
-          rethrow;
+      if (_hasUserScopedSession && _authSession != null) {
+        issued = await _firebaseBootstrap.mintApiKeyWithSession(
+          baseUrl,
+          _authSession!,
+        );
+      } else {
+        try {
+          issued = await _firebaseBootstrap.mintApiKey(baseUrl);
+        } on StateError catch (error) {
+          if (!error.toString().contains('firebase tenant claim is required')) {
+            rethrow;
+          }
+          await _assignDevelopmentTenantInternal(baseUrl);
+          issued = await _firebaseBootstrap.mintApiKey(baseUrl);
         }
-        await _assignDevelopmentTenantInternal(baseUrl);
-        issued = await _firebaseBootstrap.mintApiKey(baseUrl);
       }
-      final listed = await _firebaseBootstrap.listApiKeys(
-        baseUrl,
-      );
+      final listed = await _loadPersonalApiKeys(baseUrl);
 
       _apiKeyController.text = issued.apiKey;
       _userIdController.text = issued.record.userId;
@@ -1225,8 +1230,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   Future<void> _assignDevelopmentTenant() async {
     await _runBusy('Assigning development tenant', () async {
       final assignment = await _assignDevelopmentTenantInternal(
-        _baseUrlController.text.trim(),
-      );
+          _baseUrlController.text.trim());
       _setInfoMessage(
         'Assigned dev tenant ${assignment.tenantId} to ${assignment.userId}.',
       );
@@ -1235,9 +1239,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
 
   Future<void> _refreshIssuedApiKeys() async {
     await _runBusy('Loading issued API keys', () async {
-      final listed = await _firebaseBootstrap.listApiKeys(
-        _baseUrlController.text.trim(),
-      );
+      final listed = await _loadPersonalApiKeys(_baseUrlController.text.trim());
       if (!mounted) {
         return;
       }
@@ -1261,9 +1263,7 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
     _userIdController.text = user.uid;
     List<DemoApiKeyRecord> listed = _issuedApiKeys;
     try {
-      listed = await _firebaseBootstrap.listApiKeys(
-        _baseUrlController.text.trim(),
-      );
+      listed = await _loadPersonalApiKeys(_baseUrlController.text.trim());
     } catch (_) {
       listed = const <DemoApiKeyRecord>[];
     }
@@ -1282,10 +1282,20 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
   Future<DemoTenantAssignment> _assignDevelopmentTenantInternal(
     String baseUrl,
   ) async {
-    final assignment = await _firebaseBootstrap.assignDevelopmentTenant(
-      baseUrl,
-      tenantId: widget.initialConfig.firebaseDevTenantId,
-    );
+    DemoTenantAssignment assignment;
+    try {
+      assignment = await _firebaseBootstrap.assignDevelopmentTenant(
+        baseUrl,
+        tenantId: widget.initialConfig.firebaseDevTenantId,
+      );
+    } on StateError catch (error) {
+      if (!error.toString().contains('status 404')) {
+        rethrow;
+      }
+      throw StateError(
+        'The development tenant-claim route is not mounted. Restart the control plane with CORTADO_ENV=development, or skip this step and use Exchange Session instead.',
+      );
+    }
     if (!mounted) {
       return assignment;
     }
@@ -1294,6 +1304,13 @@ class _DemoShowcaseScreenState extends State<DemoShowcaseScreen> {
       _tenantAssignment = assignment;
     });
     return assignment;
+  }
+
+  Future<List<DemoApiKeyRecord>> _loadPersonalApiKeys(String baseUrl) async {
+    if (_hasUserScopedSession && _authSession != null) {
+      return _firebaseBootstrap.listApiKeysWithSession(baseUrl, _authSession!);
+    }
+    return _firebaseBootstrap.listApiKeys(baseUrl);
   }
 
   Future<void> _authenticate() async {

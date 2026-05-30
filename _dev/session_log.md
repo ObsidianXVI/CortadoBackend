@@ -926,3 +926,13 @@
 - M demo_app/lib/src/demo_firebase_bootstrap.dart
 - M demo_app/lib/src/demo_showcase_app.dart
 - M demo_app/test/widget_test.dart
+30/05/26 05:43 [FIX] (pending) `dev-pro-large` Fixed the managed-auth demo regression by avoiding pre-init `Firebase.apps` lookups on web, routing personal API key mint/list calls through the exchanged Cortado user session when available, clarifying the dev-only tenant-claim route failure mode, and extending demo/package auth tests plus ignore rules for local env and Flutter-generated files.
+- M .gitignore
+- M CURRENT_TASK.md
+- M _dev/session_log.md
+- M _dev/test_status.md
+- M demo_app/lib/src/demo_firebase_bootstrap.dart
+- M demo_app/lib/src/demo_showcase_app.dart
+- A demo_app/test/demo_firebase_bootstrap_test.dart
+- M flutter/lib/src/auth/cortado_firebase_auth.dart
+- M flutter/test/cortado_firebase_auth_test.dart

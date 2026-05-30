@@ -172,22 +172,23 @@ class FirebaseCortadoIdentityClient implements CortadoFirebaseIdentityClient {
     }
 
     if (firebaseOptions != null) {
-      final existingApp =
-          Firebase.apps.where((app) => app.name == firebaseAppName);
-      if (existingApp.isNotEmpty) {
-        _app = existingApp.first;
-      } else {
-        _app = await Firebase.initializeApp(
-          name: firebaseAppName,
-          options: firebaseOptions!,
-        );
-      }
+      _app = await initializeOrReuseNamedFirebaseApp<FirebaseApp>(
+        initialize: () {
+          return Firebase.initializeApp(
+            name: firebaseAppName,
+            options: firebaseOptions!,
+          );
+        },
+        reuseExisting: () => Firebase.app(firebaseAppName),
+      );
 
       _firebaseAuth = FirebaseAuth.instanceFor(app: _app!);
       return _firebaseAuth!;
     }
 
-    if (Firebase.apps.isEmpty) {
+    try {
+      Firebase.app();
+    } on Object {
       throw StateError(
         'Provide firebaseOptions or an initialized FirebaseAuth instance before using CortadoFirebaseAuthClient.',
       );
@@ -213,6 +214,20 @@ class FirebaseCortadoIdentityClient implements CortadoFirebaseIdentityClient {
       displayName: user.displayName?.trim(),
       email: user.email?.trim(),
     );
+  }
+}
+
+Future<T> initializeOrReuseNamedFirebaseApp<T>({
+  required Future<T> Function() initialize,
+  required T Function() reuseExisting,
+}) async {
+  try {
+    return await initialize();
+  } on FirebaseException catch (error) {
+    if (error.code != 'duplicate-app') {
+      rethrow;
+    }
+    return reuseExisting();
   }
 }
 

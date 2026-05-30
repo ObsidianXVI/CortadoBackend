@@ -2,12 +2,53 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cortado/cortado.dart';
+import 'package:cortado/src/auth/cortado_firebase_auth.dart' as internal;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
   group('CortadoFirebaseAuthClient', () {
+    test('reuses an existing Firebase app after duplicate-app errors',
+        () async {
+      final result = await internal.initializeOrReuseNamedFirebaseApp<String>(
+        initialize: () async {
+          throw FirebaseException(
+            plugin: 'core',
+            code: 'duplicate-app',
+            message:
+                'A Firebase app named "cortado-managed-auth" already exists.',
+          );
+        },
+        reuseExisting: () => 'existing-app',
+      );
+
+      expect(result, 'existing-app');
+    });
+
+    test('rethrows non-duplicate Firebase initialization errors', () async {
+      expect(
+        () => internal.initializeOrReuseNamedFirebaseApp<String>(
+          initialize: () async {
+            throw FirebaseException(
+              plugin: 'core',
+              code: 'invalid-app-credential',
+              message: 'Bad credentials.',
+            );
+          },
+          reuseExisting: () => 'existing-app',
+        ),
+        throwsA(
+          isA<FirebaseException>().having(
+            (error) => error.code,
+            'code',
+            'invalid-app-credential',
+          ),
+        ),
+      );
+    });
+
     test('email sign-in exchanges the Firebase token into a Cortado session',
         () async {
       final accessToken = _jwtExpiringAt(DateTime.utc(2030, 5, 23, 15));
